@@ -1,59 +1,71 @@
 import os
-import glob
-import json
-import tqdm
-from datetime import datetime
-from dotenv import load_dotenv
 from pymongo import MongoClient
-from constants import constants as c
-from pymongo.database import Database
-from pymongo.collection import Collection
-from typing import Tuple, List, Any, Mapping, Dict
-from pymongo. errors import ConnectionFailure
-from pymongo.operations import SearchIndexModel
-
-from events_dataset.events_dataset_utils import create_batches_of_filepaths
+from dotenv import load_dotenv
 
 
-def connect_to_mongodb() -> (Tuple[None, None] |
-                             Tuple[MongoClient[Mapping[str, Any] | Any], Database[Mapping[str, Any] | Any]]):
-    """
-    Set up a connection to the MongoDB database and returns the client and the database object. The credentials are loaded from
-    the .env file.
-
-    :return: A tuple with the MongoDB client and the database object
-    """
-
-    # Load the environment variables from the .env file
+def load_env():
+    """Loads environment variables from .env file."""
     load_dotenv()
 
-    # Get the MongoDB credentials
-    mongodb_username = os.getenv("MONGODB_USERNAME")
-    mongodb_password = os.getenv("MONGODB_PASSWORD")
-    mongodb_cluster  = os.getenv("MONGODB_CLUSTER")
 
-    # Construct the MongoDB URI
-    mongodb_uri = f"mongodb+srv://{mongodb_username}:{mongodb_password}@{mongodb_cluster}.mongodb.net/"
+def get_mongodb_uri() -> str:
+    """Fetches MongoDB URI from environment."""
+    uri = os.getenv("MONGODB_URI")
+    if not uri:
+        raise ValueError("MONGODB_URI is missing in the .env file")
+    return uri
 
-    # Connect to MongoDB
-    mongo_client = MongoClient(mongodb_uri)
 
-    # Check if the connection is successful
-    mongo_client.admin.command('ping')
+def connect_to_mongodb():
+    """
+    Connects to MongoDB using URI from environment variables.
 
-    return mongo_client, mongo_client[c.AWS_GEN_AI]
+    Returns:
+        MongoClient: Connected MongoDB client instance.
+    """
+    load_env()
+    uri = get_mongodb_uri()
+
+    try:
+        client = MongoClient(uri)
+        client.admin.command("ping")  # Check connectivity
+        print("Connected to MongoDB successfully.")
+        return client
+    except Exception as e:
+        print("Could not connect to MongoDB:", e)
+        return None
 
 
 def normalize_vector_search_score(score: float) -> float:
     """
-    A method to normalize the vector search score.
+    Normalizes a similarity score from vector search.
 
-    :param score: The score to normalize
+    Args:
+        score (float): The original similarity score.
 
-    :return: The normalized score
+    Returns:
+        float: The normalized score between 0 and 1.
     """
-
     min_val = 0.965
     max_val = 1.0
+    return max(0.0, (score - min_val) / (max_val - min_val))
 
-    return max(0.0, ((score - min_val) / (max_val - min_val)))
+
+if __name__ == "__main__":
+    # Optional: check individual parts of the connection string (debug only, don't print values)
+    if os.getenv("MONGODB_CLUSTER"):
+        print("Cluster name is set.")
+    if os.getenv("MONGODB_USERNAME"):
+        print("Username is set.")
+    if os.getenv("MONGODB_PASSWORD"):
+        print("Password is set.")
+
+    client = connect_to_mongodb()
+
+    if client:
+        # Optionally select a database if known
+        db_name = os.getenv("MONGODB_DB", "admin")
+        db = client[db_name]
+        print(f"Using database: {db.name}")
+    else:
+        print("Failed to connect to MongoDB.")
