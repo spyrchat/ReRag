@@ -35,7 +35,7 @@ class TitanEmbeddingWrapper:
                 print(
                     f"Failed to generate embedding for text: {text[:30]}... Error: {e}")
                 # Fallback to a zero vector if embedding fails
-                embeddings.append([0.0] * 1536)
+                embeddings.append([0.0] * 1024)
         return embeddings
 
 

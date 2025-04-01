@@ -1,9 +1,10 @@
 import os
 import logging
-from typing import List
+from typing import List, Dict
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from dotenv import load_dotenv
+from embeddings import get_titan_embedding
 
 
 def load_env() -> None:
@@ -37,6 +38,51 @@ def connect_to_mongodb() -> MongoClient:
     except Exception as e:
         logging.error("Failed to connect to MongoDB.")
         raise ConnectionError(f"Failed to connect to MongoDB: {e}")
+
+
+class MongoAtlasRetriever:
+    def __init__(self, collection: Collection, embedding_wrapper, index_name: str = "vector-index", top_k: int = 5):
+        """
+        Args:
+            collection (Collection): pymongo collection instance
+            embedding_wrapper: An embedding wrapper instance (e.g., TitanEmbeddingWrapper).
+            index_name (str): Atlas Search vector index name.
+            top_k (int): Number of top results to return.
+        """
+        self.collection = collection
+        self.embedding_wrapper = embedding_wrapper
+        self.index_name = index_name
+        self.top_k = top_k
+
+    def retrieve(self, query: str) -> List[Dict]:
+        """
+        Retrieve top-k documents for a given query.
+
+        Args:
+            query (str): The text query.
+
+        Returns:
+            List[Dict]: List of documents with similarity scores.
+        """
+        # Generate the query vector using the provided embedding wrapper
+        logging.info("Generating query vector using the embedding wrapper.")
+        query_vector = self.embedding_wrapper.embed_documents([query])[0]
+
+        # MongoDB Atlas Search pipeline for vector search
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self.index_name,
+                    "path": "embedding",
+                    "queryVector": query_vector,
+                    "numCandidates": 100,
+                    "limit": self.top_k
+                }
+            }
+        ]
+
+        logging.info(f"Running vector search with top_k={self.top_k}.")
+        return list(self.collection.aggregate(pipeline))
 
 
 def normalize_vector_score(score: float, min_val: float = 0.965, max_val: float = 1.0) -> float:
