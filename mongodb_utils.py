@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import List
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -30,9 +31,11 @@ def connect_to_mongodb() -> MongoClient:
     uri = get_mongodb_uri()
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-        client.admin.command("ping")
+        client.admin.command("ping")  # Test the connection
+        logging.info("Successfully connected to MongoDB.")
         return client
     except Exception as e:
+        logging.error("Failed to connect to MongoDB.")
         raise ConnectionError(f"Failed to connect to MongoDB: {e}")
 
 
@@ -74,7 +77,7 @@ def main():
 
         # Retrieve database and collection names from environment variables
         db_name = os.getenv("MONGODB_DATABASE", "aws_gen_ai")
-        collection_name = os.getenv("MONGODB_COLLECTION", "TrecCovid")
+        collection_name = os.getenv("MONGODB_COLLECTION", "NQ")
 
         # Access the database and collection
         db = client[db_name]
