@@ -55,20 +55,9 @@ class MongoAtlasRetriever:
         self.top_k = top_k
 
     def retrieve(self, query: str) -> List[Dict]:
-        """
-        Retrieve top-k documents for a given query.
-
-        Args:
-            query (str): The text query.
-
-        Returns:
-            List[Dict]: List of documents with similarity scores.
-        """
-        # Generate the query vector using the provided embedding wrapper
         logging.info("Generating query vector using the embedding wrapper.")
         query_vector = self.embedding_wrapper.embed_documents([query])[0]
 
-        # MongoDB Atlas Search pipeline for vector search
         pipeline = [
             {
                 "$vectorSearch": {
@@ -78,11 +67,29 @@ class MongoAtlasRetriever:
                     "numCandidates": 100,
                     "limit": self.top_k
                 }
+            },
+            {
+                "$project": {
+                    "doc_id": 1,
+                    "text": 1,
+                    "score": {"$meta": "searchScore"}
+                }
             }
+
         ]
 
         logging.info(f"Running vector search with top_k={self.top_k}.")
-        return list(self.collection.aggregate(pipeline))
+        results = list(self.collection.aggregate(pipeline))
+
+        # Format for BEIR: doc_id and score required
+        return [
+            {
+                "doc_id": doc.get("doc_id"),
+                "text": doc.get("text", ""),
+                "score": doc.get("score")
+            }
+            for doc in results
+        ]
 
 
 def normalize_vector_score(score: float, min_val: float = 0.965, max_val: float = 1.0) -> float:
