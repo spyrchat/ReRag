@@ -41,7 +41,7 @@ def connect_to_mongodb() -> MongoClient:
 
 
 class MongoAtlasRetriever:
-    def __init__(self, collection: Collection, embedding_wrapper, index_name: str = "vector_search", top_k: int = 5):
+    def __init__(self, collection: Collection, embedding_wrapper, index_name: str = "vector_search", top_k: int = 100):
         """
         Args:
             collection (Collection): pymongo collection instance
@@ -64,7 +64,7 @@ class MongoAtlasRetriever:
                     "index": self.index_name,
                     "path": "embedding",
                     "queryVector": query_vector,
-                    "numCandidates": 100,
+                    "numCandidates": 1000,
                     "limit": self.top_k
                 }
             },
