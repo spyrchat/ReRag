@@ -36,4 +36,4 @@ for i, doc in enumerate(results, 1):
     print(f"Rank {i}:")
     print(f"  doc_id: {doc.get('doc_id')}")
     print(f"  text: {doc.get('text')[:300]}...")  # truncate for preview
-    print(f"  score: {doc.get('score', 'N/A')}")
+    print(f"  score: {doc.get('score')}")

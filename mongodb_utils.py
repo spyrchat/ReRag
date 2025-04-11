@@ -41,7 +41,7 @@ def connect_to_mongodb() -> MongoClient:
 
 
 class MongoAtlasRetriever:
-    def __init__(self, collection: Collection, embedding_wrapper, index_name: str = "vector-index", top_k: int = 5):
+    def __init__(self, collection: Collection, embedding_wrapper, index_name: str = "vector_search", top_k: int = 5):
         """
         Args:
             collection (Collection): pymongo collection instance
@@ -72,7 +72,7 @@ class MongoAtlasRetriever:
                 "$project": {
                     "doc_id": 1,
                     "text": 1,
-                    "score": {"$meta": "searchScore"}
+                    "score": {"$meta": "vectorSearchScore"}
                 }
             }
 
