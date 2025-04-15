@@ -13,3 +13,7 @@ class BaseVectorDB(ABC):
     @abstractmethod
     def get_collection_name(self):
         pass
+
+    @abstractmethod
+    def insert_documents(self, documents, embedding_function):
+        pass

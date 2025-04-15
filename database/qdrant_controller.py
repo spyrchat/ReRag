@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from database.base import BaseVectorDB
+from typing import List
+from langchain.schema import Document
+from langchain.vectorstores import Qdrant as LangchainQdrant
+from langchain.embeddings.base import Embeddings
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -39,3 +43,14 @@ class QdrantVectorDB(BaseVectorDB):
 
     def get_collection_name(self):
         return self.collection_name
+
+    def insert_documents(self, documents: List[Document], embedding_function: Embeddings):
+        """Embed and insert documents into the Qdrant collection."""
+        LangchainQdrant.from_documents(
+            documents=documents,
+            embedding=embedding_function,
+            client=self.client,
+            collection_name=self.collection_name,
+        )
+        logger.info(
+            f"Inserted {len(documents)} documents into '{self.collection_name}'.")
