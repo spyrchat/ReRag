@@ -1,0 +1,41 @@
+import os
+import logging
+from dotenv import load_dotenv
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+from database.base import BaseVectorDB
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
+class QdrantVectorDB(BaseVectorDB):
+    def __init__(self):
+        load_dotenv()
+        self.host = os.getenv("QDRANT_HOST", "localhost")
+        self.port = int(os.getenv("QDRANT_PORT", "6333"))
+        self.api_key = os.getenv("QDRANT_API_KEY", None)
+        self.collection_name = os.getenv("QDRANT_COLLECTION")
+
+        self.client = QdrantClient(
+            host=self.host,
+            port=self.port,
+            api_key=self.api_key or None,
+        )
+
+    def init_collection(self, vector_size: int):
+        if not self.client.collection_exists(self.collection_name):
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=VectorParams(
+                    size=vector_size, distance=Distance.COSINE),
+            )
+            logger.info(f"Collection '{self.collection_name}' created.")
+        else:
+            logger.info(f"Collection '{self.collection_name}' already exists.")
+
+    def get_client(self):
+        return self.client
+
+    def get_collection_name(self):
+        return self.collection_name
