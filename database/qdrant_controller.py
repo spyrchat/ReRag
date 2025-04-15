@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 class QdrantVectorDB(BaseVectorDB):
     def __init__(self):
         load_dotenv()
-        self.host = os.getenv("QDRANT_HOST", "localhost")
-        self.port = int(os.getenv("QDRANT_PORT", "6333"))
+        self.host = os.getenv("QDRANT_HOST")
+        self.port = int(os.getenv("QDRANT_PORT"))
         self.api_key = os.getenv("QDRANT_API_KEY", None)
         self.collection_name = os.getenv("QDRANT_COLLECTION")
 
