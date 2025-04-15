@@ -1,11 +1,10 @@
 from typing import List
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import Document
 from processors.base import BaseProcessor
 
 
 class PDFProcessor(BaseProcessor):
-    def load(self) -> List[Document]:
-        """Load PDF using LangChain's PyPDFLoader."""
-        loader = PyPDFLoader(self.path)
+    def load_single(self, path: str) -> List[Document]:
+        loader = PyPDFLoader(path)
         return loader.load()
