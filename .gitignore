@@ -18,3 +18,4 @@ cqadupstack
 climate-fever
 *.log
 __pycache__
+sandbox/*
