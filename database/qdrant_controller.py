@@ -56,15 +56,18 @@ class QdrantVectorDB(BaseVectorDB):
             f"Inserted {len(documents)} documents into '{self.collection_name}'.")
 
     def insert_embeddings(self, documents: List[Document], vectors: List[List[float]]):
-        """
-        Insert pre-computed embeddings + metadata into Qdrant.
-        """
         if len(documents) != len(vectors):
             raise ValueError("Number of documents and embeddings must match")
 
         from uuid import uuid4
 
-        payloads = [doc.metadata for doc in documents]
+        payloads = [
+            {
+                **doc.metadata,
+                "text": doc.page_content
+            }
+            for doc in documents
+        ]
         ids = [str(uuid4()) for _ in documents]
 
         self.client.upload_collection(
