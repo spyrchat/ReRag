@@ -1,53 +1,124 @@
 import json
-from typing import List
+import uuid
 import boto3
+import logging
+from typing import List
 from botocore.exceptions import ClientError
 
 from embedding.base_embedder import BaseEmbedder
-from embedding.utils import batchify
+from .utils import write_jsonl, upload_to_s3
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class TitanEmbedder(BaseEmbedder):
-    def __init__(self, model: str = "amazon.titan-embed-text-v2:0", region: str = "us-east-1", batch_size: int = 16):
+    def __init__(self, model: str = "amazon.titan-embed-text-v2:0", region: str = "us-east-1"):
         self.model = model
         self.region = region
-        self.batch_size = batch_size
-        self.client = boto3.client("bedrock-runtime", region_name=region)
+        self.realtime_client = boto3.client(
+            "bedrock-runtime", region_name=region)
+        self.batch_client = boto3.client("bedrock", region_name=region)
+        self.s3 = boto3.client("s3", region_name=region)
+        logger.info(
+            f"Initialized TitanEmbedder with model: {model}, region: {region}")
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        logger.info(f"Starting real-time embedding for {len(texts)} texts.")
         embeddings = []
-        for batch in batchify(texts, self.batch_size):
+        for i, text in enumerate(texts):
             try:
-                batch_embeddings = self._embed_batch(batch)
-                embeddings.extend(batch_embeddings)
+                embedding = self._embed_single(text)
+                embeddings.append(embedding)
+                if i % 100 == 0 and i > 0:
+                    logger.info(f"Embedded {i} texts...")
             except Exception as e:
-                raise RuntimeError(f"Batch embedding failed: {e}")
+                logger.error(f"Embedding failed at index {i}: {e}")
+                raise
+        logger.info("Real-time embedding complete.")
         return embeddings
 
-    def _embed_batch(self, batch: List[str]) -> List[List[float]]:
+    def _embed_single(self, text: str) -> List[float]:
         body = {
-            # Titan accepts str or List[str]
-            "inputText": batch if len(batch) > 1 else batch[0]
+            "inputText": text,
+            "normalize": True,
+            "dimensions": 1024,
         }
-
         try:
-            response = self.client.invoke_model(
+            response = self.realtime_client.invoke_model(
                 body=json.dumps(body),
                 modelId=self.model,
                 accept="application/json",
                 contentType="application/json"
             )
             parsed = json.loads(response["body"].read())
-
-            # Titan returns "embedding" for single input or "embeddings" for batch
-            if isinstance(parsed, dict) and "embeddings" in parsed:
-                return parsed["embeddings"]
-            elif isinstance(parsed, dict) and "embedding" in parsed:
-                return [parsed["embedding"]]
-            else:
-                raise ValueError(f"Unexpected Titan response format: {parsed}")
-
+            return parsed["embedding"]
         except ClientError as e:
-            raise RuntimeError(f"AWS error: {e}")
+            logger.error(f"AWS Bedrock client error: {e}")
+            raise
         except Exception as e:
-            raise RuntimeError(f"Failed to call Titan: {e}")
+            logger.error(f"General error during Titan embed: {e}")
+            raise
+
+    def start_batch_job_from_texts(
+        self,
+        texts: List[str],
+        s3_bucket: str,
+        s3_output_uri: str,
+        role_arn: str
+    ) -> str:
+        logger.info(f"Preparing batch job for {len(texts)} texts...")
+        local_path = f"sandbox/titan_batch_input_{uuid.uuid4().hex}.jsonl"
+        s3_key = f"batch-input/{uuid.uuid4().hex}.jsonl"
+        s3_input_uri = f"s3://{s3_bucket}/{s3_key}"
+
+        logger.info(f"Writing input JSONL to: {local_path}")
+        write_jsonl(texts, local_path)
+
+        logger.info(f"Uploading input file to S3: {s3_input_uri}")
+        upload_to_s3(local_path, s3_bucket, s3_key)
+
+        return self.start_batch_job(
+            s3_input_uri=s3_input_uri,
+            s3_output_uri=s3_output_uri,
+            role_arn=role_arn
+        )
+
+    def start_batch_job(
+        self,
+        s3_input_uri: str,
+        s3_output_uri: str,
+        role_arn: str,
+        job_name: str = None
+    ) -> str:
+        if not job_name:
+            job_name = f"titan-batch-{uuid.uuid4()}"
+
+        logger.info(f"Submitting Titan batch job: {job_name}")
+        logger.info(f"Input URI: {s3_input_uri}")
+        logger.info(f"Output URI: {s3_output_uri}")
+        logger.info(f"Role ARN: {role_arn}")
+
+        try:
+            response = self.batch_client.start_inference_job(
+                jobName=job_name,
+                modelId=self.model,
+                inputDataConfig={
+                    "s3InputDataConfig": {
+                        "s3Uri": s3_input_uri,
+                        "s3InputFormat": "JSONL"
+                    }
+                },
+                outputDataConfig={
+                    "s3OutputDataConfig": {
+                        "s3Uri": s3_output_uri
+                    }
+                },
+                roleArn=role_arn
+            )
+            job_arn = response["jobArn"]
+            logger.info(f"Titan batch job started: {job_arn}")
+            return job_arn
+        except ClientError as e:
+            logger.error(f"Failed to start Titan batch job: {e}")
+            raise
