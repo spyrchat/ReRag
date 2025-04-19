@@ -19,3 +19,4 @@ climate-fever
 *.log
 __pycache__
 sandbox/*
+/__pycache__
