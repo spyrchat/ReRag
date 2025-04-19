@@ -6,7 +6,7 @@ from qdrant_client.models import Distance, VectorParams
 from database.base import BaseVectorDB
 from typing import List
 from langchain.schema import Document
-from langchain.vectorstores import Qdrant as LangchainQdrant
+from langchain_community.vectorstores import Qdrant as LangchainQdrant
 from langchain.embeddings.base import Embeddings
 
 logger = logging.getLogger(__name__)

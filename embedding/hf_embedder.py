@@ -1,4 +1,4 @@
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from embedding.base_embedder import BaseEmbedder
 from embedding.utils import batchify
 
