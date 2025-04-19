@@ -40,7 +40,7 @@ def run_embedding_and_insert():
 
     # 3. Run embedding pipeline
     pipeline = EmbeddingPipeline(embedder, splitter)
-    texts, vectors = pipeline.run(raw_docs)
+    texts, vectors = pipeline.run(raw_docs, use_batch=False)
 
     # 4. Wrap into Documents with metadata
     documents = prepare_documents(texts, raw_docs)
