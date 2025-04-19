@@ -4,7 +4,9 @@ import boto3
 import logging
 from typing import List
 from botocore.exceptions import ClientError
-
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+import requests
 from embedding.base_embedder import BaseEmbedder
 from .utils import write_jsonl, upload_to_s3
 
@@ -99,26 +101,53 @@ class TitanEmbedder(BaseEmbedder):
         logger.info(f"Output URI: {s3_output_uri}")
         logger.info(f"Role ARN: {role_arn}")
 
-        try:
-            response = self.batch_client.start_inference_job(
-                jobName=job_name,
-                modelId=self.model,
-                inputDataConfig={
-                    "s3InputDataConfig": {
-                        "s3Uri": s3_input_uri,
-                        "s3InputFormat": "JSONL"
-                    }
-                },
-                outputDataConfig={
-                    "s3OutputDataConfig": {
-                        "s3Uri": s3_output_uri
-                    }
-                },
-                roleArn=role_arn
-            )
-            job_arn = response["jobArn"]
+        payload = {
+            "jobName": job_name,
+            "clientRequestToken": job_name,
+            "modelId": self.model,
+            "inputDataConfig": {
+                "s3InputDataConfig": {
+                    "s3Uri": s3_input_uri
+                }
+            },
+            "outputDataConfig": {
+                "s3OutputDataConfig": {
+                    "s3Uri": s3_output_uri
+                }
+            },
+            "roleArn": role_arn
+        }
+
+        # Prepare the request
+        credentials = boto3.Session().get_credentials().get_frozen_credentials()
+        endpoint = f"https://bedrock.{self.region}.amazonaws.com/model-invocation-job"
+        headers = {
+            "Host": f"bedrock.{self.region}.amazonaws.com",
+            "Content-Type": "application/json"
+        }
+
+        request = AWSRequest(
+            method="POST",
+            url=endpoint,
+            data=json.dumps(payload),
+            headers=headers
+        )
+
+        SigV4Auth(credentials, "bedrock", self.region).add_auth(request)
+
+        # Execute the signed request
+        response = requests.post(
+            url=endpoint,
+            data=request.body,
+            headers=dict(request.headers)
+        )
+
+        if response.status_code == 200:
+            job_arn = response.json()["jobArn"]
             logger.info(f"Titan batch job started: {job_arn}")
             return job_arn
-        except ClientError as e:
-            logger.error(f"Failed to start Titan batch job: {e}")
-            raise
+        else:
+            logger.error(
+                f"Failed to start job: {response.status_code} {response.text}")
+            raise RuntimeError(
+                f"Failed to start Titan batch job: {response.status_code}")
