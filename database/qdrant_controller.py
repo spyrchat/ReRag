@@ -1,19 +1,19 @@
+from langchain.schema import Document
+from typing import List, Dict, Any
 import os
 import logging
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
-from database.base import BaseVectorDB
-from typing import List
-from langchain.schema import Document
-from langchain_community.vectorstores import Qdrant as LangchainQdrant
 from langchain.embeddings.base import Embeddings
+from langchain_qdrant import QdrantVectorStore
+import uuid
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class QdrantVectorDB(BaseVectorDB):
+class QdrantVectorDB:
     def __init__(self):
         load_dotenv()
         self.host = os.getenv("QDRANT_HOST")
@@ -44,31 +44,51 @@ class QdrantVectorDB(BaseVectorDB):
     def get_collection_name(self):
         return self.collection_name
 
-    def insert_documents(self, documents: List[Document], embedding_function: Embeddings):
-        """Embed and insert documents into the Qdrant collection."""
-        LangchainQdrant.from_documents(
+    def insert_documents(
+        self,
+        documents: List[Document],
+        embedding_function: Embeddings,
+        vector_name: str = ""
+    ):
+        """Embed and insert documents into the Qdrant collection using LangChain integration."""
+        QdrantVectorStore.from_documents(
             documents=documents,
-            embedding=embedding_function,
+            embeddings=embedding_function,
             client=self.client,
             collection_name=self.collection_name,
+            vector_name=vector_name,
         )
         logger.info(
-            f"Inserted {len(documents)} documents into '{self.collection_name}'.")
+            f"Inserted {len(documents)} documents with embeddings into '{self.collection_name}' (vector: {vector_name}).")
 
-    def insert_embeddings(self, documents: List[Document], vectors: List[List[float]]):
+    def insert_embeddings(
+        self,
+        documents: List[Document],
+        vectors: List[List[float]],
+        vector_name: str = "default"
+    ):
         if len(documents) != len(vectors):
             raise ValueError("Number of documents and embeddings must match")
 
-        from uuid import uuid4
+        payloads = []
+        ids = []
 
-        payloads = [
-            {
-                **doc.metadata,
-                "text": doc.page_content
-            }
-            for doc in documents
-        ]
-        ids = [str(uuid4()) for _ in documents]
+        for i, doc in enumerate(documents):
+            metadata = doc.metadata.copy()
+
+            doc_id = metadata.get("doc_id")
+            chunk_id = metadata.get("chunk_id", i)
+
+            if doc_id is None:
+                raise ValueError(
+                    f"Missing 'doc_id' in metadata for document index {i}")
+
+            metadata["chunk_id"] = chunk_id
+            metadata["doc_id"] = doc_id
+            metadata["text"] = doc.page_content
+
+            payloads.append(metadata)
+            ids.append(str(uuid.uuid4()))  # valid UUID for Qdrant
 
         self.client.upload_collection(
             collection_name=self.collection_name,
@@ -79,4 +99,4 @@ class QdrantVectorDB(BaseVectorDB):
         )
 
         logger.info(
-            f"Inserted {len(documents)} embeddings into '{self.collection_name}'.")
+            f"Inserted {len(documents)} vectors into '{self.collection_name}' under vector '{vector_name}' with UUID point IDs.")
