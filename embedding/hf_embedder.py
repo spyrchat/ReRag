@@ -1,15 +1,7 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from embedding.base_embedder import BaseEmbedder
-from embedding.utils import batchify
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
-class HuggingFaceEmbedder(BaseEmbedder):
+class HuggingFaceEmbedder(HuggingFaceEmbeddings):
     def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2", batch_size=32):
-        self.model = HuggingFaceEmbeddings(model_name=model_name)
+        super().__init__(model_name=model_name)
         self.batch_size = batch_size
-
-    def embed_texts(self, texts):
-        embeddings = []
-        for batch in batchify(texts, self.batch_size):
-            embeddings.extend(self.model.embed_documents(batch))
-        return embeddings

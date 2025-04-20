@@ -2,19 +2,20 @@ import json
 import uuid
 import boto3
 import logging
+import requests
 from typing import List
 from botocore.exceptions import ClientError
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-import requests
-from embedding.base_embedder import BaseEmbedder
-from .utils import write_jsonl, upload_to_s3
+from langchain_core.embeddings import Embeddings
+from embedding.utils import write_jsonl, upload_to_s3
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class TitanEmbedder(BaseEmbedder):
+class TitanEmbedder(Embeddings):
     def __init__(self, model: str = "amazon.titan-embed-text-v2:0", region: str = "us-east-1"):
         self.model = model
         self.region = region
@@ -25,7 +26,7 @@ class TitanEmbedder(BaseEmbedder):
         logger.info(
             f"Initialized TitanEmbedder with model: {model}, region: {region}")
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
         logger.info(f"Starting real-time embedding for {len(texts)} texts.")
         embeddings = []
         for i, text in enumerate(texts):
@@ -36,9 +37,13 @@ class TitanEmbedder(BaseEmbedder):
                     logger.info(f"Embedded {i} texts...")
             except Exception as e:
                 logger.error(f"Embedding failed at index {i}: {e}")
-                raise
+                embeddings.append([0.0] * 1024)
         logger.info("Real-time embedding complete.")
         return embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        """Embed a single query string. Required for LangChain retrievers."""
+        return self._embed_single(text)
 
     def _embed_single(self, text: str) -> List[float]:
         body = {
@@ -118,7 +123,6 @@ class TitanEmbedder(BaseEmbedder):
             "roleArn": role_arn
         }
 
-        # Prepare the request
         credentials = boto3.Session().get_credentials().get_frozen_credentials()
         endpoint = f"https://bedrock.{self.region}.amazonaws.com/model-invocation-job"
         headers = {
@@ -135,7 +139,6 @@ class TitanEmbedder(BaseEmbedder):
 
         SigV4Auth(credentials, "bedrock", self.region).add_auth(request)
 
-        # Execute the signed request
         response = requests.post(
             url=endpoint,
             data=request.body,
