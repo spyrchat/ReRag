@@ -10,9 +10,6 @@ import uuid
 
 
 def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[Document]:
-    """
-    Attach metadata and wrap into LangChain Documents for DB insertion.
-    """
     enriched = []
     for i, text in enumerate(texts):
         source_doc = original_docs[i % len(original_docs)]
@@ -21,8 +18,7 @@ def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[D
                 page_content=text,
                 metadata={
                     "source": source_doc.metadata.get("source", "unknown"),
-                    # or reuse original doc_id if available
-                    "doc_id": str(uuid.uuid4()),
+                    "doc_id": source_doc.metadata.get("doc_id", str(uuid.uuid4())),
                     "chunk_id": i
                 }
             )

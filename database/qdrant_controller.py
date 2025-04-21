@@ -7,7 +7,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from langchain.embeddings.base import Embeddings
 from langchain_qdrant import QdrantVectorStore
-import uuid
+from qdrant_client.models import PointStruct, VectorStruct
+from uuid import uuid4
+from qdrant_client.models import VectorParams, Distance, NamedVectorStruct, VectorParams
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -27,14 +29,17 @@ class QdrantVectorDB:
             api_key=self.api_key or None,
         )
 
-    def init_collection(self, vector_size: int):
+    def init_collection(self, vector_size: int, vector_name: str = "dense"):
         if not self.client.collection_exists(self.collection_name):
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(
-                    size=vector_size, distance=Distance.COSINE),
-            )
-            logger.info(f"Collection '{self.collection_name}' created.")
+                vectors_config={
+                    vector_name: VectorParams(
+                        size=vector_size, distance=Distance.COSINE)
+                }),
+
+            logger.info(
+                f"Collection '{self.collection_name}' created with vector '{vector_name}'.")
         else:
             logger.info(f"Collection '{self.collection_name}' already exists.")
 
@@ -61,42 +66,38 @@ class QdrantVectorDB:
         logger.info(
             f"Inserted {len(documents)} documents with embeddings into '{self.collection_name}' (vector: {vector_name}).")
 
-    def insert_embeddings(
-        self,
-        documents: List[Document],
-        vectors: List[List[float]],
-        vector_name: str = "default"
-    ):
+    def insert_embeddings(self, documents, vectors, vector_name="dense"):
         if len(documents) != len(vectors):
-            raise ValueError("Number of documents and embeddings must match")
+            raise ValueError("Mismatched number of documents and vectors")
 
-        payloads = []
-        ids = []
+        points = []
 
-        for i, doc in enumerate(documents):
+        for i, (doc, vector) in enumerate(zip(documents, vectors)):
             metadata = doc.metadata.copy()
-
             doc_id = metadata.get("doc_id")
             chunk_id = metadata.get("chunk_id", i)
 
-            if doc_id is None:
-                raise ValueError(
-                    f"Missing 'doc_id' in metadata for document index {i}")
+            if not doc_id:
+                raise ValueError(f"Missing doc_id for document {i}")
 
-            metadata["chunk_id"] = chunk_id
-            metadata["doc_id"] = doc_id
-            metadata["text"] = doc.page_content
+            metadata.update({
+                "chunk_id": chunk_id,
+                "doc_id": doc_id,
+                "text": doc.page_content
+            })
 
-            payloads.append(metadata)
-            ids.append(str(uuid.uuid4()))  # valid UUID for Qdrant
+            point_id = str(uuid4())  # Qdrant requires UUID or int
+            point = PointStruct(
+                id=point_id,
+                payload=metadata,
+                # allows hybrid if needed later
+                vector={vector_name: vector}
+            )
+            points.append(point)
 
-        self.client.upload_collection(
+        self.client.upsert(
             collection_name=self.collection_name,
-            vectors=vectors,
-            payload=payloads,
-            ids=ids,
-            batch_size=64
+            points=points
         )
-
-        logger.info(
-            f"Inserted {len(documents)} vectors into '{self.collection_name}' under vector '{vector_name}' with UUID point IDs.")
+        print(
+            f"Inserted {len(points)} points into Qdrant ({self.collection_name})")
