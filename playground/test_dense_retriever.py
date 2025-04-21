@@ -24,11 +24,12 @@ if __name__ == "__main__":
     # Perform retrieval
     query = "Advanced RAG Models with Graph Structures: Optimizing Complex Knowledge Reasoning and Text Generation"
     docs = retriever.get_relevant_documents(query)
-
-    # Print results
-    for i, doc in enumerate(docs):
-        print(f"[{i+1}] Chunk ID: {doc.metadata.get('chunk_id')}")
-        print(f"Doc ID: {doc.metadata.get('doc_id')}")
-        print("Text:")
-        print(doc.page_content[:200])
-        print("-" * 40)
+    if not docs:
+        print("No results found.")
+    else:
+        for i, doc in enumerate(docs):
+            print(f"[{i+1}] Chunk ID: {doc.metadata.get('chunk_id', 'N/A')}")
+            print(f"Doc ID: {doc.metadata.get('doc_id', 'N/A')}")
+            print("Text:")
+            print(doc.page_content[:200])
+            print("-" * 40)

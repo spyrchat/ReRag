@@ -10,18 +10,21 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client.models import PointStruct, VectorStruct
 from uuid import uuid4
 from qdrant_client.models import VectorParams, Distance, NamedVectorStruct, VectorParams
+from embedding.utils import batchify
+import uuid
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
 class QdrantVectorDB:
-    def __init__(self):
+    def __init__(self, vector_name: str = "dense"):
         load_dotenv()
         self.host = os.getenv("QDRANT_HOST")
         self.port = int(os.getenv("QDRANT_PORT"))
         self.api_key = os.getenv("QDRANT_API_KEY", None)
         self.collection_name = os.getenv("QDRANT_COLLECTION")
+        self.vector_name = vector_name
 
         self.client = QdrantClient(
             host=self.host,
@@ -66,38 +69,34 @@ class QdrantVectorDB:
         logger.info(
             f"Inserted {len(documents)} documents with embeddings into '{self.collection_name}' (vector: {vector_name}).")
 
-    def insert_embeddings(self, documents, vectors, vector_name="dense"):
-        if len(documents) != len(vectors):
-            raise ValueError("Mismatched number of documents and vectors")
+    def insert_embeddings(
+        self,
+        documents: List[Document],
+        vectors: List[List[float]],
+        batch_size: int = 256
+    ):
+        assert len(documents) == len(
+            vectors), "Mismatch between documents and vectors"
+        logger.info(
+            f"Inserting {len(documents)} documents in batches of {batch_size} using vector name '{self.vector_name}'.")
 
-        points = []
+        for i, (doc_batch, vec_batch) in enumerate(zip(
+            batchify(documents, batch_size),
+            batchify(vectors, batch_size)
+        )):
+            points = [
+                PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector={self.vector_name: vector},
+                    payload={**doc.metadata, "text": doc.page_content}
+                )
+                for doc, vector in zip(doc_batch, vec_batch)
+            ]
 
-        for i, (doc, vector) in enumerate(zip(documents, vectors)):
-            metadata = doc.metadata.copy()
-            doc_id = metadata.get("doc_id")
-            chunk_id = metadata.get("chunk_id", i)
-
-            if not doc_id:
-                raise ValueError(f"Missing doc_id for document {i}")
-
-            metadata.update({
-                "chunk_id": chunk_id,
-                "doc_id": doc_id,
-                "text": doc.page_content
-            })
-
-            point_id = str(uuid4())  # Qdrant requires UUID or int
-            point = PointStruct(
-                id=point_id,
-                payload=metadata,
-                # allows hybrid if needed later
-                vector={vector_name: vector}
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=points,
+                wait=True
             )
-            points.append(point)
 
-        self.client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
-        print(
-            f"Inserted {len(points)} points into Qdrant ({self.collection_name})")
+            logger.info(f"Inserted batch {i + 1} with {len(points)} points.")
