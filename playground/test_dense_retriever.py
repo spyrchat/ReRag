@@ -1,35 +1,39 @@
 from retrievers.dense_retriever import QdrantDenseRetriever
 from database.qdrant_controller import QdrantVectorDB
 from embedding.factory import get_embedder
-import dotenv
+from langchain_core.documents import Document
 import os
+import dotenv
+
+# Load environment variables
+dotenv.load_dotenv()
 
 if __name__ == "__main__":
-    # Load the embedder (e.g., "hf" for HuggingFace or "titan" for Bedrock Titan)
+    # Load embedder from env
     embedder = get_embedder(name=os.getenv("DENSE_EMBEDDER"))
 
-    # Connect to Qdrant
+    # Initialize DB and LangChain-compatible vectorstore
     db = QdrantVectorDB()
-    client = db.get_client()
-    collection_name = db.get_collection_name()
+    vectorstore = db.as_langchain_vectorstore(embedding=embedder)
 
-    # Initialize the dense retriever
+    # Create retriever
     retriever = QdrantDenseRetriever(
-        client=client,
-        collection_name=collection_name,
         embedding=embedder,
+        vectorstore=vectorstore,
         top_k=5
     )
 
-    # Perform retrieval
+    # Run query
     query = "Advanced RAG Models with Graph Structures: Optimizing Complex Knowledge Reasoning and Text Generation"
-    docs = retriever.get_relevant_documents(query)
-    if not docs:
+    results = retriever.get_relevant_documents(query)
+
+    if not results:
         print("No results found.")
     else:
-        for i, doc in enumerate(docs):
-            print(f"[{i+1}] Chunk ID: {doc.metadata.get('chunk_id', 'N/A')}")
-            print(f"Doc ID: {doc.metadata.get('doc_id', 'N/A')}")
+        for i, (doc, score) in enumerate(results):
+            print(f"[{i+1}] Score: {score:.4f}")
+            print(
+                f"Doc ID: {doc.metadata.get('doc_id', 'N/A')} | Chunk ID: {doc.metadata.get('chunk_id', 'N/A')}")
             print("Text:")
             print(doc.page_content[:200])
-            print("-" * 40)
+            print("-" * 50)

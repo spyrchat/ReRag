@@ -6,8 +6,8 @@ from database.qdrant_controller import QdrantVectorDB
 from langchain.schema import Document
 import os
 import dotenv
-from typing import List
 import uuid
+from typing import List
 
 
 def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[Document]:
@@ -28,27 +28,27 @@ def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[D
 
 
 def run_embedding_and_insert():
-    # 1. Load + chunk raw documents
+    dotenv.load_dotenv()
+
+    # Load and chunk
     processor = ProcessorDispatcher(chunk_size=300, chunk_overlap=30)
     raw_docs = processor.process_directory("sandbox")
 
-    # 2. Prepare embedder + splitter
-    embedder = get_embedder(os.getenv("DENSE_EMBEDDER"))  # or "titan"
     splitter = RecursiveSplitter(chunk_size=300, chunk_overlap=30)
+    embedder = get_embedder(os.getenv("DENSE_EMBEDDER", "hf"))
 
-    # 3. Run embedding pipeline
-    pipeline = EmbeddingPipeline(embedder, splitter)
-    texts, vectors = pipeline.run(raw_docs, use_batch=False)
+    chunks = splitter.split(raw_docs)
 
-    # 4. Wrap into Documents with metadata
-    documents = prepare_documents(texts, raw_docs)
+    # Add metadata
+    documents = prepare_documents(
+        [doc.page_content for doc in chunks], raw_docs)
 
-    # 5. Initialize and insert into Qdrant
+    # Insert via LangChain
     db = QdrantVectorDB()
-    db.init_collection(vector_size=len(vectors[0]))
-    db.insert_embeddings(documents=documents, vectors=vectors)
+    db.init_collection(vector_size=embedder.embed_query("test").__len__())
+    db.insert_documents(documents=documents, embedding=embedder)
 
-    print(f"Inserted {len(documents)} documents into Qdrant.")
+    print(f"✅ Inserted {len(documents)} documents into Qdrant.")
 
 
 if __name__ == "__main__":
