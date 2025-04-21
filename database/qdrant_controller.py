@@ -24,7 +24,7 @@ class QdrantVectorDB:
         Args:
             vector_name (str): The name of the vector field to use in Qdrant. Default is "dense".
         """
-        load_dotenv()
+        load_dotenv(override=True)
         self.host: str = os.getenv("QDRANT_HOST")
         self.port: int = int(os.getenv("QDRANT_PORT"))
         self.api_key: str | None = os.getenv("QDRANT_API_KEY", None)

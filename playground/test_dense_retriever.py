@@ -6,7 +6,7 @@ import os
 import dotenv
 
 # Load environment variables
-dotenv.load_dotenv()
+dotenv.load_dotenv(override=True)
 
 if __name__ == "__main__":
     # Load embedder from env

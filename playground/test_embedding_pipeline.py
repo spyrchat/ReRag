@@ -28,7 +28,7 @@ def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[D
 
 
 def run_embedding_and_insert():
-    dotenv.load_dotenv()
+    dotenv.load_dotenv(override=True)
 
     # Load and chunk
     processor = ProcessorDispatcher(chunk_size=300, chunk_overlap=30)
