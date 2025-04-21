@@ -11,7 +11,7 @@ dotenv.load_dotenv()
 if __name__ == "__main__":
     # Load embedder from env
     embedder = get_embedder(name=os.getenv("DENSE_EMBEDDER"))
-
+    print(f"Using embedder: {embedder}")
     # Initialize DB and LangChain-compatible vectorstore
     db = QdrantVectorDB()
     vectorstore = db.as_langchain_vectorstore(embedding=embedder)
