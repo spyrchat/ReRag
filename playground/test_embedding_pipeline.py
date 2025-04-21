@@ -4,7 +4,8 @@ from embedding.processor import EmbeddingPipeline
 from embedding.recursive_splitter import RecursiveSplitter
 from database.qdrant_controller import QdrantVectorDB
 from langchain.schema import Document
-
+import os
+import dotenv
 from typing import List
 import uuid
 
@@ -32,7 +33,7 @@ def run_embedding_and_insert():
     raw_docs = processor.process_directory("sandbox")
 
     # 2. Prepare embedder + splitter
-    embedder = get_embedder("hf")  # or "titan"
+    embedder = get_embedder(os.getenv("DENSE_EMBEDDER"))  # or "titan"
     splitter = RecursiveSplitter(chunk_size=300, chunk_overlap=30)
 
     # 3. Run embedding pipeline

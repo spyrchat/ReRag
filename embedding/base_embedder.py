@@ -4,5 +4,5 @@ from typing import List
 
 class BaseEmbedder(ABC):
     @abstractmethod
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
         pass

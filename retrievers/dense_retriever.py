@@ -24,7 +24,7 @@ class QdrantDenseRetriever(BaseRetriever):
         )
 
     def retrieve(self, query: str, k: int = None) -> List[Document]:
-        return self.vectorstore.similarity_search(query, k=k or self.top_k)
+        return self.vectorstore.similarity_search_with_score(query, k=k or self.top_k)
 
     def get_relevant_documents(self, query: str) -> List[Document]:
         return self.retrieve(query)

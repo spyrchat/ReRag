@@ -80,5 +80,5 @@ class EmbeddingPipeline:
                 raise NotImplementedError(
                     "Embedder does not support batch job execution")
 
-        embeddings = self.embedder.embed_texts(texts)
+        embeddings = self.embedder.embed_documents(texts)
         return texts, embeddings

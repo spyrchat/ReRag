@@ -3,13 +3,12 @@ import uuid
 import boto3
 import logging
 import requests
-from typing import List
+from typing import List, Optional
 from botocore.exceptions import ClientError
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from langchain_core.embeddings import Embeddings
 from embedding.utils import write_jsonl, upload_to_s3
-
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +36,7 @@ class TitanEmbedder(Embeddings):
                     logger.info(f"Embedded {i} texts...")
             except Exception as e:
                 logger.error(f"Embedding failed at index {i}: {e}")
-                embeddings.append([0.0] * 1024)
+                embeddings.append([0.0] * 1024)  # fallback
         logger.info("Real-time embedding complete.")
         return embeddings
 
@@ -48,8 +47,7 @@ class TitanEmbedder(Embeddings):
     def _embed_single(self, text: str) -> List[float]:
         body = {
             "inputText": text,
-            "normalize": True,
-            "dimensions": 1024,
+            "normalize": True  # No dimensions — let model pick default
         }
         try:
             response = self.realtime_client.invoke_model(
@@ -74,9 +72,9 @@ class TitanEmbedder(Embeddings):
         s3_output_uri: str,
         role_arn: str
     ) -> str:
-        logger.info(f"Preparing batch job for {len(texts)} texts...")
-        local_path = f"sandbox/titan_batch_input_{uuid.uuid4().hex}.jsonl"
-        s3_key = f"batch-input/{uuid.uuid4().hex}.jsonl"
+        job_id = uuid.uuid4().hex
+        local_path = f"sandbox/titan_batch_input_{job_id}.jsonl"
+        s3_key = f"batch-input/{job_id}.jsonl"
         s3_input_uri = f"s3://{s3_bucket}/{s3_key}"
 
         logger.info(f"Writing input JSONL to: {local_path}")
@@ -88,7 +86,8 @@ class TitanEmbedder(Embeddings):
         return self.start_batch_job(
             s3_input_uri=s3_input_uri,
             s3_output_uri=s3_output_uri,
-            role_arn=role_arn
+            role_arn=role_arn,
+            job_name=f"titan-batch-{job_id}"
         )
 
     def start_batch_job(
@@ -96,11 +95,8 @@ class TitanEmbedder(Embeddings):
         s3_input_uri: str,
         s3_output_uri: str,
         role_arn: str,
-        job_name: str = None
+        job_name: Optional[str] = None
     ) -> str:
-        if not job_name:
-            job_name = f"titan-batch-{uuid.uuid4()}"
-
         logger.info(f"Submitting Titan batch job: {job_name}")
         logger.info(f"Input URI: {s3_input_uri}")
         logger.info(f"Output URI: {s3_output_uri}")
@@ -136,7 +132,6 @@ class TitanEmbedder(Embeddings):
             data=json.dumps(payload),
             headers=headers
         )
-
         SigV4Auth(credentials, "bedrock", self.region).add_auth(request)
 
         response = requests.post(
@@ -153,4 +148,4 @@ class TitanEmbedder(Embeddings):
             logger.error(
                 f"Failed to start job: {response.status_code} {response.text}")
             raise RuntimeError(
-                f"Failed to start Titan batch job: {response.status_code}")
+                f"Failed to start Titan batch job: {response.status_code} - {response.text}")

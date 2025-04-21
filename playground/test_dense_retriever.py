@@ -1,10 +1,12 @@
 from retrievers.dense_retriever import QdrantDenseRetriever
 from database.qdrant_controller import QdrantVectorDB
 from embedding.factory import get_embedder
+import dotenv
+import os
 
 if __name__ == "__main__":
     # Load the embedder (e.g., "hf" for HuggingFace or "titan" for Bedrock Titan)
-    embedder = get_embedder(name="hf")
+    embedder = get_embedder(name=os.getenv("DENSE_EMBEDDER"))
 
     # Connect to Qdrant
     db = QdrantVectorDB()
@@ -25,8 +27,8 @@ if __name__ == "__main__":
 
     # Print results
     for i, doc in enumerate(docs):
-        print(f"[{i+1}] Chunk ID: {doc.metadata.get('chunk_id', 'N/A')}")
-        print(f"Doc ID: {doc.metadata.get('doc_id', 'N/A')}")
+        print(f"[{i+1}] Chunk ID: {doc.metadata.get('chunk_id')}")
+        print(f"Doc ID: {doc.metadata.get('doc_id')}")
         print("Text:")
         print(doc.page_content[:200])
         print("-" * 40)
