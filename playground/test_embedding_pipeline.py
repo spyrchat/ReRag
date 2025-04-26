@@ -27,28 +27,80 @@ def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[D
     return enriched
 
 
+def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[Document]:
+    enriched = []
+    for i, text in enumerate(texts):
+        source_doc = original_docs[i % len(original_docs)]
+        enriched.append(
+            Document(
+                page_content=text,
+                metadata={
+                    "source": source_doc.metadata.get("source", "unknown"),
+                    "doc_id": source_doc.metadata.get("doc_id", str(uuid.uuid4())),
+                    "chunk_id": i
+                }
+            )
+        )
+    return enriched
+
+
+def prepare_documents(texts: List[str], original_docs: List[Document]) -> List[Document]:
+    enriched = []
+    for i, text in enumerate(texts):
+        source_doc = original_docs[i % len(original_docs)]
+        enriched.append(
+            Document(
+                page_content=text,
+                metadata={
+                    "source": source_doc.metadata.get("source", "unknown"),
+                    "doc_id": source_doc.metadata.get("doc_id", str(uuid.uuid4())),
+                    "chunk_id": i
+                }
+            )
+        )
+    return enriched
+
+
 def run_embedding_and_insert():
     dotenv.load_dotenv(override=True)
 
-    # Load and chunk
+    # 1. Load and chunk
     processor = ProcessorDispatcher(chunk_size=300, chunk_overlap=30)
     raw_docs = processor.process_directory("sandbox")
 
     splitter = RecursiveSplitter(chunk_size=300, chunk_overlap=30)
-    embedder = get_embedder(os.getenv("DENSE_EMBEDDER", "hf"))
 
-    chunks = splitter.split(raw_docs)
+    # 2. Load embedders
+    dense_embedder = get_embedder(name=os.getenv("DENSE_EMBEDDER", "hf"))
+    sparse_embedder = get_embedder(name=os.getenv(
+        "SPARSE_EMBEDDER", "bm25"))  # <-- Load sparse too
 
-    # Add metadata
-    documents = prepare_documents(
-        [doc.page_content for doc in chunks], raw_docs)
+    # 3. Create pipeline
+    pipeline = EmbeddingPipeline(
+        dense_embedder=dense_embedder,
+        sparse_embedder=sparse_embedder,
+        splitter=splitter,
+    )
 
-    # Insert via LangChain
+    # 4. Run pipeline (produces all)
+    texts, dense_vectors, sparse_vectors = pipeline.run(
+        raw_docs, use_batch=False)
+
+    # 5. Add metadata to chunks
+    documents = prepare_documents(texts, raw_docs)
+
+    # 6. Insert into Qdrant
     db = QdrantVectorDB()
-    db.init_collection(vector_size=embedder.embed_query("test").__len__())
-    db.insert_documents(documents=documents, embedding=embedder)
+    vector_size = len(dense_vectors[0]) if dense_vectors else 768  # fallback
+    db.init_collection(vector_size=vector_size)
 
-    print(f"✅ Inserted {len(documents)} documents into Qdrant.")
+    db.insert_documents(
+        documents=documents,
+        dense_vectors=dense_vectors,
+        sparse_vectors=sparse_vectors,
+    )
+
+    print(f"Inserted {len(documents)} documents into Qdrant.")
 
 
 if __name__ == "__main__":
