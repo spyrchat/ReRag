@@ -12,7 +12,7 @@ class SparseEmbedder(BaseEmbedder):
     Embedder that produces sparse vectors using FastEmbed.
     """
 
-    def __init__(self, model_name: str = "BAAI/bge-base-en", device: str = "cpu"):
+    def __init__(self, model_name: str = "BAAI/bge-base-en", device: str = "cuda"):
         """
         Args:
             model_name (str): Name of the sparse model to load (e.g., BGE sparse models).

@@ -37,7 +37,7 @@ class EmbeddingPipeline:
             dense_vectors: Dense embeddings or None.
             sparse_vectors: Sparse embeddings or None.
         """
-        chunks = self.splitter.split_documents(docs)
+        chunks = self.splitter.split(docs)
         texts = [doc.page_content for doc in chunks]
 
         dense_vectors = None

@@ -66,7 +66,7 @@ class QdrantVectorDB:
             )
 
             logger.info(
-                f"Collection '{self.collection_name}' created with vector '{self.vector_name}'.")
+                f"Collection '{self.collection_name}' created with vector '{self.dense_vector_name}' and sparse vector '{self.sparse_vector_name}'.")
         else:
             logger.info(f"Collection '{self.collection_name}' already exists.")
 
@@ -91,20 +91,31 @@ class QdrantVectorDB:
     def insert_documents(
         self,
         documents: List[Document],
-        embedding: Embeddings
+        dense_embedder: Optional[Embeddings] = None,
+        sparse_embedder: Optional[Embeddings] = None,
     ) -> None:
         """
-        Insert documents into the Qdrant collection after embedding them using the provided LangChain embedder.
+        Insert documents into the Qdrant collection using dense, sparse, or hybrid embedding.
 
         Args:
-            documents (List[Document]): List of LangChain documents to embed and insert.
-            embedding (Embeddings): LangChain-compatible embedding model.
+            documents (List[Document]): Documents to insert.
+            dense_embedding (Optional[Embeddings]): Dense embedder, if available.
+            sparse_embedding (Optional[Embeddings]): Sparse embedder, if available.
         """
-        vectorstore = self.as_langchain_vectorstore(embedding)
+        vectorstore = self.as_langchain_vectorstore(
+            dense_embedding=dense_embedder,
+            sparse_embedding=sparse_embedder,
+        )
+
         ids = [str(uuid.uuid4()) for _ in documents]
+
         vectorstore.add_documents(documents=documents, ids=ids)
+
         logger.info(
-            f"Inserted {len(documents)} documents into '{self.collection_name}'.")
+            f"Inserted {len(documents)} documents into '{self.collection_name}' with "
+            f"{'dense' if dense_embedder else ''}"
+            f"{' + sparse' if sparse_embedder else ''} embeddings."
+        )
 
     def as_langchain_vectorstore(
         self,
@@ -112,15 +123,15 @@ class QdrantVectorDB:
         sparse_embedding: Optional[Embeddings] = None
     ) -> QdrantVectorStore:
         """
-        Return a LangChain-compatible Qdrant vector store.
+        Return a LangChain-compatible Qdrant vectorstore.
         Supports dense, sparse, or hybrid retrieval based on environment variable.
 
         Args:
             dense_embedding (Optional[Embeddings]): Dense embedding model.
-            sparse_embedding (Optional[Embeddings]): Sparse embedding model (for hybrid or sparse modes).
+            sparse_embedding (Optional[Embeddings]): Sparse embedding model.
 
         Returns:
-            QdrantVectorStore: Configured Qdrant vectorstore.
+            QdrantVectorStore
         """
         retrieval_strategy = os.getenv("EMBEDDING_STRATEGY", "dense").lower()
 
@@ -129,9 +140,8 @@ class QdrantVectorDB:
                 client=self.client,
                 collection_name=self.collection_name,
                 embedding=dense_embedding,
-                dense_vector_name=self.dense_vector_name,
-                sparse_vector_name=self.sparse_vector_name,
-                retrieval_mode=RetrievalMode.DENSE,
+                vector_name=self.dense_vector_name,
+                retrieval_mode="dense",
             )
 
         elif retrieval_strategy == "sparse":
@@ -139,9 +149,8 @@ class QdrantVectorDB:
                 client=self.client,
                 collection_name=self.collection_name,
                 sparse_embedding=sparse_embedding,
-                dense_vector_name=self.dense_vector_name,
                 sparse_vector_name=self.sparse_vector_name,
-                retrieval_mode=RetrievalMode.SPARSE,
+                retrieval_mode="sparse",
             )
 
         elif retrieval_strategy == "hybrid":
@@ -150,9 +159,11 @@ class QdrantVectorDB:
                 collection_name=self.collection_name,
                 embedding=dense_embedding,
                 sparse_embedding=sparse_embedding,
-                dense_vector_name=self.dense_vector_name,
-                sparse_vector_name=self.sparse_vector_name,
-                retrieval_mode=RetrievalMode.HYBRID,
+                vector_name=self.dense_vector_name,
+                sparse_vector_name=f"{self.sparse_vector_name}_sparse",
+                retrieval_mode="hybrid",
             )
+
         else:
-            raise ValueError(f"Invalid QDRANT_STRATEGY: {retrieval_strategy}")
+            raise ValueError(
+                f"Invalid EMBEDDING_STRATEGY: {retrieval_strategy}")
