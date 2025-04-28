@@ -39,7 +39,7 @@ class QdrantVectorDB:
             api_key=self.api_key or None,
         )
 
-    def init_collection(self, dense_vector_size: int, sparse_vector_size: int) -> None:
+    def init_collection(self, dense_vector_size: int) -> None:
         """
         Create (or recreate) the collection for dense and sparse vectors.
         """
