@@ -3,6 +3,7 @@ from embedding.hf_embedder import HuggingFaceEmbedder
 from embedding.bedrock_embeddings import TitanEmbedder
 from embedding.sparse_embedder import SparseEmbedder
 import dotenv
+from langchain_qdrant import FastEmbedSparse
 
 dotenv.load_dotenv()
 
@@ -39,7 +40,7 @@ def get_embedder(name: str = None, **kwargs):
         model_name = kwargs.get("model_name") or os.getenv(
             "FASTEMBED_MODEL", "BAAI/bge-small-en-v1.5"
         )
-        return SparseEmbedder(model_name=model_name)
+        return FastEmbedSparse(model_name=os.getenv("SPARSE_MODEL_NAME", "Qdrant/bm25"))
 
     else:
         raise ValueError(
