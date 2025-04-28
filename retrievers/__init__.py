@@ -1,1 +1,2 @@
 from .dense_retriever import QdrantDenseRetriever
+from .hybrid_retriever import QdrantHybridRetriever

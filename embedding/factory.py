@@ -1,14 +1,27 @@
 import os
 from embedding.hf_embedder import HuggingFaceEmbedder
 from embedding.bedrock_embeddings import TitanEmbedder
+from embedding.sparse_embedder import SparseEmbedder
 import dotenv
+from langchain_qdrant import FastEmbedSparse
+
+dotenv.load_dotenv()
 
 
 def get_embedder(name: str = None, **kwargs):
     """
-    Returns a LangChain-compatible embedder.
-    The embedder name is read from the .env if not passed explicitly.
+    Factory to return a LangChain-compatible embedder instance.
+
+    Args:
+        name (str, optional): Embedder name. If not provided, will fetch from ENV.
+        kwargs: Additional model configuration.
+
+    Returns:
+        A LangChain-compatible embedder object.
     """
+
+    name = (name or os.getenv("DENSE_EMBEDDER")
+            or os.getenv("SPARSE_EMBEDDER")).strip().lower()
 
     if name == "hf":
         model_name = kwargs.get("model_name") or os.getenv(
@@ -23,5 +36,12 @@ def get_embedder(name: str = None, **kwargs):
         region = kwargs.get("region") or os.getenv("TITAN_REGION", "us-east-1")
         return TitanEmbedder(model=model, region=region)
 
+    elif name == "fastembed":
+        model_name = kwargs.get("model_name") or os.getenv(
+            "FASTEMBED_MODEL", "BAAI/bge-small-en-v1.5"
+        )
+        return FastEmbedSparse(model_name=os.getenv("SPARSE_MODEL_NAME", "Qdrant/bm25"))
+
     else:
-        raise ValueError(f"Unsupported embedder: {name}")
+        raise ValueError(
+            f"Unsupported embedder name: '{name}'. Supported: hf, titan, fastembed")
