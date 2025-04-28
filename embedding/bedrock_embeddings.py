@@ -8,14 +8,13 @@ from botocore.exceptions import ClientError
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from langchain_core.embeddings import Embeddings
-from embedding.base_embedder import BaseEmbedder
 from embedding.utils import write_jsonl, upload_to_s3
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class TitanEmbedder(Embeddings, BaseEmbedder):
+class TitanEmbedder(Embeddings):
     """
     LangChain-compatible embedder for Amazon Titan (via Bedrock).
     Supports both real-time and batch embedding operations.
