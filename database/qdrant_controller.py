@@ -14,11 +14,12 @@ from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
 
+from .base import BaseVectorDB
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class QdrantVectorDB:
+class QdrantVectorDB(BaseVectorDB):
     def __init__(self):
         load_dotenv(override=True)
         self.host: str = os.getenv("QDRANT_HOST")
@@ -72,6 +73,24 @@ class QdrantVectorDB:
             f"dense vector '{self.dense_vector_name}' and sparse vector "
             f"'{self.sparse_vector_name}'."
         )
+
+    def get_client(self) -> QdrantClient:
+        """
+        Get the Qdrant client instance.
+
+        Returns:
+            QdrantClient: The initialized Qdrant client.
+        """
+        return self.client
+
+    def get_collection_name(self) -> str:
+        """
+        Get the name of the current Qdrant collection.
+
+        Returns:
+            str: The collection name.
+        """
+        return self.collection_name
 
     def insert_documents(
         self,

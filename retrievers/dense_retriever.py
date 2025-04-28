@@ -6,7 +6,7 @@ from typing import List, Tuple
 from .base import BaseRetriever
 
 
-class QdrantDenseRetriever:
+class QdrantDenseRetriever(BaseRetriever):
     def __init__(
         self,
         embedding: Embeddings,

@@ -14,7 +14,7 @@ if __name__ == "__main__":
     print(f"Using embedder: {embedder}")
     # Initialize DB and LangChain-compatible vectorstore
     db = QdrantVectorDB()
-    vectorstore = db.as_langchain_vectorstore(embedding=embedder)
+    vectorstore = db.as_langchain_vectorstore(dense_embedding=embedder)
 
     # Create retriever
     retriever = QdrantDenseRetriever(

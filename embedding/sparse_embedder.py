@@ -1,13 +1,13 @@
 import logging
 from typing import List, Dict
 from fastembed import TextEmbedding
-from embedding.base_embedder import BaseEmbedder
+from langchain_core.embeddings import Embeddings
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class SparseEmbedder(BaseEmbedder):
+class SparseEmbedder(Embeddings):
     """
     Embedder that produces sparse vectors using FastEmbed.
     """

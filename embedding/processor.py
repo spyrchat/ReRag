@@ -1,5 +1,5 @@
 from langchain.schema import Document
-from embedding.base_embedder import BaseEmbedder
+from langchain_core.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from typing import Tuple, List, Optional
 import uuid
@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class EmbeddingPipeline:
     def __init__(
         self,
-        dense_embedder: BaseEmbedder,
+        dense_embedder: Embeddings,
         splitter: RecursiveCharacterTextSplitter,
-        sparse_embedder: Optional[BaseEmbedder] = None,
+        sparse_embedder: Optional[Embeddings] = None,
     ):
         """
         Initialize the pipeline with dense (required) and optional sparse embedders.
