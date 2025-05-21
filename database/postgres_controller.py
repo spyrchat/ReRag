@@ -74,6 +74,31 @@ class PostgresController:
     def get_session(self) -> Session:
         return self.SessionLocal()
 
+    def insert_image_asset(self, doc_id: str, page_number: int, file_path: str,
+                           caption: str = None, extracted_text: str = None):
+        with self.get_session() as session:
+            asset = ImageAsset(
+                doc_id=doc_id,
+                page_number=page_number,
+                file_path=file_path,
+                caption=caption,
+                extracted_text=extracted_text,
+            )
+            session.add(asset)
+            session.commit()
+
+    def insert_table_asset(self, doc_id: str, page_number: int, table_json: str,
+                           caption: str = None):
+        with self.get_session() as session:
+            asset = TableAsset(
+                doc_id=doc_id,
+                page_number=page_number,
+                table_json=table_json,
+                caption=caption,
+            )
+            session.add(asset)
+            session.commit()
+
 
 if __name__ == "__main__":
     try:
@@ -83,3 +108,4 @@ if __name__ == "__main__":
             print("PostgreSQL connection successful. Tables are ready.")
     except Exception as e:
         print(f"Connection failed: {str(e)}")
+    controller = PostgresController()

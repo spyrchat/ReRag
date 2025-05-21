@@ -20,3 +20,4 @@ climate-fever
 __pycache__
 sandbox/*
 /__pycache__
+synthetic_dataset\text_dataset_template.json
