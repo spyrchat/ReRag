@@ -1,3 +1,3 @@
-from .pdf_processor import PDFProcessor
-from processors.base import BaseProcessor
-from .dispatcher import ProcessorDispatcher
+from processors.core.pdf_processor import PDFProcessor
+from processors.core.base import BaseProcessor
+from processors.core.dispatcher import ProcessorDispatcher

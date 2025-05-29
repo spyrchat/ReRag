@@ -1,7 +1,7 @@
 from typing import List
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import Document
-from processors.base import BaseProcessor
+from processors.core.base import BaseProcessor
 
 
 class PDFProcessor(BaseProcessor):
