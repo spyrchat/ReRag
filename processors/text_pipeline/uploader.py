@@ -1,6 +1,6 @@
-from typing import List, Optional
-from langchain_core.documents import Document
 from database.qdrant_controller import QdrantVectorDB
+from typing import List
+from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
 
@@ -11,8 +11,8 @@ class QdrantUploader:
     def upload(
         self,
         docs: List[Document],
-        dense_embedder: Optional[Embeddings] = None,
-        sparse_embedder: Optional[Embeddings] = None,
+        dense_embedder: Embeddings,
+        sparse_embedder: Embeddings,
     ):
         self.db.insert_documents(
             documents=docs,

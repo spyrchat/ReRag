@@ -1,4 +1,3 @@
-import json
 import pandas as pd
 from database.postgres_controller import PostgresController
 

@@ -1,7 +1,9 @@
-from core.metadata import PageMetadata
-from text_pipeline.chunker import TextChunker
-from text_pipeline.embedder import Embedder
-from text_pipeline.qdrant_uploader import QdrantUploader
+from chunker import TextChunker
+from embedder import Embedder
+from uploader import QdrantUploader
+from utils import prepare_documents
+from processors.core.metadata import PageMetadata
+from langchain.schema import Document
 
 
 class TextRouter:
@@ -11,11 +13,16 @@ class TextRouter:
         self.uploader = QdrantUploader()
 
     def route(self, text: str, metadata: PageMetadata):
-        chunks = self.chunker.chunk(text, metadata)
-        dense_vectors = self.embedder.embed_dense([c.page_content for c in chunks])
-        sparse_vectors = self.embedder.embed_sparse([c.page_content for c in chunks])
+        doc = Document(page_content=text, metadata={
+            "doc_id": metadata.doc_id,
+            "page": metadata.page,
+            "source": f"{metadata.doc_id}.pdf"
+        })
+        chunks = self.chunker.chunk([doc])
+        enriched = prepare_documents([c.page_content for c in chunks], [doc])
+
         self.uploader.upload(
-            docs=chunks,
+            docs=enriched,
             dense_embedder=self.embedder.dense_model,
             sparse_embedder=self.embedder.sparse_model,
         )

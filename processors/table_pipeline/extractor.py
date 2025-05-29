@@ -1,17 +1,20 @@
-# table_pipeline/extractor.py
-import pdfplumber
-import fitz
-from typing import List
+import camelot
+from typing import List, Tuple
 
 
 class TableExtractor:
-    def extract(self, page: fitz.Page) -> List[List[List[str]]]:
-        """
-        Extracts tables as nested lists of cells using pdfplumber.
-        Returns a list of tables, each table is a list of rows.
-        """
-        tables = []
-        with pdfplumber.open(page.parent.name) as pdf:
-            plumber_page = pdf.pages[page.number - 1]
-            tables = plumber_page.extract_tables()
-        return tables
+    def extract(self, filepath: str, page_number: int) -> List[Tuple[List[List[str]], str]]:
+        page_str = str(page_number)
+
+        try:
+            tables = camelot.read_pdf(filepath, pages=page_str, flavor="lattice")
+            if tables.n == 0:
+                raise ValueError("No tables found with lattice.")
+        except Exception:
+            tables = camelot.read_pdf(filepath, pages=page_str, flavor="stream")
+
+        extracted = []
+        for table in tables:
+            data = table.df.values.tolist()
+            extracted.append((data, None))  # Caption comes separately
+        return extracted
