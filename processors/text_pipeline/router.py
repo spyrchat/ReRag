@@ -1,8 +1,8 @@
 import os
-from chunker import TextChunker
-from embedder import Embedder
-from uploader import QdrantUploader
-from utils import prepare_documents
+from .chunker import TextChunker
+from .embedder import Embedder
+from .uploader import QdrantUploader
+from .utils import prepare_documents
 from processors.core.metadata import PageMetadata
 from langchain.schema import Document
 

@@ -4,7 +4,7 @@ import uuid
 
 
 def run_all_pdfs_in_sandbox():
-    sandbox_dir = "sandbox"
+    sandbox_dir = "/home/spiros/PycharmProjects/Thesis/sandbox/papers"
     files = [f for f in os.listdir(sandbox_dir) if f.endswith(".pdf")]
 
     if not files:

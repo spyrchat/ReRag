@@ -1,6 +1,6 @@
-from extractor import TableExtractor
-from mapper import SQLSchemaMapper
-from uploader import SQLUploader
+from .extractor import TableExtractor
+from .mapper import SQLSchemaMapper
+from .uploader import SQLUploader
 from processors.core.metadata import PageMetadata
 
 
