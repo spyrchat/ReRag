@@ -5,7 +5,6 @@ from typing import List
 import dotenv
 
 from langchain.schema import Document
-from processors.core.dispatcher import ProcessorDispatcher
 from embedding.factory import get_embedder
 from embedding.recursive_splitter import RecursiveSplitter
 from database.qdrant_controller import QdrantVectorDB
