@@ -1,0 +1,1 @@
+from processors.table_pipeline.extractor import TableExtractor
