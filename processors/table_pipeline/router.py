@@ -17,7 +17,11 @@ class TableRouter:
             return  # skip if no tables on this page
 
         for table, _ in tables:
-            df, caption = self.mapper.map(table)
+            try:
+                df, caption = self.mapper.map(table)
+            except ValueError as e:
+                # Optionally log the error here
+                continue  # skip tables that can't be mapped
             self.uploader.upload_table(
                 doc_id=metadata.doc_id,
                 page=metadata.page,

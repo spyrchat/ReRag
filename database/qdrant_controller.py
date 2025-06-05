@@ -1,3 +1,4 @@
+from langchain_core import documents
 from qdrant_client.http.models import VectorParams, SparseVectorParams
 from qdrant_client import models as qmodels
 from qdrant_client.http.models import Distance
@@ -13,6 +14,7 @@ from langchain_qdrant import QdrantVectorStore, RetrievalMode
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
+from sqlalchemy.orm.attributes import init_collection
 
 from .base import BaseVectorDB
 logger = logging.getLogger(__name__)
@@ -93,11 +95,17 @@ class QdrantVectorDB(BaseVectorDB):
         return self.collection_name
 
     def insert_documents(
-        self,
-        documents: List[Document],
-        dense_embedder: Optional[Embeddings] = None,
-        sparse_embedder: Optional[Embeddings] = None,
+            self,
+            documents: List[Document],
+            dense_embedder: Optional[Embeddings] = None,
+            sparse_embedder: Optional[Embeddings] = None,
     ) -> None:
+        # Only initialize collection if it doesn't exist
+        if not self.client.collection_exists(self.collection_name) and dense_embedder:
+            sample_embedding = dense_embedder.embed_query("test")
+            dense_dim = len(sample_embedding)
+            self.init_collection(dense_vector_size=dense_dim)
+
         vectorstore = self.as_langchain_vectorstore(
             dense_embedding=dense_embedder,
             sparse_embedding=sparse_embedder,
@@ -110,7 +118,6 @@ class QdrantVectorDB(BaseVectorDB):
             f"Inserted {len(documents)} documents into '{self.collection_name}' "
             f"({'dense' if dense_embedder else ''}{' + sparse' if sparse_embedder else ''})."
         )
-
     def as_langchain_vectorstore(
         self,
         dense_embedding: Optional[Embeddings] = None,
