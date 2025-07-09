@@ -2,10 +2,11 @@ import os
 from typing import Dict, Any
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-import logging
+from logs.utils.logger import get_logger
 import json
 
-logging.basicConfig(level=logging.INFO)
+logger = get_logger("sql_planner")
+
 llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
 
 sql_prompt = PromptTemplate.from_template(
@@ -24,21 +25,24 @@ User question:
 Respond ONLY with valid SQL syntax, no explanation or markdown."""
 )
 
+
 def sql_planner(state: Dict[str, Any]) -> Dict[str, Any]:
     question = state["question"]
     reference_date = state.get("reference_date", "2025-01-01")
-    prompt = sql_prompt.format(question=question, reference_date=reference_date)
+    prompt = sql_prompt.format(
+        question=question, reference_date=reference_date)
 
     try:
         response = llm.invoke(prompt)
         sql = response.content.strip()
-        logging.info(f"[SQL Planner] SQL: {sql}")
+        logger.info(f"[SQL Planner] SQL generated: {sql}")
         return {
             **state,
             "sql": sql
         }
+
     except Exception as e:
-        logging.error(f"SQL planner failed: {e}")
+        logger.error(f"[SQL Planner] Failed to generate SQL: {e}")
         return {
             **state,
             "sql": None,
