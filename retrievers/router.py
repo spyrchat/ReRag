@@ -7,18 +7,25 @@ from embedding.factory import get_embedder
 
 
 class RetrieverRouter:
-    def __init__(self):
-        self.strategy = os.getenv("RETRIEVER_STRATEGY", "auto").lower()
+    def __init__(self, config: dict):
+        self.strategy = config.get("retriever", {}).get(
+            "strategy", "auto").lower()
 
         self.qdrant = QdrantVectorDB()
-        self.dense_model = get_embedder(name=os.getenv("DENSE_EMBEDDER"))
-        self.sparse_model = get_embedder(name=os.getenv("SPARSE_EMBEDDER"))
+        self.dense_model = get_embedder(config["embedding"]["dense"])
+        self.sparse_model = get_embedder(config["embedding"]["sparse"])
+
+        dense_vector_name = config.get("qdrant", {}).get(
+            "dense_vector_name", "dense")
+        sparse_vector_name = config.get("qdrant", {}).get(
+            "sparse_vector_name", "sparse")
 
         if self.strategy == "dense":
             self.retriever = QdrantDenseRetriever(
                 embedding=self.dense_model,
                 vectorstore=self.qdrant.as_langchain_vectorstore(
-                    dense_embedding=self.dense_model)
+                    dense_embedding=self.dense_model
+                ),
             )
         elif self.strategy == "hybrid":
             self.retriever = QdrantHybridRetriever(
@@ -26,25 +33,25 @@ class RetrieverRouter:
                 collection_name=self.qdrant.get_collection_name(),
                 dense_embedding=self.dense_model,
                 sparse_embedding=self.sparse_model,
-                dense_vector_name=os.getenv("DENSE_VECTOR_NAME", "dense"),
-                sparse_vector_name=os.getenv("SPARSE_VECTOR_NAME", "sparse")
+                dense_vector_name=dense_vector_name,
+                sparse_vector_name=sparse_vector_name,
             )
         elif self.strategy == "sql":
             self.retriever = SQLRetriever()
         else:
-            # Auto: pick dynamically at query time
             self.dense_retriever = QdrantDenseRetriever(
                 embedding=self.dense_model,
                 vectorstore=self.qdrant.as_langchain_vectorstore(
-                    dense_embedding=self.dense_model)
+                    dense_embedding=self.dense_model
+                ),
             )
             self.hybrid_retriever = QdrantHybridRetriever(
                 client=self.qdrant.get_client(),
                 collection_name=self.qdrant.get_collection_name(),
                 dense_embedding=self.dense_model,
                 sparse_embedding=self.sparse_model,
-                dense_vector_name=os.getenv("DENSE_VECTOR_NAME", "dense"),
-                sparse_vector_name=os.getenv("SPARSE_VECTOR_NAME", "sparse")
+                dense_vector_name=dense_vector_name,
+                sparse_vector_name=sparse_vector_name,
             )
             self.sql_retriever = SQLRetriever()
 

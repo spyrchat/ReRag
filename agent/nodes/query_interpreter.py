@@ -3,28 +3,15 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime, timezone
+
 from langchain_core.runnables import Runnable
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
+from langchain_core.prompts import PromptTemplate
+from logs.utils.logger import get_logger
 
-# === Setup Logging ===
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    filename="logs/query_interpreter.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = get_logger(__name__)
 
-load_dotenv()
-llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-
-
-def query_interpreter(state: Dict[str, Any]) -> Dict[str, Any]:
-    question = state["question"]
-    reference_date = state.get("reference_date") or datetime.now(
-        timezone.utc).date().isoformat()
-
-    prompt = f"""
+# Optional: Move prompt to config for full modularity.
+QUERY_INTERPRETER_PROMPT = """
 You are a planner agent for a modular RAG pipeline.
 
 Your job is to:
@@ -64,29 +51,43 @@ Examples:
 }}
 """
 
-    try:
-        response = llm.invoke(prompt)
-        content = response.content.strip()
-        parsed = json.loads(content)
-    except Exception as e:
-        logging.error("Error in query_interpreter: %s", str(e))
-        logging.error("LLM response: %s",
-                      response.content if 'response' in locals() else 'None')
-        # Add 'generator' as a fallback if parsing fails
-        parsed = {
-            "query_type": "none",
-            "next_node": "generator",
-            "plan": ["Fallback to generator: answer directly."],
-            "reasoning": "Failed to parse model response. Defaulting to direct answer."
+
+def make_query_interpreter(llm):
+    """
+    Factory to return a query_interpreter node with the provided LLM.
+    """
+    def query_interpreter(state: Dict[str, Any]) -> Dict[str, Any]:
+        question = state["question"]
+        reference_date = state.get("reference_date") or datetime.now(
+            timezone.utc).date().isoformat()
+
+        prompt = QUERY_INTERPRETER_PROMPT.format(
+            question=question, reference_date=reference_date
+        )
+
+        try:
+            response = llm.invoke(prompt)
+            content = response.content.strip()
+            parsed = json.loads(content)
+        except Exception as e:
+            logger.error("Error in query_interpreter: %s", str(e))
+            logger.error("LLM response: %s",
+                         response.content if 'response' in locals() else 'None')
+            parsed = {
+                "query_type": "none",
+                "next_node": "generator",
+                "plan": ["Fallback to generator: answer directly."],
+                "reasoning": "Failed to parse model response. Defaulting to direct answer."
+            }
+
+        logger.info("=== Question ===")
+        logger.info(question)
+        logger.info("=== Parsed Result ===")
+        logger.info(json.dumps(parsed, indent=2))
+
+        return {
+            "question": question,
+            "reference_date": reference_date,
+            **parsed
         }
-
-    logging.info("=== Question ===")
-    logging.info(question)
-    logging.info("=== Parsed Result ===")
-    logging.info(json.dumps(parsed, indent=2))
-
-    return {
-        "question": question,
-        "reference_date": reference_date,
-        **parsed
-    }
+    return query_interpreter
