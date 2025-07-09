@@ -12,35 +12,24 @@ from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
 from logs.utils.logger import get_logger
 from .base import BaseVectorDB
 
-logger = get_logger("qdrant_controller")
+logger = get_logger(__name__)
 
 
 class QdrantVectorDB(BaseVectorDB):
-    """
-    Abstraction layer for managing Qdrant collections, vector insertion,
-    and retrieval strategy (dense, sparse, hybrid) in a modular RAG pipeline.
-    Configurations are environment-driven for flexible deployments.
-    """
-
-    def __init__(self):
-        """
-        Initialize the QdrantVectorDB with settings from environment variables.
-        Connects to Qdrant and prepares basic configuration.
-        """
+    def __init__(self, strategy: str = "dense"):
         load_dotenv(override=True)
-        self.host: str = os.getenv("QDRANT_HOST")
-        self.port: int = int(os.getenv("QDRANT_PORT"))
-        self.api_key: Optional[str] = os.getenv("QDRANT_API_KEY")
-        self.collection_name: str = os.getenv("QDRANT_COLLECTION")
-        self.dense_vector_name: str = os.getenv("DENSE_VECTOR_NAME", "dense")
-        self.sparse_vector_name: str = os.getenv(
-            "SPARSE_VECTOR_NAME", "sparse")
-
+        self.strategy = strategy.lower()
+        self.host = os.getenv("QDRANT_HOST")
+        self.port = int(os.getenv("QDRANT_PORT"))
+        self.api_key = os.getenv("QDRANT_API_KEY")
+        self.collection_name = os.getenv("QDRANT_COLLECTION")
+        self.dense_vector_name = os.getenv("DENSE_VECTOR_NAME", "dense")
+        self.sparse_vector_name = os.getenv("SPARSE_VECTOR_NAME", "sparse")
         logger.info(f"Qdrant collection: {self.collection_name}")
         logger.info(f"Dense vector: {self.dense_vector_name}")
         logger.info(f"Sparse vector: {self.sparse_vector_name}")
 
-        self.client: QdrantClient = QdrantClient(
+        self.client = QdrantClient(
             host=self.host,
             port=self.port,
             api_key=self.api_key or None,
@@ -129,20 +118,12 @@ class QdrantVectorDB(BaseVectorDB):
         self,
         dense_embedding: Optional[Embeddings] = None,
         sparse_embedding: Optional[Embeddings] = None,
+        strategy: Optional[str] = None
     ) -> QdrantVectorStore:
         """
-        Returns a LangChain-compatible QdrantVectorStore
-        based on the EMBEDDING_STRATEGY env variable:
-        dense, sparse, or hybrid.
-        Args:
-            dense_embedding (Optional[Embeddings]): Dense embedder.
-            sparse_embedding (Optional[Embeddings]): Sparse embedder.
-        Returns:
-            QdrantVectorStore: Configured for the selected retrieval strategy.
-        Raises:
-            ValueError: If EMBEDDING_STRATEGY is invalid.
+        Returns a LangChain-compatible QdrantVectorStore based on the selected retrieval strategy.
         """
-        strategy = os.getenv("EMBEDDING_STRATEGY", "dense").lower()
+        strategy = (strategy or self.strategy or "dense").lower()
 
         if strategy == "dense":
             return QdrantVectorStore(

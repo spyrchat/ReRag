@@ -25,7 +25,7 @@ dense_embedder = get_embedder(config["embedding"]["dense"])
 sparse_embedder = get_embedder(config["embedding"]["sparse"])
 
 # Setup database
-db = QdrantVectorDB()
+db = QdrantVectorDB(strategy=config.get("embedding_strategy", "dense"))
 sql_db = PostgresController()
 
 # Setup retriever node

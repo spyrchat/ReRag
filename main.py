@@ -26,12 +26,12 @@ while True:
     logger.info(f"User: {user_input}")
     logger.info(f"Agent: {answer}")
 
-    if "context" in final_state:
-        context = final_state["context"]
-        print("\n[Retrieved Context]")
-        print(context)
-        logger.info(
-            f"Retrieved Context:\n{context[:500]}{'...' if len(context) > 500 else ''}")
+    # if "context" in final_state:
+    #     context = final_state["context"]
+    #     print("\n[Retrieved Context]")
+    #     print(context)
+    #     logger.info(
+    #         f"Retrieved Context:\n{context[:500]}{'...' if len(context) > 500 else ''}")
 
     if "sql" in final_state:
         logger.info(f"Generated SQL: {final_state['sql']}")

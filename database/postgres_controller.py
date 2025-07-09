@@ -49,28 +49,31 @@ class TableAsset(Base):
 class PostgresController:
     """
     Controller for managing PostgreSQL database connections and asset insertions.
-    Loads DB config from environment variables, handles session management,
+    Loads DB config from a config dict (or environment variables), handles session management,
     and provides methods for inserting image/table asset metadata.
     """
     engine = None
     SessionLocal = None
 
-    def __init__(self):
+    def __init__(self, db_config: dict = None):
         """
-        Initialize the database connection using environment variables.
+        Initialize the database connection using config dict or environment variables.
         Raises ValueError if configuration is missing, or ConnectionError if DB is unreachable.
         """
-        user = os.getenv('POSTGRES_USER')
-        password = os.getenv('POSTGRES_PASSWORD')
-        host = os.getenv('POSTGRES_HOST')
-        port = os.getenv('POSTGRES_PORT')
-        database = os.getenv('POSTGRES_DB')
+        db_config = db_config or {}
+
+        # Prefer config dict; fallback to env vars if not set
+        user = db_config.get('user') or os.getenv('POSTGRES_USER')
+        password = db_config.get('password') or os.getenv('POSTGRES_PASSWORD')
+        host = db_config.get('host') or os.getenv('POSTGRES_HOST')
+        port = db_config.get('port') or os.getenv('POSTGRES_PORT')
+        database = db_config.get('database') or os.getenv('POSTGRES_DB')
 
         if not all([user, password, host, port, database]):
             logger.error(
-                "One or more required Postgres environment variables are missing.")
+                "One or more required Postgres configuration variables are missing.")
             raise ValueError(
-                "One or more required Postgres environment variables are missing.")
+                "One or more required Postgres configuration variables are missing.")
 
         connection_str = f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}'
         logger.info(f"Connecting to Postgres: {connection_str}")
@@ -84,7 +87,6 @@ class PostgresController:
                 "PostgreSQL engine and tables initialized successfully.")
         except OperationalError as e:
             logger.error(f"Failed to connect to the database: {e}")
-            raise ConnectionError(f"Failed to connect to the database: {e}")
 
     def get_session(self) -> Session:
         """

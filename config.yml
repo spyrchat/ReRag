@@ -21,7 +21,11 @@ qdrant:
   sparse_vector_name: sparse
 
 postgres:
-  table_db_name: tableDB
+  user: admin
+  password: admin
+  database: tableDB
+  host: localhost
+  port: 5432
 
 llm:
   provider: openai
