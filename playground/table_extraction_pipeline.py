@@ -1,7 +1,8 @@
 from processors.table_pipeline.extractor import TableExtractor
 import os
-import fitz  # PyMuPDF
 import pandas as pd
+import fitz  # PyMuPDF
+
 
 def test_all_pdfs_in_sandbox():
     sandbox_dir = "papers"
@@ -30,7 +31,8 @@ def test_all_pdfs_in_sandbox():
         total_tables = 0
         for page_number in range(1, len(pdf) + 1):
             try:
-                tables = extractor.extract(filepath, page_number, verbose=False)
+                tables = extractor.extract(
+                    filepath, page_number, verbose=False)
                 table_count = len(tables)
                 total_tables += table_count
 
