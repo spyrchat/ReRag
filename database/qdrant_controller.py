@@ -14,7 +14,6 @@ from langchain_qdrant import QdrantVectorStore, RetrievalMode
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
-from sqlalchemy.orm.attributes import init_collection
 
 from .base import BaseVectorDB
 logger = logging.getLogger(__name__)
@@ -118,6 +117,7 @@ class QdrantVectorDB(BaseVectorDB):
             f"Inserted {len(documents)} documents into '{self.collection_name}' "
             f"({'dense' if dense_embedder else ''}{' + sparse' if sparse_embedder else ''})."
         )
+
     def as_langchain_vectorstore(
         self,
         dense_embedding: Optional[Embeddings] = None,
