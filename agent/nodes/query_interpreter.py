@@ -29,8 +29,8 @@ You are a planner agent for a modular RAG pipeline.
 
 Your job is to:
 1. Understand the user's intent.
-2. Decide if the answer requires accessing structured SQL tables, unstructured document chunks, or both.
-3. Output a plan, a query type ("sql", "text"), and a next_node to route to.
+2. Decide if the answer requires accessing structured SQL tables, unstructured document chunks, both, or NEITHER (i.e., can be answered directly with no retrieval).
+3. Output a plan, a query type ("sql", "text", "none"), and a next_node to route to.
 
 Today's date is: {reference_date}
 
@@ -40,10 +40,27 @@ Question: {question}
 
 Respond in valid JSON using this format:
 {{
-  "query_type": "sql" | "text",
-  "next_node": "sql_planner" | "retriever" | "merge",
+  "query_type": "sql" | "text" | "none",
+  "next_node": "sql_planner" | "retriever" | "merge" | "generator",
   "plan": ["Step 1: ...", "Step 2: ..."],
   "reasoning": "..."
+}}
+
+Examples:
+# Example 1: Direct answer (no DB needed)
+{{
+  "query_type": "none",
+  "next_node": "generator",
+  "plan": ["Recognize this as a chitchat or general info question.", "Answer directly."],
+  "reasoning": "No retrieval required for this question."
+}}
+
+# Example 2: SQL needed
+{{
+  "query_type": "sql",
+  "next_node": "sql_planner",
+  "plan": ["Detect that SQL is needed.", "Route to sql_planner."],
+  "reasoning": "This question is about structured data."
 }}
 """
 
@@ -55,11 +72,12 @@ Respond in valid JSON using this format:
         logging.error("Error in query_interpreter: %s", str(e))
         logging.error("LLM response: %s",
                       response.content if 'response' in locals() else 'None')
+        # Add 'generator' as a fallback if parsing fails
         parsed = {
-            "query_type": "text",
-            "next_node": "retriever",
-            "plan": ["Fallback to text retriever."],
-            "reasoning": "Failed to parse model response."
+            "query_type": "none",
+            "next_node": "generator",
+            "plan": ["Fallback to generator: answer directly."],
+            "reasoning": "Failed to parse model response. Defaulting to direct answer."
         }
 
     logging.info("=== Question ===")

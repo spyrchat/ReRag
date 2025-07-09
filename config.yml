@@ -1,0 +1,29 @@
+embedding_strategy: hybrid         # Options: dense, hybrid
+
+embedding:
+  dense:
+    provider: hf                  # Options: titan, hf, openai
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    batch_size: 32
+    vector_name: dense
+  sparse:
+    provider: fastembed           # Options: fastembed, bm25
+    model_name: Qdrant/bm25
+    vector_name: sparse
+
+retriever:
+  type: qdrant                    # Options: qdrant, mongodb, etc.
+  top_k: 10
+
+qdrant:
+  collection: test_collection_hybrid
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+postgres:
+  table_db_name: tableDB
+
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  temperature: 0.0

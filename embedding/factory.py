@@ -1,47 +1,37 @@
-import os
 from embedding.hf_embedder import HuggingFaceEmbedder
 from embedding.bedrock_embeddings import TitanEmbedder
 from embedding.sparse_embedder import SparseEmbedder
-import dotenv
 from langchain_qdrant import FastEmbedSparse
 
-dotenv.load_dotenv()
 
-
-def get_embedder(name: str = None, **kwargs):
+def get_embedder(cfg: dict):
     """
-    Factory to return a LangChain-compatible embedder instance.
+    Factory to return a LangChain-compatible embedder instance, based on YAML config.
 
     Args:
-        name (str, optional): Embedder name. If not provided, will fetch from ENV.
-        kwargs: Additional model configuration.
+        cfg (dict): Embedder configuration dictionary.
 
     Returns:
         A LangChain-compatible embedder object.
     """
+    provider = cfg.get("provider", "hf").strip().lower()
 
-    name = (name or os.getenv("DENSE_EMBEDDER")
-            or os.getenv("SPARSE_EMBEDDER")).strip().lower()
+    if provider == "hf":
+        model_name = cfg.get(
+            "model_name", "sentence-transformers/all-MiniLM-L6-v2")
+        device = cfg.get("device", "cpu")
+        return HuggingFaceEmbedder(model_name=model_name, device=device)
 
-    if name == "hf":
-        model_name = kwargs.get("model_name") or os.getenv(
-            "HF_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
-        )
-        return HuggingFaceEmbedder(model_name=model_name)
-
-    elif name == "titan":
-        model = kwargs.get("model") or os.getenv(
-            "TITAN_MODEL", "amazon.titan-embed-text-v2:0"
-        )
-        region = kwargs.get("region") or os.getenv("TITAN_REGION", "us-east-1")
+    elif provider == "titan":
+        model = cfg.get("model_name", "amazon.titan-embed-text-v2:0")
+        region = cfg.get("region", "us-east-1")
         return TitanEmbedder(model=model, region=region)
 
-    elif name == "fastembed":
-        model_name = kwargs.get("model_name") or os.getenv(
-            "FASTEMBED_MODEL", "BAAI/bge-small-en-v1.5"
-        )
-        return FastEmbedSparse(model_name=os.getenv("SPARSE_MODEL_NAME", "Qdrant/bm25"))
+    elif provider == "fastembed":
+        model_name = cfg.get("model_name", "BAAI/bge-small-en-v1.5")
+        return FastEmbedSparse(model_name=model_name)
 
     else:
         raise ValueError(
-            f"Unsupported embedder name: '{name}'. Supported: hf, titan, fastembed")
+            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed"
+        )
