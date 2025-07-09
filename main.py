@@ -13,7 +13,13 @@ while True:
     }
 
     final_state = graph.invoke(state)
-    answer = final_state.get("answer")
+    answer = final_state.get("answer", "[No answer returned]")
     chat_history = final_state.get("chat_history", [])
 
+    print("\n---")
     print(f"Agent: {answer}")
+
+    if "context" in final_state:
+        print("\n[Retrieved Context]")
+        print(final_state["context"])
+    print("---\n")
