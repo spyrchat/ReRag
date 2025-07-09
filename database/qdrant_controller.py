@@ -1,27 +1,32 @@
-from langchain_core import documents
-from qdrant_client.http.models import VectorParams, SparseVectorParams
-from qdrant_client import models as qmodels
-from qdrant_client.http.models import Distance
 import os
 import uuid
 import logging
 from typing import List, Optional
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
-
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models as qmodels
 from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
-
+from logs.utils.logger import get_logger
 from .base import BaseVectorDB
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+
+logger = get_logger("qdrant_controller")
 
 
 class QdrantVectorDB(BaseVectorDB):
+    """
+    Abstraction layer for managing Qdrant collections, vector insertion,
+    and retrieval strategy (dense, sparse, hybrid) in a modular RAG pipeline.
+    Configurations are environment-driven for flexible deployments.
+    """
+
     def __init__(self):
+        """
+        Initialize the QdrantVectorDB with settings from environment variables.
+        Connects to Qdrant and prepares basic configuration.
+        """
         load_dotenv(override=True)
         self.host: str = os.getenv("QDRANT_HOST")
         self.port: int = int(os.getenv("QDRANT_PORT"))
@@ -43,7 +48,10 @@ class QdrantVectorDB(BaseVectorDB):
 
     def init_collection(self, dense_vector_size: int) -> None:
         """
-        Create (or recreate) the collection for dense and sparse vectors.
+        Initialize (or re-create) a Qdrant collection for dense and sparse vectors.
+        Deletes existing collection if already present.
+        Args:
+            dense_vector_size (int): The dimensionality of the dense vector.
         """
         if self.client.collection_exists(self.collection_name):
             logger.info(
@@ -51,18 +59,15 @@ class QdrantVectorDB(BaseVectorDB):
             )
             self.client.delete_collection(self.collection_name)
 
-        # Create with separate configs for dense & sparse
         self.client.create_collection(
             collection_name=self.collection_name,
             vectors_config={
-                # only your dense side here
                 self.dense_vector_name: VectorParams(
                     size=dense_vector_size,
                     distance=Distance.COSINE,
                 )
             },
             sparse_vectors_config={
-                # only your sparse side here, using SparseVectorParams
                 self.sparse_vector_name: SparseVectorParams(
                     index=qmodels.SparseIndexParams(on_disk=False)
                 )
@@ -77,29 +82,31 @@ class QdrantVectorDB(BaseVectorDB):
 
     def get_client(self) -> QdrantClient:
         """
-        Get the Qdrant client instance.
-
-        Returns:
-            QdrantClient: The initialized Qdrant client.
+        Return the initialized Qdrant client instance.
         """
         return self.client
 
     def get_collection_name(self) -> str:
         """
-        Get the name of the current Qdrant collection.
-
-        Returns:
-            str: The collection name.
+        Return the name of the current Qdrant collection.
         """
         return self.collection_name
 
     def insert_documents(
-            self,
-            documents: List[Document],
-            dense_embedder: Optional[Embeddings] = None,
-            sparse_embedder: Optional[Embeddings] = None,
+        self,
+        documents: List[Document],
+        dense_embedder: Optional[Embeddings] = None,
+        sparse_embedder: Optional[Embeddings] = None,
     ) -> None:
-        # Only initialize collection if it doesn't exist
+        """
+        Insert a list of LangChain Documents into the configured Qdrant collection,
+        initializing the collection if needed (using dense_embedder for dimension).
+        Args:
+            documents (List[Document]): The documents to insert.
+            dense_embedder (Optional[Embeddings]): Embedder for dense vectors.
+            sparse_embedder (Optional[Embeddings]): Embedder for sparse vectors.
+        """
+        # Initialize collection only if needed and if dense_embedder is provided
         if not self.client.collection_exists(self.collection_name) and dense_embedder:
             sample_embedding = dense_embedder.embed_query("test")
             dense_dim = len(sample_embedding)
@@ -123,6 +130,18 @@ class QdrantVectorDB(BaseVectorDB):
         dense_embedding: Optional[Embeddings] = None,
         sparse_embedding: Optional[Embeddings] = None,
     ) -> QdrantVectorStore:
+        """
+        Returns a LangChain-compatible QdrantVectorStore
+        based on the EMBEDDING_STRATEGY env variable:
+        dense, sparse, or hybrid.
+        Args:
+            dense_embedding (Optional[Embeddings]): Dense embedder.
+            sparse_embedding (Optional[Embeddings]): Sparse embedder.
+        Returns:
+            QdrantVectorStore: Configured for the selected retrieval strategy.
+        Raises:
+            ValueError: If EMBEDDING_STRATEGY is invalid.
+        """
         strategy = os.getenv("EMBEDDING_STRATEGY", "dense").lower()
 
         if strategy == "dense":
@@ -135,7 +154,6 @@ class QdrantVectorDB(BaseVectorDB):
                 sparse_vector_name=self.sparse_vector_name,
                 retrieval_mode=RetrievalMode.DENSE,
             )
-
         elif strategy == "sparse":
             return QdrantVectorStore(
                 client=self.client,
@@ -144,7 +162,6 @@ class QdrantVectorDB(BaseVectorDB):
                 sparse_vector_name=self.sparse_vector_name,
                 retrieval_mode=RetrievalMode.SPARSE,
             )
-
         elif strategy == "hybrid":
             return QdrantVectorStore(
                 client=self.client,
@@ -155,6 +172,6 @@ class QdrantVectorDB(BaseVectorDB):
                 sparse_vector_name=self.sparse_vector_name,
                 retrieval_mode=RetrievalMode.HYBRID,
             )
-
         else:
+            logger.error(f"Invalid EMBEDDING_STRATEGY: {strategy}")
             raise ValueError(f"Invalid EMBEDDING_STRATEGY: {strategy}")
