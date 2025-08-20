@@ -1,0 +1,28 @@
+{
+  "description": "Batch ingestion configuration for multiple datasets",
+  "datasets": [
+    {
+      "type": "natural_questions",
+      "path": "/path/to/natural_questions",
+      "version": "1.0.0",
+      "config": "pipelines/configs/natural_questions.yml"
+    },
+    {
+      "type": "stackoverflow", 
+      "path": "/path/to/stackoverflow",
+      "version": "1.0.0",
+      "config": "pipelines/configs/stackoverflow.yml"
+    },
+    {
+      "type": "energy_papers",
+      "path": "papers/",
+      "version": "1.0.0", 
+      "config": "pipelines/configs/energy_papers.yml"
+    }
+  ],
+  "global_settings": {
+    "max_documents_per_dataset": 1000,
+    "dry_run": false,
+    "split": "all"
+  }
+}
