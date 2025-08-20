@@ -179,7 +179,7 @@ class StackOverflowAdapter(DatasetAdapter):
             post_type="answer",
             summary=summary
         )
-    def to_documents(self, rows: Iterable[StackOverflowRow]) -> List[Document]:
+    def to_documents(self, rows: Iterable[StackOverflowRow], split: DatasetSplit = DatasetSplit.ALL) -> List[Document]:
         """Convert SOSum rows to LangChain documents."""
         documents = []
         

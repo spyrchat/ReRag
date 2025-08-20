@@ -1,0 +1,274 @@
+[
+  {
+    "id": "q_2109441",
+    "content": "Title: How to show Error & Warning Message Box in .NET/ How to Customize MessageBox\n\nQuestion: How to show Error & Warning Message Box in .NET/ How to Customize MessageBox Using C# .NET (Winforms). I want to know how can I show the message boxes with  a <code>Ding! !</code> sound &amp; a red colored cross mark in it. This is what I'm talking about: How to do such things for my software, with custom errors and custom warnings? <code>MessageBox.Show(\"asdf\");</code> doesn't give me customize.",
+    "metadata": {
+      "external_id": "q_2109441",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c#",
+        ".net",
+        "winforms"
+      ],
+      "title": "How to show Error & Warning Message Box in .NET/ How to Customize MessageBox",
+      "question_type": 2,
+      "related_posts": [
+        "[315365]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.508978"
+  },
+  {
+    "id": "q_3061761",
+    "content": "Title: Numpy array dimensions\n\nQuestion: Numpy array dimensions I'm currently trying to learn Numpy and Python. Given the following array: Is there a function that returns the dimensions of <code>a</code> (e.g.a is a 2 by 2 array)? <code>size()</code> returns 4 and that doesn't help very much.",
+    "metadata": {
+      "external_id": "q_3061761",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "python",
+        "arrays",
+        "numpy",
+        "dimensions"
+      ],
+      "title": "Numpy array dimensions",
+      "question_type": 1,
+      "related_posts": [
+        "[603408]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509003"
+  },
+  {
+    "id": "q_2056",
+    "content": "Title: What are MVP and MVC and what is the difference?\n\nQuestion: What are MVP and MVC and what is the difference? When looking beyond the RAD (drag-drop and configure) way of building user interfaces that many tools encourage you are likely to come across three design patterns called Model-View-Controller, Model-View-Presenter and Model-View-ViewModel. My question has three parts to it: What issues do these patterns address? How are they similar? How are they different?",
+    "metadata": {
+      "external_id": "q_2056",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "design-patterns",
+        "model-view-controller",
+        "user-interface",
+        "mvp",
+        "glossary"
+      ],
+      "title": "What are MVP and MVC and what is the difference?",
+      "question_type": 1,
+      "related_posts": [
+        "[2067",
+        "2068",
+        "2069",
+        "4087",
+        "5712",
+        "26933",
+        "101561",
+        "110908",
+        "406470",
+        "489397]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509007"
+  },
+  {
+    "id": "q_9",
+    "content": "Title: How do I calculate someone's age in C#?\n\nQuestion: How do I calculate someone's age in C#? Given a <code>DateTime</code> representing a person's birthday, how do I calculate their age in years?",
+    "metadata": {
+      "external_id": "q_9",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c#",
+        ".net",
+        "datetime"
+      ],
+      "title": "How do I calculate someone's age in C#?",
+      "question_type": 2,
+      "related_posts": [
+        "[21",
+        "22",
+        "229",
+        "1404",
+        "3261",
+        "11942",
+        "13733",
+        "24242",
+        "141644",
+        "168703",
+        "877247",
+        "877516",
+        "1011981",
+        "1595311",
+        "1811311",
+        "1913553",
+        "1928680",
+        "2280982",
+        "3513146",
+        "3869003]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509010"
+  },
+  {
+    "id": "q_1835018",
+    "content": "Title: How to check if an object is a list or tuple (but not string)?\n\nQuestion: How to check if an object is a list or tuple (but not string)? This is what I normally do in order to ascertain that the input is a <code>list</code>/<code>tuple</code> - but not a <code>str</code>. Because many times I stumbled upon bugs where a function passes a <code>str</code> object by mistake, and the target function does <code>for x in lst</code> assuming that <code>lst</code> is actually a <code>list</code> or <code>tuple</code>. My question is: is there a better way of achieving this?",
+    "metadata": {
+      "external_id": "q_1835018",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "python",
+        "list",
+        "types",
+        "assert"
+      ],
+      "title": "How to check if an object is a list or tuple (but not string)?",
+      "question_type": 2,
+      "related_posts": [
+        "[1835044",
+        "1835162",
+        "1835259",
+        "1835402",
+        "1835599]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509014"
+  },
+  {
+    "id": "q_106508",
+    "content": "Title: What is a smart pointer and when should I use one?\n\nQuestion: What is a smart pointer and when should I use one? What is a smart pointer and when should I use one?",
+    "metadata": {
+      "external_id": "q_106508",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c++",
+        "pointers",
+        "c++11",
+        "smart-pointers",
+        "c++-faq"
+      ],
+      "title": "What is a smart pointer and when should I use one?",
+      "question_type": 1,
+      "related_posts": [
+        "[106568",
+        "106519",
+        "106523",
+        "106568",
+        "106614",
+        "106759]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509018"
+  },
+  {
+    "id": "q_43021",
+    "content": "Title: How do you get the index of the current iteration of a foreach loop?\n\nQuestion: How do you get the index of the current iteration of a foreach loop? Is there some rare language construct I haven't encountered (like the few I've learned recently, some on Stack Overflow) in C# to get a value representing the current iteration of a foreach loop? For instance, I currently do something like this depending on the circumstances: <code>int i=0;foreach (Object o in collection){    // ...    i++;}</code>",
+    "metadata": {
+      "external_id": "q_43021",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c#",
+        "foreach"
+      ],
+      "title": "How do you get the index of the current iteration of a foreach loop?",
+      "question_type": 2,
+      "related_posts": [
+        "[43026",
+        "43028",
+        "43029",
+        "43103",
+        "77542",
+        "1046748",
+        "1984049",
+        "3293486",
+        "3535307",
+        "3535362",
+        "3691283",
+        "4055002]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509021"
+  },
+  {
+    "id": "q_561166",
+    "content": "Title: Binding a WPF ComboBox to a custom list\n\nQuestion: Binding a WPF ComboBox to a custom list I have a ComboBox that doesn't seem to update the SelectedItem/SelectedValue. The ComboBox ItemsSource is bound to a property on a ViewModel class that lists a bunch of RAS phonebook entries as a CollectionView. Then I've bound (at separate times) both the <code>SelectedItem</code> or <code>SelectedValue</code> to another property of the ViewModel. I have added a MessageBox into the save command to debug the values set by the databinding, but the <code>SelectedItem</code>/<code>SelectedValue</code> binding is not being set. The ViewModel class looks something like this: The _phonebookEntries collection is being initialised in the constructor from a business object. The ComboBox XAML looks something like this: I am only interested in the actual string value displayed in the ComboBox, not any other properties of the object as this is the value I need to pass across to RAS when I want to make the VPN connection, hence <code>DisplayMemberPath</code> and <code>SelectedValuePath</code> are both the Name property of the ConnectionViewModel. The ComboBox is in a <code>DataTemplate</code> applied to an <code>ItemsControl</code> on a Window who's DataContext  has been set to a ViewModel instance. The ComboBox displays the list of items correctly, and I can select one in the UI with no problem. However when I display the message box from the command, the PhonebookEntry property still has the initial value in it, not the selected value from the ComboBox. Other TextBox instances are updating fine and displaying in the MessageBox. What am I missing with databinding the ComboBox? I've done a lot of searching and can't seem to find anything that I'm doing wrong. This is the behaviour I'm seeing, however it's not working for some reason in my particular context. I have a MainWindowViewModel which has a <code>CollectionView</code> of ConnectionViewModels. In the MainWindowView.xaml file code-behind, I set the DataContext to the MainWindowViewModel. The MainWindowView.xaml has an <code>ItemsControl</code> bound to the collection of ConnectionViewModels. I have a DataTemplate that holds the ComboBox as well as some other TextBoxes. The TextBoxes are bound directly to properties of the ConnectionViewModel using <code>Text=\"{Binding Path=ConnectionName}\"</code>. The XAML code-behind: Then XAML: The TextBoxes all bind correctly, and data moves between them and the ViewModel with no trouble. It's only the ComboBox that isn't working. You are correct in your assumption regarding the PhonebookEntry class. The assumption I am making is that the DataContext used by my DataTemplate is automatically set through the binding hierarchy, so that I don't have to explicitly set it for each item in the <code>ItemsControl</code>. That would seem a bit silly to me. Here is a test implementation that demonstrates the problem, based on the example above. XAML: The code-behind: If you run that example, you will get the behaviour I'm talking about. The TextBox updates its binding fine when you edit it, but the ComboBox does not. Very confusing seeing as really the only thing I've done is introduce a parent ViewModel. I am currently labouring under the impression that an item bound to the child of a DataContext has that child as its DataContext. I can't find any documentation that clears this up one way or the other. I.e., Window -> DataContext = MainWindowViewModel ..Items -> Bound to DataContext.PhonebookEntries ....Item -> DataContext = PhonebookEntry (implicitly associated) I don't know if that explains my assumption any better(? ). To confirm my assumption, change the binding of the TextBox to be And this will show the TextBox binding root (which I'm comparing to the DataContext) is the ConnectionViewModel instance.",
+    "metadata": {
+      "external_id": "q_561166",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c#",
+        "wpf",
+        "data-binding",
+        "mvvm",
+        "combobox"
+      ],
+      "title": "Binding a WPF ComboBox to a custom list",
+      "question_type": 3,
+      "related_posts": [
+        "[561427",
+        "1522560",
+        "2005458]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509024"
+  },
+  {
+    "id": "q_2777105",
+    "content": "Title: Why Response.Redirect causes System.Threading.ThreadAbortException?\n\nQuestion: Why Response.Redirect causes System.Threading.ThreadAbortException? When I use Response.Redirect(...) to redirect my form to a new page I get the error: A first chance exception of type 'System.Threading.ThreadAbortException' occurred in mscorlib.dll       An exception of type 'System.Threading.ThreadAbortException' occurred in mscorlib.dll but was not handled in user code My understanding of this is that the error is being caused by the webserver aborting the remainder of the page the response.redirect was called on. I know I can add a second parameter to <code>Response.Redirect</code> that is called endResponse. If I set endResponse to True I still get the error but if I set it to False then I do not. I am pretty sure though that that means the webserver is running the rest of the page I redirected away from. Which would seem to be inefficient to say the least. Is there a better way to do this? Something other than <code>Response.Redirect</code> or is there a way to force the old page to stop loading where I will not get a <code>ThreadAbortException</code>?",
+    "metadata": {
+      "external_id": "q_2777105",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "c#",
+        "asp.net",
+        ".net-3.5"
+      ],
+      "title": "Why Response.Redirect causes System.Threading.ThreadAbortException?",
+      "question_type": 3,
+      "related_posts": [
+        "[363156",
+        "2777138",
+        "2777143",
+        "2777204",
+        "2902802]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509028"
+  },
+  {
+    "id": "q_882712",
+    "content": "Title: Sending HTML email using Python\n\nQuestion: Sending HTML email using Python How can I send the HTML content in an email using Python? I can send simple text.",
+    "metadata": {
+      "external_id": "q_882712",
+      "source": "stackoverflow_sosum",
+      "post_type": "question",
+      "doc_type": "question",
+      "tags": [
+        "python",
+        "html-email"
+      ],
+      "title": "Sending HTML email using Python",
+      "question_type": 2,
+      "related_posts": [
+        "[1597707",
+        "882804",
+        "2837322]"
+      ]
+    },
+    "processed_at": "2025-08-21T00:06:49.509031"
+  }
+]

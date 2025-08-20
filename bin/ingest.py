@@ -97,7 +97,7 @@ def cmd_ingest(args):
         if args.verify:
             logger.info("Running verification...")
             collection_info = pipeline.get_collection_status()
-            print(f"\n📊 Collection Status:")
+            print(f"\n Collection Status:")
             print(f"  Name: {collection_info.get('collection_name', 'unknown')}")
             print(f"  Points: {collection_info.get('points_count', 0)}")
             print(f"  Status: {collection_info.get('status', 'unknown')}")
@@ -220,7 +220,7 @@ def cmd_status(args):
         # Get collection info
         collection_info = pipeline.get_collection_status()
         
-        print(f"\n📊 Collection Status:")
+        print(f"\nCollection Status:")
         print(f"  Name: {collection_info.get('collection_name', 'unknown')}")
         print(f"  Points: {collection_info.get('points_count', 0):,}")
         print(f"  Status: {collection_info.get('status', 'unknown')}")
