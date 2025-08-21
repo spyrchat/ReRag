@@ -205,6 +205,7 @@ class StackOverflowAdapter(DatasetAdapter):
                 "doc_type": doc_type,
                 "tags": row.tags,
                 "title": row.title if row.title else None,
+                "split": split.value,  # Add the split parameter
             }
             
             # Add question-specific metadata

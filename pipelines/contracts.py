@@ -66,6 +66,8 @@ class ChunkMeta(BaseModel):
     # Embedding metadata
     embedding_model: Optional[str] = Field(None, description="Embedding model used")
     embedding_dim: Optional[int] = Field(None, description="Embedding dimension")
+    dense_embedding: Optional[List[float]] = Field(None, description="Dense embedding vector")
+    sparse_embedding: Optional[Dict[int, float]] = Field(None, description="Sparse embedding vector")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for vector store payload."""
@@ -93,6 +95,9 @@ class IngestionRecord(BaseModel):
     # Sample IDs for verification
     sample_doc_ids: List[str] = Field(default_factory=list)
     sample_chunk_ids: List[str] = Field(default_factory=list)
+    
+    # Additional metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
     # Configuration
     chunk_strategy: Dict[str, Any] = Field(default_factory=dict)

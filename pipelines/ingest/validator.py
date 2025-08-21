@@ -32,9 +32,10 @@ class DocumentValidator:
             r"^(.)\1{50,}",     # Repeated characters
         ]
         
-        # Character sets
+        # Character sets - be more permissive for HTML/code content
         self.allowed_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         self.allowed_chars.update(" .,!?;:()[]{}\"'-\n\t")
+        self.allowed_chars.update("<>/&=#@%*+_|\\`~$^")  # Add common HTML/code characters
         
         # Seen document hashes for deduplication
         self.seen_hashes: Set[str] = set()

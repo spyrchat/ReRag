@@ -14,7 +14,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
 from embedding.factory import get_embedder
-from pipelines.contracts import ChunkMeta, build_doc_id, build_chunk_id, compute_content_hash
+from pipelines.contracts import ChunkMeta, build_doc_id, build_chunk_id, compute_content_hash, DatasetSplit
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ class EmbeddingPipeline:
             )
             
             for meta, embedding in zip(chunk_metas, dense_embeddings):
-                meta.metadata["dense_embedding"] = embedding
+                meta.dense_embedding = embedding
                 if embedding:
                     meta.embedding_dim = len(embedding)
                     meta.embedding_model = self._get_model_name(self.dense_embedder)
@@ -92,7 +92,7 @@ class EmbeddingPipeline:
             )
             
             for meta, embedding in zip(chunk_metas, sparse_embeddings):
-                meta.metadata["sparse_embedding"] = embedding
+                meta.sparse_embedding = embedding
         
         logger.info(f"Successfully processed {len(chunk_metas)} chunk metas")
         return chunk_metas
@@ -128,7 +128,7 @@ class EmbeddingPipeline:
             num_chunks=metadata.get("num_chunks", 1),
             token_count=metadata.get("token_estimate"),
             char_count=len(text),
-            split=metadata.get("split", "unknown"),
+            split=DatasetSplit(metadata.get("split", "all")),
             labels=metadata.get("labels", {}),
             git_commit=git_commit,
             config_hash=config_hash
