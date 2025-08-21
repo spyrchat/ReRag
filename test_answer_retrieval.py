@@ -52,13 +52,18 @@ def test_answer_retrieval():
             
             for i, hit in enumerate(search_result, 1):
                 score = hit.score
-                metadata = hit.payload
+                payload = hit.payload
+                
+                # Access metadata from the labels field
+                labels = payload.get('labels', {})
                 
                 print(f"\n  {i}. Score: {score:.3f}")
-                print(f"     Answer ID: {metadata.get('external_id', 'N/A')}")
-                print(f"     Question: {metadata.get('title', 'N/A')}")
-                print(f"     Tags: {metadata.get('tags', [])}")
-                print(f"     Text preview: {hit.payload.get('text', '')[:200]}...")
+                print(f"     Answer ID: {payload.get('external_id', 'N/A')}")
+                print(f"     Question: {labels.get('title', 'N/A')}")
+                print(f"     Tags: {labels.get('tags', [])}")
+                print(f"     Post Type: {labels.get('post_type', 'N/A')}")
+                print(f"     Has Question Context: {labels.get('has_question_context', False)}")
+                print(f"     Text preview: {payload.get('text', '')[:200]}...")
         else:
             print("❌ No results found")
 

@@ -352,6 +352,109 @@ class EmbeddingQualityTest(SmokeTest):
             )
 
 
+class AnswerMetadataTest(SmokeTest):
+    """Test that answer metadata (question titles, tags) is properly retrieved."""
+    
+    @property
+    def test_name(self) -> str:
+        return "answer_metadata"
+    
+    def run(self, config: Dict[str, Any]) -> SmokeTestResult:
+        """Check that search results include question titles and tags."""
+        try:
+            vector_db = QdrantVectorDB()
+            client = vector_db.get_client()
+            
+            # Use actual collection name if provided, otherwise fall back to configured name
+            collection_name = config.get("actual_collection_name") or vector_db.get_collection_name()
+            
+            # Initialize embedder for search
+            embedder = get_embedder(config.get("embedding", {}).get("dense", {}))
+            
+            # Test queries to check metadata retrieval
+            test_queries = [
+                "How to count bits",
+                "Python exceptions",
+                "C++ extern"
+            ]
+            
+            details = {
+                "tested_queries": len(test_queries),
+                "results_with_titles": 0,
+                "results_with_tags": 0,
+                "results_with_context": 0,
+                "total_results": 0
+            }
+            
+            errors = []
+            
+            for query in test_queries:
+                try:
+                    # Generate embedding and search
+                    query_embedding = embedder.embed_query(query)
+                    search_result = client.search(
+                        collection_name=collection_name,
+                        query_vector=("dense", query_embedding),
+                        limit=3,
+                        with_payload=True
+                    )
+                    
+                    # Check metadata in results
+                    for hit in search_result:
+                        details["total_results"] += 1
+                        
+                        if hit.payload:
+                            labels = hit.payload.get('labels', {})
+                            
+                            # Check for question title
+                            if labels.get('title'):
+                                details["results_with_titles"] += 1
+                            
+                            # Check for tags
+                            if labels.get('tags') and len(labels.get('tags', [])) > 0:
+                                details["results_with_tags"] += 1
+                            
+                            # Check for question context
+                            if labels.get('has_question_context'):
+                                details["results_with_context"] += 1
+                
+                except Exception as e:
+                    errors.append(f"Error testing query '{query}': {str(e)}")
+            
+            # Calculate percentages
+            total_results = details["total_results"]
+            if total_results > 0:
+                details["title_percentage"] = details["results_with_titles"] / total_results
+                details["tags_percentage"] = details["results_with_tags"] / total_results
+                details["context_percentage"] = details["results_with_context"] / total_results
+            else:
+                errors.append("No search results found")
+            
+            # Quality checks
+            min_title_rate = 0.7  # At least 70% should have titles
+            min_tags_rate = 0.5   # At least 50% should have tags
+            
+            if details.get("title_percentage", 0) < min_title_rate:
+                errors.append(f"Only {details.get('title_percentage', 0):.1%} of results have question titles (expected ≥{min_title_rate:.1%})")
+            
+            if details.get("tags_percentage", 0) < min_tags_rate:
+                errors.append(f"Only {details.get('tags_percentage', 0):.1%} of results have tags (expected ≥{min_tags_rate:.1%})")
+            
+            return SmokeTestResult(
+                passed=len(errors) == 0,
+                test_name=self.test_name,
+                details=details,
+                errors=errors
+            )
+            
+        except Exception as e:
+            return SmokeTestResult(
+                passed=False,
+                test_name=self.test_name,
+                errors=[f"Error testing answer metadata: {str(e)}"]
+            )
+
+
 class SmokeTestRunner:
     """Runs all smoke tests and aggregates results."""
     
