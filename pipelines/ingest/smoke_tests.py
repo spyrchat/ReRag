@@ -41,7 +41,9 @@ class CollectionExistsTest(SmokeTest):
         try:
             vector_db = QdrantVectorDB()
             client = vector_db.get_client()
-            collection_name = vector_db.get_collection_name()
+            
+            # Use actual collection name if provided, otherwise fall back to configured name
+            collection_name = config.get("actual_collection_name") or vector_db.get_collection_name()
             
             # Check if collection exists
             if not client.collection_exists(collection_name):
@@ -94,7 +96,9 @@ class VectorDimensionTest(SmokeTest):
         try:
             vector_db = QdrantVectorDB()
             client = vector_db.get_client()
-            collection_name = vector_db.get_collection_name()
+            
+            # Use actual collection name if provided, otherwise fall back to configured name
+            collection_name = config.get("actual_collection_name") or vector_db.get_collection_name()
             
             # Sample a few points
             sample_points = client.scroll(
@@ -260,7 +264,9 @@ class EmbeddingQualityTest(SmokeTest):
         try:
             vector_db = QdrantVectorDB()
             client = vector_db.get_client()
-            collection_name = vector_db.get_collection_name()
+            
+            # Use actual collection name if provided, otherwise fall back to configured name
+            collection_name = config.get("actual_collection_name") or vector_db.get_collection_name()
             
             # Sample points for analysis
             sample_points = client.scroll(
@@ -368,16 +374,21 @@ class SmokeTestRunner:
         
         return tests
     
-    def run_all_tests(self) -> Dict[str, Any]:
+    def run_all_tests(self, collection_name: Optional[str] = None) -> Dict[str, Any]:
         """Run all smoke tests and return aggregated results."""
         logger.info(f"Running {len(self.tests)} smoke tests...")
+        
+        # Update config with actual collection name if provided
+        test_config = self.config.copy()
+        if collection_name:
+            test_config["actual_collection_name"] = collection_name
         
         results = []
         passed_count = 0
         
         for test in self.tests:
             logger.info(f"Running test: {test.test_name}")
-            result = test.run(self.config)
+            result = test.run(test_config)
             results.append(result)
             
             if result.passed:

@@ -31,7 +31,12 @@ def get_embedder(cfg: dict):
         model_name = cfg.get("model_name", "BAAI/bge-small-en-v1.5")
         return FastEmbedSparse(model_name=model_name)
 
+    elif provider == "sparse":
+        model_name = cfg.get("model_name", "BAAI/bge-base-en")
+        device = cfg.get("device", "cpu")
+        return SparseEmbedder(model_name=model_name, device=device)
+
     else:
         raise ValueError(
-            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed"
+            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed, sparse"
         )

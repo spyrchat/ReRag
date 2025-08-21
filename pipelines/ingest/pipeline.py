@@ -263,7 +263,9 @@ class IngestionPipeline:
     
     def _run_smoke_tests(self) -> Dict[str, Any]:
         """Run post-ingestion smoke tests."""
-        return self.smoke_test_runner.run_all_tests()
+        # Pass the actual collection name being used
+        actual_collection = self.uploader.collection_name
+        return self.smoke_test_runner.run_all_tests(collection_name=actual_collection)
     
     def _save_lineage(self, record: IngestionRecord):
         """Save ingestion lineage for reproducibility."""

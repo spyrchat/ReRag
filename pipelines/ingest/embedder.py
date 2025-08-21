@@ -141,7 +141,7 @@ class EmbeddingPipeline:
         
         return chunk_meta
     
-    def _generate_embeddings(self, texts: List[str], embedder: Embeddings, embedding_type: str) -> List[Optional[List[float]]]:
+    def _generate_embeddings(self, texts: List[str], embedder: Embeddings, embedding_type: str) -> List[Optional[Union[List[float], Dict[int, float]]]]:
         """Generate embeddings with caching and error handling."""
         embeddings = []
         
@@ -152,7 +152,7 @@ class EmbeddingPipeline:
         
         return embeddings
     
-    def _process_embedding_batch(self, texts: List[str], embedder: Embeddings, embedding_type: str) -> List[Optional[List[float]]]:
+    def _process_embedding_batch(self, texts: List[str], embedder: Embeddings, embedding_type: str) -> List[Optional[Union[List[float], Dict[int, float]]]]:
         """Process a batch of texts for embedding."""
         batch_embeddings = []
         
@@ -186,21 +186,31 @@ class EmbeddingPipeline:
         
         return batch_embeddings
     
-    def _generate_single_embedding(self, text: str, embedder: Embeddings, embedding_type: str) -> Optional[List[float]]:
+    def _generate_single_embedding(self, text: str, embedder: Embeddings, embedding_type: str) -> Optional[Union[List[float], Dict[int, float]]]:
         """Generate embedding for a single text with retries."""
         for attempt in range(self.max_retries):
             try:
-                if embedding_type == "dense":
-                    embedding = embedder.embed_query(text)
-                else:  # sparse
-                    embedding = embedder.embed_query(text)
+                embedding = embedder.embed_query(text)
                 
-                # Validate embedding
-                if embedding and len(embedding) > 0:
-                    return embedding
-                else:
-                    logger.warning(f"Empty embedding returned for text: {text[:50]}...")
-                    return None
+                # Validate embedding based on type
+                if embedding_type == "dense":
+                    if embedding and isinstance(embedding, list) and len(embedding) > 0:
+                        return embedding
+                else:  # sparse
+                    # Handle different sparse embedding formats
+                    if embedding is not None:
+                        if isinstance(embedding, dict) and len(embedding) > 0:
+                            return embedding
+                        elif hasattr(embedding, '__len__') and len(embedding) > 0:
+                            # Convert array-like objects to dict if needed
+                            logger.warning(f"Converting sparse embedding type {type(embedding)} to dict")
+                            return dict(embedding) if hasattr(embedding, 'items') else {}
+                        else:
+                            logger.warning(f"Unexpected sparse embedding type: {type(embedding)}")
+                            return {}
+                
+                logger.warning(f"Empty or invalid {embedding_type} embedding returned for text: {text[:50]}...")
+                return None
                     
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1}/{self.max_retries} failed for {embedding_type} embedding: {e}")
@@ -209,7 +219,7 @@ class EmbeddingPipeline:
         
         return None
     
-    def _get_cached_embedding(self, text: str, embedder: Embeddings, embedding_type: str) -> Optional[List[float]]:
+    def _get_cached_embedding(self, text: str, embedder: Embeddings, embedding_type: str) -> Optional[Union[List[float], Dict[int, float]]]:
         """Retrieve cached embedding."""
         cache_key = self._compute_cache_key(text, embedder, embedding_type)
         cache_file = self.cache_dir / f"{cache_key}.json"
@@ -218,23 +228,34 @@ class EmbeddingPipeline:
             try:
                 with open(cache_file, 'r') as f:
                     data = json.load(f)
-                    return data.get("embedding")
+                    embedding = data.get("embedding")
+                    
+                    # Convert string keys back to int for sparse embeddings
+                    if embedding_type == "sparse" and isinstance(embedding, dict):
+                        return {int(k): v for k, v in embedding.items()}
+                    
+                    return embedding
             except Exception as e:
                 logger.warning(f"Error reading cache file {cache_file}: {e}")
         
         return None
     
-    def _cache_embedding(self, text: str, embedding: List[float], embedder: Embeddings, embedding_type: str):
+    def _cache_embedding(self, text: str, embedding: Union[List[float], Dict[int, float]], embedder: Embeddings, embedding_type: str):
         """Cache embedding result."""
         cache_key = self._compute_cache_key(text, embedder, embedding_type)
         cache_file = self.cache_dir / f"{cache_key}.json"
         
         try:
+            # Convert int keys to string for JSON serialization
+            serializable_embedding = embedding
+            if embedding_type == "sparse" and isinstance(embedding, dict):
+                serializable_embedding = {str(k): v for k, v in embedding.items()}
+            
             cache_data = {
                 "text_hash": hashlib.sha256(text.encode()).hexdigest(),
                 "embedding_type": embedding_type,
                 "model": self._get_model_name(embedder),
-                "embedding": embedding,
+                "embedding": serializable_embedding,
                 "created_at": str(datetime.now())
             }
             
@@ -259,10 +280,10 @@ class EmbeddingPipeline:
         else:
             return embedder.__class__.__name__
     
-    def _create_fallback_embedding(self, embedding_type: str) -> List[float]:
+    def _create_fallback_embedding(self, embedding_type: str) -> Union[List[float], Dict[int, float]]:
         """Create fallback embedding for failed cases."""
         if embedding_type == "sparse":
-            # For sparse embeddings, return empty dict or sparse structure
+            # For sparse embeddings, return empty dict
             return {}
         else:
             # For dense embeddings, return zero vector
