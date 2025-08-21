@@ -1,33 +1,30 @@
-embedding_strategy: hybrid         # Options: dense, hybrid
-
 embedding:
   dense:
-    provider: hf                  # Options: titan, hf, openai
-    model_name: sentence-transformers/all-MiniLM-L6-v2
     batch_size: 32
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    provider: hf
     vector_name: dense
   sparse:
-    provider: fastembed           # Options: fastembed, bm25
     model_name: Qdrant/bm25
+    provider: fastembed
     vector_name: sparse
-
-retriever:
-  type: qdrant                    # Options: qdrant, mongodb, etc.
-  top_k: 10
-
+embedding_strategy: hybrid
+llm:
+  model: gpt-4.1-mini
+  provider: openai
+  temperature: 0.0
+postgres:
+  database: tableDB
+  host: localhost
+  password: admin
+  port: 5432
+  user: admin
 qdrant:
   collection: test_collection_hybrid
   dense_vector_name: dense
   sparse_vector_name: sparse
-
-postgres:
-  user: admin
-  password: admin
-  database: tableDB
-  host: localhost
-  port: 5432
-
-llm:
-  provider: openai
-  model: gpt-4.1-mini
-  temperature: 0.0
+retrieval:
+  config_path: pipelines/configs/retrieval/advanced_reranked.yml
+retriever:
+  top_k: 10
+  type: qdrant

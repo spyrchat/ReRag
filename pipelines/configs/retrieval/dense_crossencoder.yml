@@ -1,0 +1,51 @@
+# Dense retrieval with cross-encoder reranking
+dataset:
+  name: "stackoverflow_sosum"
+  version: "1.0.0"
+
+# Base retrieval configuration  
+embedding_strategy: dense
+embedding:
+  dense:
+    provider: hf
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    batch_size: 32
+
+qdrant:
+  collection: sosum_stackoverflow_minilm_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+# Retrieval pipeline configuration
+retrieval_pipeline:
+  # Retrieval stage
+  retriever:
+    type: dense
+    top_k: 10
+    
+  # Processing stages (executed in order)
+  stages:
+    - type: score_filter
+      config:
+        min_score: 0.3
+        
+    - type: reranker
+      config:
+        model_type: cross_encoder
+        model_name: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        top_k: 5
+        
+    - type: answer_enhancer
+      config:
+        enhance_quality: true
+        add_context: true
+        
+    - type: result_limiter
+      config:
+        max_results: 3
+
+# Evaluation settings
+evaluation:
+  metrics: ["recall", "precision", "mrr"]
+  
+output_dir: "output/sosum_minilm_reranked"
