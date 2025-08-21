@@ -180,45 +180,92 @@ class StackOverflowAdapter(DatasetAdapter):
             summary=summary
         )
     def to_documents(self, rows: Iterable[StackOverflowRow], split: DatasetSplit = DatasetSplit.ALL) -> List[Document]:
-        """Convert SOSum rows to LangChain documents."""
-        documents = []
+        """Convert SOSum rows to LangChain documents.
         
-        for row in rows:
-            # Create content based on post type
+        RAG-optimized approach: Only answers are ingested as retrievable documents.
+        Questions are stored as metadata/context for their corresponding answers.
+        This ensures users retrieve valuable answers, not just questions.
+        """
+        documents = []
+        questions_map = {}  # Map question_id -> question data
+        
+        # First pass: collect all rows and build questions map
+        all_rows = list(rows)
+        
+        # Build questions map for context
+        for row in all_rows:
             if row.post_type == "question":
-                content = f"Title: {row.title}\n\nQuestion: {row.body}"
-                doc_type = "question"
-            else:  # answer
-                content = row.body
-                if row.summary:
-                    content = f"Answer: {row.body}\n\nSummary: {row.summary}"
-                doc_type = "answer"
-            
-            # Skip empty content
-            if not content.strip():
+                questions_map[row.external_id] = row
+        
+        # Second pass: create documents only from answers, with question context
+        for row in all_rows:
+            if row.post_type != "answer":
+                continue  # Only process answers as primary documents
+                
+            # Skip empty answers
+            if not row.body.strip():
                 continue
+            
+            # Build answer content
+            answer_content = row.body.strip()
+            if row.summary and row.summary.strip():
+                answer_content = f"{answer_content}\n\n[Summary: {row.summary.strip()}]"
+            
+            # Find the corresponding question for context
+            question_context = None
+            question_title = ""
+            question_tags = []
+            
+            # Try to find matching question by looking for related posts
+            # This is a heuristic since SOSum doesn't always have perfect linking
+            for q_id, question in questions_map.items():
+                if row.external_id.replace('a_', '') in question.related_posts:
+                    question_context = question.body
+                    question_title = question.title
+                    question_tags = question.tags
+                    break
+            
+            # If no direct link found, try to find question with similar ID
+            if not question_context:
+                answer_id_num = row.external_id.replace('a_', '')
+                for q_id, question in questions_map.items():
+                    if answer_id_num in q_id or q_id.replace('q_', '') == answer_id_num:
+                        question_context = question.body
+                        question_title = question.title
+                        question_tags = question.tags
+                        break
+            
+            # Create the final document content
+            # The answer is the primary content, question provides context
+            content_parts = []
+            if question_title:
+                content_parts.append(f"Q: {question_title}")
+            if question_context and question_context.strip():
+                content_parts.append(f"Question Details: {question_context.strip()}")
+            content_parts.append(f"Answer: {answer_content}")
+            
+            content = "\n\n".join(content_parts)
             
             metadata = {
                 "external_id": row.external_id,
                 "source": self.source_name,
-                "post_type": row.post_type,
-                "doc_type": doc_type,
-                "tags": row.tags,
-                "title": row.title if row.title else None,
-                "split": split.value,  # Add the split parameter
+                "post_type": "answer",  # Always answer since we only ingest answers
+                "doc_type": "answer",   # Always answer
+                "tags": question_tags,  # Use question tags
+                "title": question_title if question_title else None,
+                "split": split.value,
+                "answer_body": row.body,  # Store pure answer separately
             }
             
-            # Add question-specific metadata
-            if row.post_type == "question":
-                metadata.update({
-                    "question_type": row.question_type,
-                    "related_posts": row.related_posts,
-                })
-            
             # Add answer-specific metadata
-            if row.post_type == "answer" and row.summary:
-                metadata["has_summary"] = True
+            if row.summary:
                 metadata["summary"] = row.summary
+                metadata["has_summary"] = True
+            
+            # Add question context as metadata
+            if question_context:
+                metadata["question_context"] = question_context
+                metadata["has_question_context"] = True
             
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
@@ -231,65 +278,124 @@ class StackOverflowAdapter(DatasetAdapter):
         return documents
     
     def get_evaluation_queries(self) -> List[Dict[str, Any]]:
-        """Get evaluation queries based on question titles and summaries."""
+        """Get evaluation queries optimized for answer retrieval.
+        
+        Creates queries based on question titles/content that should retrieve 
+        the corresponding answers, not the questions themselves.
+        """
         evaluation_queries = []
         
-        # Read questions for evaluation queries
+        # Build a map of questions to their related answers
+        question_to_answers = {}
+        answer_ids = set()
+        
+        # First, collect all answer IDs
+        try:
+            with open(self.answer_file, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row_num, row in enumerate(reader):
+                    answer_id = row.get("Answer Id", row.get("answer_id", f"a{row_num}"))
+                    answer_ids.add(f"a_{answer_id}")
+        except Exception as e:
+            print(f"Error reading answer IDs: {e}")
+        
+        # Read questions and create queries that should retrieve answers
         try:
             with open(self.question_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row_num, row in enumerate(reader):
                     title = row.get("Question Title", row.get("question_title", ""))
+                    body = row.get("Question Body", row.get("question_body", ""))
                     question_id = row.get("Question Id", row.get("question_id", f"q{row_num}"))
                     
-                    if title and len(title) > 10:  # Only use substantial titles
-                        # Create query from question title
+                    # Parse related answer posts
+                    answer_posts_str = row.get("Answer Posts", row.get("answer_posts", ""))
+                    related_answers = []
+                    if answer_posts_str:
+                        related_answers = [f"a_{post.strip()}" for post in answer_posts_str.split(',') if post.strip()]
+                        # Filter to only include answers that actually exist
+                        related_answers = [aid for aid in related_answers if aid in answer_ids]
+                    
+                    # If no explicit related answers, try to infer by ID similarity
+                    if not related_answers:
+                        potential_answer = f"a_{question_id}"
+                        if potential_answer in answer_ids:
+                            related_answers = [potential_answer]
+                    
+                    # Only create queries if we have answers to retrieve
+                    if related_answers and title and len(title) > 10:
+                        # Query from question title - should retrieve answers
                         evaluation_queries.append({
                             "query": title,
-                            "expected_docs": [f"q_{question_id}"],
-                            "query_type": "question_title",
-                            "query_id": f"eval_q_{question_id}"
+                            "expected_docs": related_answers,
+                            "query_type": "question_title_to_answer",
+                            "query_id": f"eval_q2a_{question_id}",
+                            "description": f"Question title should retrieve answer(s)"
                         })
                         
-                        # Also create shortened query (first few words)
-                        short_query = " ".join(title.split()[:5])
-                        if len(short_query) > 5:
+                        # Query from shortened title
+                        short_query = " ".join(title.split()[:6])
+                        if len(short_query) > 10:
                             evaluation_queries.append({
                                 "query": short_query,
-                                "expected_docs": [f"q_{question_id}"],
-                                "query_type": "question_short",
-                                "query_id": f"eval_q_short_{question_id}"
+                                "expected_docs": related_answers,
+                                "query_type": "question_short_to_answer", 
+                                "query_id": f"eval_q2a_short_{question_id}",
+                                "description": f"Short question should retrieve answer(s)"
                             })
+                        
+                        # Query from question body (first sentence)
+                        if body and len(body) > 20:
+                            # Parse body if it's a list
+                            if body.startswith('[') and body.endswith(']'):
+                                try:
+                                    body_list = ast.literal_eval(body)
+                                    body = " ".join(body_list) if isinstance(body_list, list) else body
+                                except:
+                                    pass
+                            
+                            # Take first sentence or first 100 chars
+                            first_sentence = body.split('.')[0] if '.' in body else body[:100]
+                            if len(first_sentence) > 20:
+                                evaluation_queries.append({
+                                    "query": first_sentence,
+                                    "expected_docs": related_answers,
+                                    "query_type": "question_body_to_answer",
+                                    "query_id": f"eval_qbody2a_{question_id}",
+                                    "description": f"Question body should retrieve answer(s)"
+                                })
                     
                     # Limit to reasonable number for testing
-                    if len(evaluation_queries) >= 50:
+                    if len(evaluation_queries) >= 60:
                         break
         except Exception as e:
             print(f"Error creating evaluation queries from questions: {e}")
         
-        # Add queries based on answer summaries
+        # Add queries based on answer summaries - these should retrieve the same answers
         try:
             with open(self.answer_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row_num, row in enumerate(reader):
                     summary = row.get("Summary", row.get("summary", ""))
                     answer_id = row.get("Answer Id", row.get("answer_id", f"a{row_num}"))
+                    expected_answer_id = f"a_{answer_id}"
                     
-                    if summary and len(summary) > 20:  # Only use substantial summaries
+                    if summary and len(summary) > 20 and expected_answer_id in answer_ids:
                         # Parse summary if it's a list
                         if summary.startswith('[') and summary.endswith(']'):
                             try:
                                 summary_list = ast.literal_eval(summary)
                                 summary = " ".join(summary_list[:2])  # Use first 2 sentences
                             except:
-                                summary = summary[:100]  # Fallback to first 100 chars
+                                summary = summary[:150]  # Fallback to first 150 chars
                         
-                        if len(summary) > 10:
+                        if len(summary) > 15:
                             evaluation_queries.append({
                                 "query": summary,
-                                "expected_docs": [f"a_{answer_id}"],
-                                "query_type": "answer_summary",
-                                "query_id": f"eval_a_{answer_id}"
+                                "expected_docs": [expected_answer_id],
+                                "query_type": "answer_summary_to_answer",
+                                "query_id": f"eval_a2a_{answer_id}",
+                                "description": f"Answer summary should retrieve the full answer"
                             })
                     
                     # Limit total queries
