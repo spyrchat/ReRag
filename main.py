@@ -1,42 +1,63 @@
+"""
+Main application entry point for the RAG agent.
+Provides an interactive chat interface for the LangGraph agent with configurable retrieval.
+"""
+
 from agent.graph import graph
 from logs.utils.logger import get_logger
 
 logger = get_logger("chat")
 
-chat_history = []
 
-while True:
-    user_input = input("You: ")
-    if user_input.lower() in {"exit", "quit"}:
-        break
+def main():
+    """
+    Main chat loop for the RAG agent.
+    Handles user input, agent invocation, and response display.
+    """
+    chat_history = []
 
-    state = {
-        "question": user_input,
-        "chat_history": chat_history
-    }
+    print("RAG Agent - Interactive Chat")
+    print("Type 'exit' or 'quit' to end the conversation")
+    print("-" * 50)
 
-    final_state = graph.invoke(state)
-    answer = final_state.get("answer", "[No answer returned]")
-    chat_history = final_state.get("chat_history", [])
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
 
-    print("\n---")
-    print(f"Agent: {answer}")
+        state = {
+            "question": user_input,
+            "chat_history": chat_history
+        }
 
-    # Log to file
-    logger.info(f"User: {user_input}")
-    logger.info(f"Agent: {answer}")
+        try:
+            final_state = graph.invoke(state)
+            answer = final_state.get("answer", "[No answer returned]")
+            chat_history = final_state.get("chat_history", [])
 
-    # if "context" in final_state:
-    #     context = final_state["context"]
-    #     print("\n[Retrieved Context]")
-    #     print(context)
-    #     logger.info(
-    #         f"Retrieved Context:\n{context[:500]}{'...' if len(context) > 500 else ''}")
+            print("\n---")
+            print(f"Agent: {answer}")
 
-    if "sql" in final_state:
-        logger.info(f"Generated SQL: {final_state['sql']}")
+            # Log to file
+            logger.info(f"User: {user_input}")
+            logger.info(f"Agent: {answer}")
 
-    if "error" in final_state:
-        logger.error(f"Execution error: {final_state['error']}")
+            # Optional: Display additional debug information
+            if "sql" in final_state:
+                logger.info(f"Generated SQL: {final_state['sql']}")
 
-    print("---\n")
+            if "error" in final_state:
+                logger.error(f"Execution error: {final_state['error']}")
+                print(f"[Error occurred: {final_state['error']}]")
+
+            print("---\n")
+
+        except Exception as e:
+            logger.error(f"Agent invocation failed: {e}")
+            print(f"[Error: Agent failed to process your request: {e}]")
+            print("---\n")
+
+
+if __name__ == "__main__":
+    main()

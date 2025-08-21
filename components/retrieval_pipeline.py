@@ -14,54 +14,115 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RetrievalResult:
-    """Enhanced result structure for retrieval pipeline."""
+    """
+    Enhanced result structure for retrieval pipeline.
+
+    Attributes:
+        document (Document): The retrieved document
+        score (float): Relevance score
+        retrieval_method (str): Method used for retrieval
+        metadata (Dict[str, Any]): Additional metadata
+    """
     document: Document
     score: float
     retrieval_method: str
     metadata: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
 
 
 class RetrievalComponent(ABC):
-    """Base class for all retrieval pipeline components."""
-    
+    """
+    Base class for all retrieval pipeline components.
+    All pipeline components (retrievers, rerankers, filters) inherit from this.
+    """
+
     @property
     @abstractmethod
     def component_name(self) -> str:
-        """Return the name of this component."""
+        """
+        Return the name of this component.
+
+        Returns:
+            str: Component name for identification and logging
+        """
         pass
-    
+
     @abstractmethod
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
-        """Process the query and/or results."""
+        """
+        Process the query and/or results.
+
+        Args:
+            query (str): The search query
+            results (List[RetrievalResult]): Current results to process
+            **kwargs: Additional parameters
+
+        Returns:
+            List[RetrievalResult]: Processed results
+        """
         pass
 
 
 class BaseRetriever(RetrievalComponent):
-    """Base retriever that generates initial results."""
-    
+    """
+    Base retriever that generates initial results.
+    All specific retrievers (dense, sparse, hybrid) inherit from this.
+    """
+
     @abstractmethod
     def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
-        """Retrieve initial results."""
+        """
+        Retrieve initial results.
+
+        Args:
+            query (str): Search query
+            k (int): Number of results to retrieve
+
+        Returns:
+            List[RetrievalResult]: Initial retrieval results
+        """
         pass
-    
+
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
-        """For retrievers, generate new results (ignore input results)."""
+        """
+        For retrievers, generate new results (ignore input results).
+
+        Args:
+            query (str): Search query
+            results (List[RetrievalResult]): Ignored for initial retrieval
+            **kwargs: Additional parameters including 'k' for result count
+
+        Returns:
+            List[RetrievalResult]: Fresh retrieval results
+        """
         k = kwargs.get('k', 5)
         return self.retrieve(query, k)
 
 
 class Reranker(RetrievalComponent):
-    """Base class for reranking components."""
-    
+    """
+    Base class for reranking components.
+    Rerankers take existing results and reorder them based on improved relevance scoring.
+    """
+
     @abstractmethod
     def rerank(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
-        """Rerank the results."""
+        """
+        Rerank the results.
+
+        Args:
+            query (str): The search query
+            results (List[RetrievalResult]): Results to rerank
+            **kwargs: Additional reranking parameters
+
+        Returns:
+            List[RetrievalResult]: Reranked results
+        """
         pass
-    
+
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by reranking."""
         return self.rerank(query, results, **kwargs)
@@ -69,12 +130,12 @@ class Reranker(RetrievalComponent):
 
 class ResultFilter(RetrievalComponent):
     """Base class for filtering components."""
-    
+
     @abstractmethod
     def filter(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Filter the results."""
         pass
-    
+
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by filtering."""
         return self.filter(query, results, **kwargs)
@@ -82,12 +143,12 @@ class ResultFilter(RetrievalComponent):
 
 class PostProcessor(RetrievalComponent):
     """Base class for post-processing components."""
-    
+
     @abstractmethod
     def post_process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Post-process the results."""
         pass
-    
+
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by post-processing."""
         return self.post_process(query, results, **kwargs)
@@ -96,7 +157,7 @@ class PostProcessor(RetrievalComponent):
 class RetrievalPipeline:
     """
     Modular retrieval pipeline that chains components together.
-    
+
     Example usage:
         pipeline = RetrievalPipeline([
             QdrantHybridRetriever(config),
@@ -104,74 +165,78 @@ class RetrievalPipeline:
             MetadataFilter(min_score=0.5),
             AnswerContextEnhancer()
         ])
-        
+
         results = pipeline.run(query="How to count bits?", k=10)
     """
-    
+
     def __init__(self, components: List[RetrievalComponent], config: Dict[str, Any] = None):
         self.components = components
         self.config = config or {}
         self._validate_pipeline()
-        
+
         logger.info(f"Initialized retrieval pipeline with {len(components)} components: "
-                   f"{[comp.component_name for comp in components]}")
-    
+                    f"{[comp.component_name for comp in components]}")
+
     def _validate_pipeline(self):
         """Validate that the pipeline has at least one retriever."""
-        has_retriever = any(isinstance(comp, BaseRetriever) for comp in self.components)
+        has_retriever = any(isinstance(comp, BaseRetriever)
+                            for comp in self.components)
         if not has_retriever:
-            raise ValueError("Pipeline must contain at least one BaseRetriever component")
-    
+            raise ValueError(
+                "Pipeline must contain at least one BaseRetriever component")
+
     def run(self, query: str, **kwargs) -> List[RetrievalResult]:
         """
         Run the full retrieval pipeline.
-        
+
         Args:
             query: The search query
             **kwargs: Additional parameters passed to components
-            
+
         Returns:
             List of RetrievalResult objects
         """
         logger.info(f"Running retrieval pipeline for query: '{query[:50]}...'")
-        
+
         results = []
-        
+
         for i, component in enumerate(self.components):
             component_name = component.component_name
             logger.debug(f"Step {i+1}: Running {component_name}")
-            
+
             try:
                 # Merge component-specific config with runtime kwargs
                 component_kwargs = kwargs.copy()
                 component_config = self.config.get(component_name, {})
                 component_kwargs.update(component_config)
-                
+
                 # Process with component
                 results = component.process(query, results, **component_kwargs)
-                
-                logger.debug(f"{component_name} returned {len(results)} results")
-                
+
+                logger.debug(
+                    f"{component_name} returned {len(results)} results")
+
             except Exception as e:
                 logger.error(f"Error in {component_name}: {e}")
                 # Decide whether to continue or fail
                 if self.config.get('fail_on_component_error', False):
                     raise
                 # Continue with previous results
-                
+
         logger.info(f"Pipeline completed with {len(results)} final results")
         return results
-    
+
     def add_component(self, component: RetrievalComponent, position: int = -1):
         """Add a component to the pipeline at the specified position."""
         if position == -1:
             self.components.append(component)
         else:
             self.components.insert(position, component)
-        
+
         self._validate_pipeline()
-        logger.info(f"Added {component.component_name} to pipeline at position {position}")
-    
+        logger.info(
+            f"Added {component.component_name} to pipeline at position {position}")
+
     def remove_component(self, component_name: str) -> bool:
         """Remove a component by name."""
         for i, comp in enumerate(self.components):
@@ -181,80 +246,82 @@ class RetrievalPipeline:
                 self._validate_pipeline()
                 return True
         return False
-    
+
     def get_component(self, component_name: str) -> Optional[RetrievalComponent]:
         """Get a component by name."""
         for comp in self.components:
             if comp.component_name == component_name:
                 return comp
         return None
-    
+
     def to_langchain_retriever(self):
         """Create a LangChain-compatible retriever interface."""
         class LangChainWrapper:
             def __init__(self, pipeline: RetrievalPipeline):
                 self.pipeline = pipeline
-            
+
             def get_relevant_documents(self, query: str) -> List[Document]:
                 results = self.pipeline.run(query)
                 return [r.document for r in results]
-            
+
             def retrieve(self, query: str, k: int = 5) -> List[Document]:
                 results = self.pipeline.run(query, k=k)
                 return [r.document for r in results]
-        
+
         return LangChainWrapper(self)
 
 
 class RetrievalPipelineFactory:
     """Factory for creating common retrieval pipeline configurations."""
-    
+
     @staticmethod
     def create_dense_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
         """Create a dense-only retrieval pipeline."""
         from retrievers.dense_retriever import QdrantDenseRetriever
         from database.qdrant_controller import QdrantVectorDB
         from embedding.factory import get_embedder
-        
+
         # Import and adapt existing retrievers
         embedder = get_embedder(config["embedding"]["dense"])
         qdrant = QdrantVectorDB()
         vectorstore = qdrant.as_langchain_vectorstore(dense_embedding=embedder)
-        
+
         retriever = QdrantDenseRetriever(
             embedding=embedder,
             vectorstore=vectorstore
         )
-        
+
         # Wrap existing retriever to use new interface
         wrapped_retriever = _wrap_legacy_retriever(retriever, "dense")
-        
+
         return RetrievalPipeline([wrapped_retriever], config)
-    
+
     @staticmethod
     def create_hybrid_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
         """Create a hybrid retrieval pipeline."""
         from retrievers.hybrid_retriever import QdrantHybridRetriever
         from database.qdrant_controller import QdrantVectorDB
         from embedding.factory import get_embedder
-        
+
         qdrant = QdrantVectorDB()
         dense_embedder = get_embedder(config["embedding"]["dense"])
         sparse_embedder = get_embedder(config["embedding"]["sparse"])
-        
+
         retriever = QdrantHybridRetriever(
             client=qdrant.get_client(),
             collection_name=qdrant.get_collection_name(),
             dense_embedding=dense_embedder,
             sparse_embedding=sparse_embedder,
-            dense_vector_name=config.get("qdrant", {}).get("dense_vector_name", "dense"),
-            sparse_vector_name=config.get("qdrant", {}).get("sparse_vector_name", "sparse"),
+            dense_vector_name=config.get("qdrant", {}).get(
+                "dense_vector_name", "dense"),
+            sparse_vector_name=config.get("qdrant", {}).get(
+                "sparse_vector_name", "sparse"),
         )
-        
+
         wrapped_retriever = _wrap_legacy_retriever(retriever, "hybrid")
-        
+
         return RetrievalPipeline([wrapped_retriever], config)
-    
+
     @staticmethod
     def create_reranked_pipeline(config: Dict[str, Any], reranker_model: str = None) -> RetrievalPipeline:
         """Create a pipeline with retrieval + reranking."""
@@ -263,26 +330,26 @@ class RetrievalPipelineFactory:
             pipeline = RetrievalPipelineFactory.create_hybrid_pipeline(config)
         else:
             pipeline = RetrievalPipelineFactory.create_dense_pipeline(config)
-        
+
         # Add reranker if specified
         if reranker_model:
             from components.rerankers import CrossEncoderReranker
             reranker = CrossEncoderReranker(model_name=reranker_model)
             pipeline.add_component(reranker)
-        
+
         return pipeline
 
     @staticmethod
     def create_from_config(config: Dict[str, Any]) -> 'RetrievalPipeline':
         """
         Create a retrieval pipeline from configuration.
-        
+
         Args:
             config: Configuration dictionary with 'retrieval_pipeline' section
-            
+
         Returns:
             Configured RetrievalPipeline
-            
+
         Example config:
             retrieval_pipeline:
               retriever:
@@ -299,111 +366,118 @@ class RetrievalPipelineFactory:
                     top_k: 5
         """
         pipeline_config = config.get("retrieval_pipeline", {})
-        
+
         if not pipeline_config:
             raise ValueError("No 'retrieval_pipeline' section found in config")
-        
+
         # Create retriever
         retriever_config = pipeline_config.get("retriever", {})
-        retriever = RetrievalPipelineFactory._create_retriever(retriever_config, config)
-        
+        retriever = RetrievalPipelineFactory._create_retriever(
+            retriever_config, config)
+
         # Initialize pipeline with retriever
         pipeline = RetrievalPipeline([retriever], config)
-        
+
         # Add stages
         stages = pipeline_config.get("stages", [])
         for stage_config in stages:
-            component = RetrievalPipelineFactory._create_stage_component(stage_config, config)
+            component = RetrievalPipelineFactory._create_stage_component(
+                stage_config, config)
             if component:
                 pipeline.add_component(component)
-        
-        logger.info(f"Created pipeline from config with {len(pipeline.components)} components")
+
+        logger.info(
+            f"Created pipeline from config with {len(pipeline.components)} components")
         return pipeline
-    
+
     @staticmethod
     def _create_retriever(retriever_config: Dict[str, Any], global_config: Dict[str, Any]) -> BaseRetriever:
         """Create retriever from configuration."""
         retriever_type = retriever_config.get("type", "dense")
         top_k = retriever_config.get("top_k", 5)
-        
+
         if retriever_type == "dense":
             return RetrievalPipelineFactory._create_dense_retriever(global_config, top_k)
         elif retriever_type == "hybrid":
             return RetrievalPipelineFactory._create_hybrid_retriever(global_config, retriever_config)
         else:
             raise ValueError(f"Unknown retriever type: {retriever_type}")
-    
+
     @staticmethod
     def _create_stage_component(stage_config: Dict[str, Any], global_config: Dict[str, Any]) -> Optional[RetrievalComponent]:
         """Create a pipeline stage component from configuration."""
         stage_type = stage_config.get("type")
         config = stage_config.get("config", {})
-        
+
         try:
             if stage_type == "score_filter":
                 from components.filters import ScoreFilter
                 return ScoreFilter(min_score=config.get("min_score", 0.3))
-            
+
             elif stage_type == "duplicate_filter":
                 from components.filters import DuplicateFilter
                 return DuplicateFilter(dedup_by=config.get("dedup_by", "external_id"))
-            
+
             elif stage_type == "tag_filter":
                 from components.filters import TagFilter
                 return TagFilter(
                     required_tags=config.get("required_tags"),
                     excluded_tags=config.get("excluded_tags")
                 )
-            
+
             elif stage_type == "answer_enhancer":
                 from components.filters import AnswerEnhancer
                 return AnswerEnhancer()
-            
+
             elif stage_type == "result_limiter":
                 from components.filters import ResultLimiter
                 return ResultLimiter(max_results=config.get("max_results", 5))
-            
+
             elif stage_type == "reranker":
                 return RetrievalPipelineFactory._create_reranker(config)
-            
+
             else:
                 logger.warning(f"Unknown stage type: {stage_type}")
                 return None
-                
+
         except ImportError as e:
             logger.warning(f"Could not create {stage_type}: {e}")
             return None
         except Exception as e:
             logger.error(f"Error creating {stage_type}: {e}")
             return None
-    
+
     @staticmethod
     def _create_reranker(config: Dict[str, Any]) -> Optional[Reranker]:
         """Create reranker from configuration."""
         model_type = config.get("model_type")
-        
+
         try:
             if model_type == "cross_encoder":
                 from components.rerankers import CrossEncoderReranker
                 return CrossEncoderReranker(
-                    model_name=config.get("model_name", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                    model_name=config.get(
+                        "model_name", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
                     top_k=config.get("top_k")
                 )
-            
+
             elif model_type == "bge":
                 from components.advanced_rerankers import BgeReranker
                 return BgeReranker(
-                    model_name=config.get("model_name", "BAAI/bge-reranker-base"),
+                    model_name=config.get(
+                        "model_name", "BAAI/bge-reranker-base"),
                     top_k=config.get("top_k")
                 )
-            
+
             elif model_type == "multistage":
                 stage1_config = config.get("stage1", {})
                 stage2_config = config.get("stage2", {})
-                
-                stage1_reranker = RetrievalPipelineFactory._create_reranker(stage1_config)
-                stage2_reranker = RetrievalPipelineFactory._create_reranker(stage2_config)
-                
+
+                stage1_reranker = RetrievalPipelineFactory._create_reranker(
+                    stage1_config)
+                stage2_reranker = RetrievalPipelineFactory._create_reranker(
+                    stage2_config)
+
                 if stage1_reranker and stage2_reranker:
                     from components.advanced_rerankers import MultiStageReranker
                     return MultiStageReranker(
@@ -412,35 +486,36 @@ class RetrievalPipelineFactory:
                         stage1_k=stage1_config.get("top_k", 10),
                         stage2_k=stage2_config.get("top_k", 5)
                     )
-            
+
             elif model_type == "ensemble":
                 rerankers = []
                 weights = []
-                
+
                 for reranker_config in config.get("rerankers", []):
-                    reranker = RetrievalPipelineFactory._create_reranker(reranker_config)
+                    reranker = RetrievalPipelineFactory._create_reranker(
+                        reranker_config)
                     if reranker:
                         rerankers.append(reranker)
                         weights.append(reranker_config.get("weight", 1.0))
-                
+
                 if rerankers:
                     from components.rerankers import EnsembleReranker
                     return EnsembleReranker(
                         rerankers=rerankers,
                         weights=weights
                     )
-            
+
             else:
                 logger.warning(f"Unknown reranker type: {model_type}")
                 return None
-                
+
         except ImportError as e:
             logger.warning(f"Could not create {model_type} reranker: {e}")
             return None
         except Exception as e:
             logger.error(f"Error creating {model_type} reranker: {e}")
             return None
-    
+
     @staticmethod
     def _create_hybrid_retriever(config: Dict[str, Any], retriever_config: Dict[str, Any]) -> BaseRetriever:
         """Create hybrid retriever from configuration."""
@@ -448,68 +523,71 @@ class RetrievalPipelineFactory:
             from retrievers.hybrid_retriever import QdrantHybridRetriever
             from database.qdrant_controller import QdrantVectorDB
             from embedding.factory import get_embedder
-            
+
             qdrant = QdrantVectorDB()
             dense_embedder = get_embedder(config["embedding"]["dense"])
             sparse_embedder = get_embedder(config["embedding"]["sparse"])
-            
+
             retriever = QdrantHybridRetriever(
                 client=qdrant.get_client(),
                 collection_name=qdrant.get_collection_name(),
                 dense_embedding=dense_embedder,
                 sparse_embedding=sparse_embedder,
-                dense_vector_name=config.get("qdrant", {}).get("dense_vector_name", "dense"),
-                sparse_vector_name=config.get("qdrant", {}).get("sparse_vector_name", "sparse"),
+                dense_vector_name=config.get("qdrant", {}).get(
+                    "dense_vector_name", "dense"),
+                sparse_vector_name=config.get("qdrant", {}).get(
+                    "sparse_vector_name", "sparse"),
                 top_k=retriever_config.get("top_k", 5),
                 dense_weight=retriever_config.get("dense_weight", 0.7),
                 sparse_weight=retriever_config.get("sparse_weight", 0.3)
             )
-            
+
             return _wrap_legacy_retriever(retriever, "hybrid")
-            
+
         except ImportError:
-            logger.warning("Hybrid retriever not available, falling back to dense")
+            logger.warning(
+                "Hybrid retriever not available, falling back to dense")
             return RetrievalPipelineFactory._create_dense_retriever(config, retriever_config.get("top_k", 5))
-    
+
     @staticmethod
     def _create_dense_retriever(config: Dict[str, Any], top_k: int = 5) -> BaseRetriever:
         """Create dense retriever from configuration."""
         from retrievers.dense_retriever import QdrantDenseRetriever
         from database.qdrant_controller import QdrantVectorDB
         from embedding.factory import get_embedder
-        
+
         # Create embedder and vectorstore using existing components
         embedder = get_embedder(config["embedding"]["dense"])
         qdrant = QdrantVectorDB()
         vectorstore = qdrant.as_langchain_vectorstore(dense_embedding=embedder)
-        
+
         # Create retriever with correct interface
         retriever = QdrantDenseRetriever(
             embedding=embedder,
             vectorstore=vectorstore,
             top_k=top_k
         )
-        
+
         # Wrap it for the new interface
         return _wrap_legacy_retriever(retriever, "dense")
 
 
 def _wrap_legacy_retriever(legacy_retriever, method_name: str) -> BaseRetriever:
     """Wrap existing retrievers to use the new RetrievalResult interface."""
-    
+
     class LegacyRetrieverWrapper(BaseRetriever):
         def __init__(self, retriever, method_name):
             self.retriever = retriever
             self.method_name = method_name
-        
+
         @property
         def component_name(self) -> str:
             return f"{self.method_name}_retriever"
-        
+
         def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
             # Call legacy retriever
             legacy_results = self.retriever.retrieve(query, k)
-            
+
             # Convert to new format
             results = []
             for item in legacy_results:
@@ -520,7 +598,7 @@ def _wrap_legacy_retriever(legacy_retriever, method_name: str) -> BaseRetriever:
                     # Handle Document-only format
                     doc = item
                     score = 1.0
-                
+
                 result = RetrievalResult(
                     document=doc,
                     score=score,
@@ -531,7 +609,7 @@ def _wrap_legacy_retriever(legacy_retriever, method_name: str) -> BaseRetriever:
                     }
                 )
                 results.append(result)
-            
+
             return results
-    
+
     return LegacyRetrieverWrapper(legacy_retriever, method_name)

@@ -6,43 +6,66 @@ from bin.agent_retriever import ConfigurableRetrieverAgent
 logger = get_logger(__name__)
 
 
-def make_configurable_retriever(config_path: str, cache_pipeline: bool = True):
+def make_configurable_retriever(config_path: str = None, cache_pipeline: bool = True):
     """
     Factory to return a configurable retriever node.
-    
+
     Args:
-        config_path: Path to YAML configuration file for retrieval pipeline
-        cache_pipeline: Whether to cache the pipeline for reuse
+        config_path (str, optional): Path to YAML configuration file for retrieval pipeline.
+                                   If None, will load from main config.yml
+        cache_pipeline (bool): Whether to cache the pipeline for reuse
+
+    Returns:
+        function: Retriever node function that can be used in LangGraph agent
     """
+    # Load config path from main config if not provided
+    if config_path is None:
+        from config.config_loader import load_config
+        main_config = load_config()
+        config_path = main_config.get("retrieval", {}).get("config_path",
+                                                           "pipelines/configs/retrieval/basic_dense.yml")
+
     # Initialize the configurable retriever agent
     agent = ConfigurableRetrieverAgent(config_path, cache_pipeline)
-    
+
     # Log configuration info
     config_info = agent.get_config_info()
     logger.info(f"[Retriever] Initialized with config: {config_path}")
-    logger.info(f"[Retriever] Pipeline: {config_info['retriever_type']} with {config_info['num_stages']} stages")
-    logger.info(f"[Retriever] Components: {', '.join(config_info['stage_types'])}")
-    
+    logger.info(
+        f"[Retriever] Pipeline: {config_info['retriever_type']} with {config_info['num_stages']} stages")
+    logger.info(
+        f"[Retriever] Components: {', '.join(config_info['stage_types'])}")
+
     def retriever(state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Retriever node function for LangGraph agent.
+
+        Args:
+            state (Dict[str, Any]): Current agent state containing question and other context
+
+        Returns:
+            Dict[str, Any]: Updated state with retrieved documents and metadata
+        """
         query = state["question"]
         logger.info(f"[Retriever] Query: {query}")
-        
+
         try:
             # Get retrieval configuration
-            top_k = state.get("retrieval_top_k", config_info.get("retriever_top_k", 5))
-            
+            top_k = state.get("retrieval_top_k",
+                              config_info.get("retriever_top_k", 5))
+
             # Retrieve documents using configurable pipeline
             docs_info = agent.retrieve(query, top_k=top_k)
-            
+
             # Convert to context string and preserve metadata
             context_parts = []
             retrieved_docs = []
-            
+
             for doc_info in docs_info:
                 # Add to context
                 content = doc_info["content"]
                 context_parts.append(content)
-                
+
                 # Create Document object with metadata
                 doc = Document(
                     page_content=content,
@@ -57,12 +80,14 @@ def make_configurable_retriever(config_path: str, cache_pipeline: bool = True):
                     }
                 )
                 retrieved_docs.append(doc)
-            
+
             context = "\n\n".join(context_parts)
-            
-            logger.info(f"[Retriever] Retrieved {len(docs_info)} documents using {config_info['retriever_type']}")
-            logger.info(f"[Retriever] Pipeline components: {', '.join(config_info['stage_types'])}")
-            
+
+            logger.info(
+                f"[Retriever] Retrieved {len(docs_info)} documents using {config_info['retriever_type']}")
+            logger.info(
+                f"[Retriever] Pipeline components: {', '.join(config_info['stage_types'])}")
+
             # Return enhanced state with retrieval metadata
             return {
                 **state,
@@ -87,7 +112,7 @@ def make_configurable_retriever(config_path: str, cache_pipeline: bool = True):
                     "error": str(e)
                 }
             }
-    
+
     return retriever
 
 

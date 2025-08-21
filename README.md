@@ -1,18 +1,18 @@
-# 🚀 Advanced RAG Retrieval System with LangGraph Agent
+# Advanced RAG Retrieval System with LangGraph Agent
 
 A production-ready, modular RAG (Retrieval-Augmented Generation) system with configurable pipelines and LangGraph agent integration.
 
-## ✨ **Key Features**
+## Key Features
 
-- 🔧 **YAML-Configurable Pipelines**: Switch retrieval strategies without code changes
-- 🤖 **LangGraph Agent Integration**: Seamless agent workflows with rich metadata
-- 📈 **Modular Components**: Easily extensible rerankers, filters, and retrievers
-- 🔄 **Multiple Retrieval Methods**: Dense, sparse, and hybrid retrieval
-- ⚡ **Production Ready**: Robust error handling, logging, and monitoring
-- 🧪 **A/B Testing Support**: Compare configurations easily
-- 📊 **Rich Metadata**: Access scores, methods, and quality metrics
+- **YAML-Configurable Pipelines**: Switch retrieval strategies without code changes
+- **LangGraph Agent Integration**: Seamless agent workflows with rich metadata
+- **Modular Components**: Easily extensible rerankers, filters, and retrievers
+- **Multiple Retrieval Methods**: Dense, sparse, and hybrid retrieval
+- **Production Ready**: Robust error handling, logging, and monitoring
+- **A/B Testing Support**: Compare configurations easily
+- **Rich Metadata**: Access scores, methods, and quality metrics
 
-## 🏗️ **Architecture Overview**
+## Architecture Overview
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -31,15 +31,15 @@ A production-ready, modular RAG (Retrieval-Augmented Generation) system with con
                  └───────────┘                 └────────────────┘                └───────────┘
 ```
 
-## 🚀 **Quick Start**
+## Quick Start
 
-### 1. **Install Dependencies**
+### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. **Configure Environment**
+### 2. Configure Environment
 
 ```bash
 # Copy example config
@@ -48,7 +48,7 @@ cp config.yml.example config.yml
 # Set up your API keys and database connections in config.yml
 ```
 
-### 3. **Start Using the System**
+### 3. Start Using the System
 
 ```python
 # main.py - Chat with your agent
@@ -59,7 +59,7 @@ result = graph.invoke(state)
 print(result["answer"])
 ```
 
-### 4. **Switch Retrieval Configurations**
+### 4. Switch Retrieval Configurations
 
 ```bash
 # List available configurations
@@ -72,7 +72,7 @@ python bin/switch_agent_config.py advanced_reranked
 python test_agent_retriever_node.py
 ```
 
-## 📋 **Available Configurations**
+## Available Configurations
 
 | Configuration | Description | Components | Use Case |
 |---------------|-------------|------------|----------|
@@ -106,53 +106,54 @@ retrieval_pipeline:
         boost_factor: 2.0
 ```
 
-## 📂 **Project Structure**
+## Project Structure
 
 ```
 Thesis/
-├── 📁 agent/                     # LangGraph agent implementation
+├── agent/                     # LangGraph agent implementation
 │   ├── graph.py                  # Main agent graph
 │   ├── schema.py                 # Agent state schemas
 │   └── nodes/                    # Agent nodes (retriever, generator, etc.)
 │
-├── 📁 components/                # Modular retrieval components
+├── components/                # Modular retrieval components
 │   ├── retrieval_pipeline.py    # Main pipeline orchestrator
 │   ├── rerankers.py             # Reranking implementations
 │   ├── filters.py               # Filtering implementations
 │   └── advanced_rerankers.py    # Advanced reranking strategies
 │
-├── 📁 pipelines/                 # Data processing and configuration
+├── pipelines/                 # Data processing and configuration
 │   ├── configs/retrieval/       # Retrieval pipeline configurations
 │   ├── adapters/                # Dataset adapters (BEIR, etc.)
 │   └── ingest/                  # Data ingestion pipeline
 │
-├── 📁 bin/                       # Command-line utilities
+├── bin/                       # Command-line utilities
 │   ├── switch_agent_config.py   # Configuration management
 │   ├── agent_retriever.py       # Configurable retriever agent
 │   └── retrieval_pipeline.py    # Direct pipeline usage
 │
-├── 📁 docs/                      # Documentation
+├── docs/                      # Documentation
 │   ├── SYSTEM_EXTENSION_GUIDE.md # Complete extension guide
 │   ├── AGENT_INTEGRATION.md     # Agent integration details
+│   ├── CODE_CLEANUP_SUMMARY.md  # Code cleanup documentation
 │   └── EXTENSIBILITY.md         # Quick extensibility overview
 │
-├── 📁 tests/                     # Test suite
+├── tests/                     # Test suite
 │   ├── retrieval/               # Retrieval pipeline tests
 │   └── agent/                   # Agent integration tests
 │
-├── 📁 deprecated/                # Legacy code (organized)
+├── deprecated/                # Legacy code (organized)
 │   ├── old_processors/          # Superseded by new pipeline
 │   ├── old_debug_scripts/       # Legacy debugging tools
 │   └── old_playground/          # Legacy test scripts
 │
-├── 📁 database/                  # Database controllers
-├── 📁 embedding/                 # Embedding utilities
-├── 📁 retrievers/               # Base retrievers
-├── 📁 examples/                 # Usage examples
-└── 📁 config/                   # Configuration utilities
+├── database/                  # Database controllers
+├── embedding/                 # Embedding utilities
+├── retrievers/               # Base retrievers
+├── examples/                 # Usage examples
+└── config/                   # Configuration utilities
 ```
 
-## 🧪 **Testing**
+## Testing
 
 ```bash
 # Test agent integration
@@ -165,14 +166,15 @@ python tests/run_all_tests.py
 python -m pytest tests/retrieval/ -v
 ```
 
-## 📚 **Documentation**
+## Documentation
 
-- **[🚀 System Extension Guide](docs/SYSTEM_EXTENSION_GUIDE.md)** - Complete guide to extending the system
-- **[🤖 Agent Integration](docs/AGENT_INTEGRATION.md)** - How the agent uses configurable pipelines  
-- **[⚡ Extensibility Overview](docs/EXTENSIBILITY.md)** - Quick overview of extension capabilities
-- **[🏗️ Architecture](docs/MLOPS_PIPELINE_ARCHITECTURE.md)** - System architecture details
+- **[System Extension Guide](docs/SYSTEM_EXTENSION_GUIDE.md)** - Complete guide to extending the system
+- **[Agent Integration](docs/AGENT_INTEGRATION.md)** - How the agent uses configurable pipelines  
+- **[Code Cleanup Summary](docs/CODE_CLEANUP_SUMMARY.md)** - Professional code standards and cleanup details
+- **[Extensibility Overview](docs/EXTENSIBILITY.md)** - Quick overview of extension capabilities
+- **[Architecture](docs/MLOPS_PIPELINE_ARCHITECTURE.md)** - System architecture details
 
-## 🔧 **Extending the System**
+## Extending the System
 
 ### Add a Custom Reranker
 
@@ -212,7 +214,7 @@ python bin/switch_agent_config.py my_config
 python test_agent_retriever_node.py
 ```
 
-## 🚀 **Production Usage**
+## Production Usage
 
 The system is designed for production use with:
 
@@ -222,7 +224,7 @@ The system is designed for production use with:
 - **Performance Optimization**: Efficient batching and caching support
 - **Monitoring Ready**: Built-in metrics and health checks
 
-## 🎯 **Use Cases**
+## Use Cases
 
 - **Document Q&A Systems**: High-quality retrieval for knowledge bases
 - **Research Assistants**: Multi-modal retrieval for academic content
@@ -230,7 +232,7 @@ The system is designed for production use with:
 - **Code Search**: Semantic search over codebases
 - **Legal Research**: Precise retrieval from legal documents
 
-## 🤝 **Contributing**
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -238,7 +240,7 @@ The system is designed for production use with:
 4. Add tests for your components
 5. Submit a pull request
 
-## 📊 **Performance**
+## Performance
 
 The system supports various performance optimization strategies:
 
@@ -247,7 +249,7 @@ The system supports various performance optimization strategies:
 - **Adaptive Top-K**: Dynamic result count based on query complexity
 - **Multi-threading**: Parallel processing for pipeline stages
 
-## 🔄 **Migration from Legacy**
+## Migration from Legacy
 
 If you have existing code using the deprecated `processors/` system:
 
@@ -255,10 +257,10 @@ If you have existing code using the deprecated `processors/` system:
 2. Use the new pipeline configurations in `pipelines/configs/retrieval/`
 3. Follow the migration patterns in `docs/AGENT_INTEGRATION.md`
 
-## 📝 **License**
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
-**🎉 Ready to build amazing RAG systems?** Start with the [System Extension Guide](docs/SYSTEM_EXTENSION_GUIDE.md)!
+**Ready to build amazing RAG systems?** Start with the [System Extension Guide](docs/SYSTEM_EXTENSION_GUIDE.md)!

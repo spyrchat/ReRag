@@ -39,14 +39,41 @@ def run_test(test_file, description):
         print(f"❌ ERROR: {e}")
 
 def main():
-    """Run all retrieval tests."""
+    """Run all retrieval system tests."""
     print("🚀 RUNNING ALL RETRIEVAL SYSTEM TESTS")
     
-    test_dir = Path(__file__).parent / "retrieval"
+    test_base = Path(__file__).parent
     tests = [
-        (test_dir / "test_extensibility.py", "Pipeline Extensibility"),
-        (test_dir / "test_modular_pipeline.py", "Modular Pipeline Features"),
-        (test_dir / "test_advanced_rerankers.py", "Advanced Reranking Components"),
+        # Retrieval tests
+        (test_base / "retrieval" / "test_extensibility.py", "Pipeline Extensibility"),
+        (test_base / "retrieval" / "test_modular_pipeline.py", "Modular Pipeline Features"),
+        (test_base / "retrieval" / "test_advanced_rerankers.py", "Advanced Reranking Components"),
+        (test_base / "retrieval" / "test_answer_retrieval.py", "Answer-Focused Retrieval"),
+        
+        # Component tests
+        (test_base / "components" / "test_retrieval_pipeline.py", "Retrieval Pipeline Components"),
+        (test_base / "components" / "test_rerankers.py", "Reranker Components"),
+        
+        # Agent tests
+        (test_base / "agent" / "test_retriever_node.py", "Agent Retriever Node"),
+        
+        # Ingestion tests
+        (test_base / "ingestion" / "test_new_adapter.py", "Data Adapter"),
+        (test_base / "ingestion" / "test_adapter_qa.py", "Adapter QA Pipeline"),
+        
+        # Embedding tests
+        (test_base / "embedding" / "test_sparse_embeddings.py", "Sparse Embeddings"),
+        
+        # Example tests
+        (test_base / "examples" / "test_sosum_minimal.py", "SOSum Minimal Example"),
+        (test_base / "examples" / "test_sosum_adapter.py", "SOSum Adapter Example"),
+        
+        # Pipeline tests
+        (test_base / "pipelines" / "smoke_tests.py", "Pipeline Smoke Tests"),
+        
+        # Benchmark tests
+        (test_base / "benchmarks" / "retriever_test.py", "Retriever Benchmarks"),
+        (test_base / "benchmarks" / "test_aws_connection.py", "AWS Connection Test"),
     ]
     
     passed = 0
