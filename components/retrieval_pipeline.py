@@ -278,49 +278,21 @@ class RetrievalPipelineFactory:
     def create_dense_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
         """Create a dense-only retrieval pipeline."""
         from retrievers.dense_retriever import QdrantDenseRetriever
-        from database.qdrant_controller import QdrantVectorDB
-        from embedding.factory import get_embedder
 
-        # Import and adapt existing retrievers
-        embedder = get_embedder(config["embedding"]["dense"])
-        qdrant = QdrantVectorDB()
-        vectorstore = qdrant.as_langchain_vectorstore(dense_embedding=embedder)
+        # Create modern dense retriever
+        retriever = QdrantDenseRetriever(config)
 
-        retriever = QdrantDenseRetriever(
-            embedding=embedder,
-            vectorstore=vectorstore
-        )
-
-        # Wrap existing retriever to use new interface
-        wrapped_retriever = _wrap_legacy_retriever(retriever, "dense")
-
-        return RetrievalPipeline([wrapped_retriever], config)
+        return RetrievalPipeline([retriever], config)
 
     @staticmethod
     def create_hybrid_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
         """Create a hybrid retrieval pipeline."""
         from retrievers.hybrid_retriever import QdrantHybridRetriever
-        from database.qdrant_controller import QdrantVectorDB
-        from embedding.factory import get_embedder
 
-        qdrant = QdrantVectorDB()
-        dense_embedder = get_embedder(config["embedding"]["dense"])
-        sparse_embedder = get_embedder(config["embedding"]["sparse"])
+        # Create modern hybrid retriever
+        retriever = QdrantHybridRetriever(config)
 
-        retriever = QdrantHybridRetriever(
-            client=qdrant.get_client(),
-            collection_name=qdrant.get_collection_name(),
-            dense_embedding=dense_embedder,
-            sparse_embedding=sparse_embedder,
-            dense_vector_name=config.get("qdrant", {}).get(
-                "dense_vector_name", "dense"),
-            sparse_vector_name=config.get("qdrant", {}).get(
-                "sparse_vector_name", "sparse"),
-        )
-
-        wrapped_retriever = _wrap_legacy_retriever(retriever, "hybrid")
-
-        return RetrievalPipeline([wrapped_retriever], config)
+        return RetrievalPipeline([retriever], config)
 
     @staticmethod
     def create_reranked_pipeline(config: Dict[str, Any], reranker_model: str = None) -> RetrievalPipeline:
@@ -394,12 +366,19 @@ class RetrievalPipelineFactory:
     def _create_retriever(retriever_config: Dict[str, Any], global_config: Dict[str, Any]) -> BaseRetriever:
         """Create retriever from configuration."""
         retriever_type = retriever_config.get("type", "dense")
-        top_k = retriever_config.get("top_k", 5)
 
         if retriever_type == "dense":
-            return RetrievalPipelineFactory._create_dense_retriever(global_config, top_k)
+            from retrievers.dense_retriever import QdrantDenseRetriever
+            return QdrantDenseRetriever(global_config)
+        elif retriever_type == "sparse":
+            from retrievers.sparse_retriever import QdrantSparseRetriever
+            return QdrantSparseRetriever(global_config)
         elif retriever_type == "hybrid":
-            return RetrievalPipelineFactory._create_hybrid_retriever(global_config, retriever_config)
+            from retrievers.hybrid_retriever import QdrantHybridRetriever
+            return QdrantHybridRetriever(global_config)
+        elif retriever_type == "semantic":
+            from retrievers.semantic_retriever import SemanticRetriever
+            return SemanticRetriever(global_config)
         else:
             raise ValueError(f"Unknown retriever type: {retriever_type}")
 
@@ -517,99 +496,21 @@ class RetrievalPipelineFactory:
             return None
 
     @staticmethod
-    def _create_hybrid_retriever(config: Dict[str, Any], retriever_config: Dict[str, Any]) -> BaseRetriever:
-        """Create hybrid retriever from configuration."""
-        try:
-            from retrievers.hybrid_retriever import QdrantHybridRetriever
-            from database.qdrant_controller import QdrantVectorDB
-            from embedding.factory import get_embedder
+    def create_sparse_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
+        """Create a sparse-only retrieval pipeline."""
+        from retrievers.sparse_retriever import QdrantSparseRetriever
 
-            qdrant = QdrantVectorDB()
-            dense_embedder = get_embedder(config["embedding"]["dense"])
-            sparse_embedder = get_embedder(config["embedding"]["sparse"])
+        # Create modern sparse retriever
+        retriever = QdrantSparseRetriever(config)
 
-            retriever = QdrantHybridRetriever(
-                client=qdrant.get_client(),
-                collection_name=qdrant.get_collection_name(),
-                dense_embedding=dense_embedder,
-                sparse_embedding=sparse_embedder,
-                dense_vector_name=config.get("qdrant", {}).get(
-                    "dense_vector_name", "dense"),
-                sparse_vector_name=config.get("qdrant", {}).get(
-                    "sparse_vector_name", "sparse"),
-                top_k=retriever_config.get("top_k", 5),
-                dense_weight=retriever_config.get("dense_weight", 0.7),
-                sparse_weight=retriever_config.get("sparse_weight", 0.3)
-            )
-
-            return _wrap_legacy_retriever(retriever, "hybrid")
-
-        except ImportError:
-            logger.warning(
-                "Hybrid retriever not available, falling back to dense")
-            return RetrievalPipelineFactory._create_dense_retriever(config, retriever_config.get("top_k", 5))
+        return RetrievalPipeline([retriever], config)
 
     @staticmethod
-    def _create_dense_retriever(config: Dict[str, Any], top_k: int = 5) -> BaseRetriever:
-        """Create dense retriever from configuration."""
-        from retrievers.dense_retriever import QdrantDenseRetriever
-        from database.qdrant_controller import QdrantVectorDB
-        from embedding.factory import get_embedder
+    def create_semantic_pipeline(config: Dict[str, Any]) -> RetrievalPipeline:
+        """Create a semantic retrieval pipeline with intelligent routing."""
+        from retrievers.semantic_retriever import SemanticRetriever
 
-        # Create embedder and vectorstore using existing components
-        embedder = get_embedder(config["embedding"]["dense"])
-        qdrant = QdrantVectorDB()
-        vectorstore = qdrant.as_langchain_vectorstore(dense_embedding=embedder)
+        # Create semantic retriever
+        retriever = SemanticRetriever(config)
 
-        # Create retriever with correct interface
-        retriever = QdrantDenseRetriever(
-            embedding=embedder,
-            vectorstore=vectorstore,
-            top_k=top_k
-        )
-
-        # Wrap it for the new interface
-        return _wrap_legacy_retriever(retriever, "dense")
-
-
-def _wrap_legacy_retriever(legacy_retriever, method_name: str) -> BaseRetriever:
-    """Wrap existing retrievers to use the new RetrievalResult interface."""
-
-    class LegacyRetrieverWrapper(BaseRetriever):
-        def __init__(self, retriever, method_name):
-            self.retriever = retriever
-            self.method_name = method_name
-
-        @property
-        def component_name(self) -> str:
-            return f"{self.method_name}_retriever"
-
-        def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
-            # Call legacy retriever
-            legacy_results = self.retriever.retrieve(query, k)
-
-            # Convert to new format
-            results = []
-            for item in legacy_results:
-                if isinstance(item, tuple):
-                    # Handle (Document, score) format
-                    doc, score = item
-                else:
-                    # Handle Document-only format
-                    doc = item
-                    score = 1.0
-
-                result = RetrievalResult(
-                    document=doc,
-                    score=score,
-                    retrieval_method=self.method_name,
-                    metadata={
-                        "legacy_retriever": True,
-                        "retriever_type": type(self.retriever).__name__
-                    }
-                )
-                results.append(result)
-
-            return results
-
-    return LegacyRetrieverWrapper(legacy_retriever, method_name)
+        return RetrievalPipeline([retriever], config)
