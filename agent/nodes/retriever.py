@@ -22,8 +22,8 @@ def make_configurable_retriever(config_path: str = None, cache_pipeline: bool = 
     if config_path is None:
         from config.config_loader import load_config
         main_config = load_config()
-        config_path = main_config.get("retrieval", {}).get("config_path",
-                                                           "pipelines/configs/retrieval/basic_dense.yml")
+        config_path = main_config.get("agent_retrieval", {}).get("config_path",
+                                                                 "pipelines/configs/retrieval/modern_hybrid.yml")
 
     # Initialize the configurable retriever agent
     agent = ConfigurableRetrieverAgent(config_path, cache_pipeline)

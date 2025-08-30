@@ -1,0 +1,74 @@
+# High-Performance Retrieval Configuration for Agent
+# Optimized for speed with minimal reranking
+
+description: "Fast hybrid retrieval optimized for agent response speed"
+
+# Retrieval Pipeline Configuration
+retrieval_pipeline:
+  retriever:
+    type: hybrid
+    top_k: 10  # Fewer candidates for speed
+    score_threshold: 0.05  # Higher threshold for speed
+    fusion_method: rrf
+    
+    # Fusion configuration
+    fusion:
+      method: rrf
+      rrf_k: 50  # Slightly more aggressive ranking
+      dense_weight: 0.8  # Favor dense for speed
+      sparse_weight: 0.2
+    
+    # Embedding configuration
+    embedding:
+      strategy: hybrid
+      dense:
+        provider: google
+        model: models/embedding-001
+        dimensions: 768
+        api_key_env: GOOGLE_API_KEY
+        batch_size: 16  # Smaller batches for faster response
+        vector_name: dense
+      sparse:
+        provider: sparse
+        model: Qdrant/bm25
+        vector_name: sparse
+    
+    # Database configuration
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      dense_vector_name: dense
+      sparse_vector_name: sparse
+    
+    # Performance settings
+    performance:
+      lazy_initialization: true
+      batch_size: 16
+      enable_caching: true
+      parallel_search: true  # Enable for speed
+
+  # Pipeline stages (minimal for speed)
+  stages:
+    - type: retriever
+      name: hybrid_retriever
+      config:
+        retriever_type: hybrid
+    
+    - type: score_filter
+      name: score_filter
+      config:
+        min_score: 0.01  # Lower threshold for better results
+        max_results: 8
+    
+    - type: reranker
+      name: cross_encoder_reranker
+      config:
+        model_type: cross_encoder
+        model_name: cross-encoder/ms-marco-TinyBERT-L-2-v2  # Faster model
+        top_k: 5  # Fewer final results for speed
+        batch_size: 8
+
+# Agent-specific settings
+agent:
+  max_context_length: 6000  # Shorter for faster processing
+  include_metadata: false  # Less data to process
+  response_format: concise

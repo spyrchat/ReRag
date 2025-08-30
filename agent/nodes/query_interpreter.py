@@ -16,8 +16,8 @@ You are a planner agent for a modular RAG pipeline.
 
 Your job is to:
 1. Understand the user's intent.
-2. Decide if the answer requires accessing structured SQL tables, unstructured document chunks, both, or NEITHER (i.e., can be answered directly with no retrieval).
-3. Output a plan, a query type ("sql", "text", "none"), and a next_node to route to.
+2. Decide if the answer requires accessing unstructured document chunks or can be answered directly without retrieval.
+3. Output a plan, a query type ("text" or "none"), and a next_node to route to.
 
 Today's date is: {reference_date}
 
@@ -27,14 +27,14 @@ Question: {question}
 
 Respond in valid JSON using this format:
 {{
-  "query_type": "sql" | "text" | "none",
-  "next_node": "sql_planner" | "retriever" | "merge" | "generator",
+  "query_type": "text" | "none",
+  "next_node": "retriever" | "generator",
   "plan": ["Step 1: ...", "Step 2: ..."],
   "reasoning": "..."
 }}
 
 Examples:
-# Example 1: Direct answer (no DB needed)
+# Example 1: Direct answer (no retrieval needed)
 {{
   "query_type": "none",
   "next_node": "generator",
@@ -42,12 +42,12 @@ Examples:
   "reasoning": "No retrieval required for this question."
 }}
 
-# Example 2: SQL needed
+# Example 2: Document retrieval needed
 {{
-  "query_type": "sql",
-  "next_node": "sql_planner",
-  "plan": ["Detect that SQL is needed.", "Route to sql_planner."],
-  "reasoning": "This question is about structured data."
+  "query_type": "text",
+  "next_node": "retriever",
+  "plan": ["Detect that document search is needed.", "Route to retriever."],
+  "reasoning": "This question requires searching through documents."
 }}
 """
 

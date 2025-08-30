@@ -32,10 +32,10 @@ def make_generator(llm):
             logger.info("[Generator] Generating from retrieved context.")
         elif "answer" in state:
             context = state["answer"]
-            logger.info("[Generator] Generating from SQL result.")
+            logger.info("[Generator] Generating from existing answer.")
         else:
             context = "No information available."
-            logger.warning("[Generator] No context or SQL answer available.")
+            logger.warning("[Generator] No context available.")
 
         try:
             prompt = generator_prompt.format(

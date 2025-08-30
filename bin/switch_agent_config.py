@@ -73,11 +73,13 @@ def switch_agent_config(config_name: str):
             config = yaml.safe_load(f)
 
         # Update retrieval config path
-        if 'retrieval' not in config:
-            config['retrieval'] = {}
+        if 'agent_retrieval' not in config:
+            config['agent_retrieval'] = {}
 
-        old_config = config['retrieval'].get('config_path', 'not set')
-        config['retrieval']['config_path'] = f"pipelines/configs/retrieval/{config_name}.yml"
+        old_config = config['agent_retrieval'].get('config_path', 'not set')
+        config['agent_retrieval'][
+            'config_path'] = f"pipelines/configs/retrieval/{config_name}.yml"
+        config['agent_retrieval']['active_config'] = config_name
 
         # Write updated config
         with open(main_config_path, 'w') as f:

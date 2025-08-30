@@ -43,10 +43,6 @@ def main():
             logger.info(f"User: {user_input}")
             logger.info(f"Agent: {answer}")
 
-            # Optional: Display additional debug information
-            if "sql" in final_state:
-                logger.info(f"Generated SQL: {final_state['sql']}")
-
             if "error" in final_state:
                 logger.error(f"Execution error: {final_state['error']}")
                 print(f"[Error occurred: {final_state['error']}]")

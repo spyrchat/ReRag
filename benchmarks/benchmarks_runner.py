@@ -30,7 +30,7 @@ class BenchmarkRunner:
         """Initialize retrieval pipeline from unified configuration."""
         # Try to get retriever type from multiple config locations
         retrieval_type = None
-        
+
         # Check if explicitly set in the config (for benchmark optimizer)
         if 'default_retriever' in self.config:
             retrieval_type = self.config['default_retriever']
@@ -40,7 +40,7 @@ class BenchmarkRunner:
         elif 'benchmark' in self.config and 'retrieval' in self.config['benchmark']:
             benchmark_retrieval = self.config['benchmark']['retrieval']
             retrieval_type = benchmark_retrieval.get("strategy")
-        
+
         # Use unified config factory (will use pipeline default if retrieval_type is None)
         return RetrievalPipelineFactory.create_from_unified_config(self.config, retrieval_type)
 

@@ -10,7 +10,6 @@ class AgentState(TypedDict, total=False):
         question (str): The user's input question
         reference_date (str): Reference date for temporal queries
         next_node (str): Next node to execute in the agent graph
-        sql (str, optional): Generated SQL query
         context (str, optional): Contextual information for response generation
         answer (str, optional): Final answer to return to user
         chat_history (List[str]): Previous conversation history
@@ -24,7 +23,6 @@ class AgentState(TypedDict, total=False):
     question: str
     reference_date: str
     next_node: str
-    sql: Optional[str]
     context: Optional[str]
     answer: Optional[str]
     chat_history: List[str]
