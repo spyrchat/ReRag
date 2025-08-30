@@ -1,7 +1,7 @@
 import os
 import uuid
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from dotenv import load_dotenv
 from langchain_core.documents import Document
@@ -16,15 +16,34 @@ logger = get_logger(__name__)
 
 
 class QdrantVectorDB(BaseVectorDB):
-    def __init__(self, strategy: str = "dense"):
+    def __init__(self, strategy: str = "dense", config: Optional[Dict[str, Any]] = None):
         load_dotenv(override=True)
         self.strategy = strategy.lower()
-        self.host = os.getenv("QDRANT_HOST")
-        self.port = int(os.getenv("QDRANT_PORT"))
-        self.api_key = os.getenv("QDRANT_API_KEY")
-        self.collection_name = os.getenv("QDRANT_COLLECTION")
-        self.dense_vector_name = os.getenv("DENSE_VECTOR_NAME", "dense")
-        self.sparse_vector_name = os.getenv("SPARSE_VECTOR_NAME", "sparse")
+
+        # Use config if provided, otherwise fall back to environment variables
+        if config and "qdrant" in config:
+            qdrant_config = config["qdrant"]
+            self.host = qdrant_config.get(
+                "host", os.getenv("QDRANT_HOST", "localhost"))
+            self.port = int(qdrant_config.get(
+                "port", os.getenv("QDRANT_PORT", "6333")))
+            self.api_key = qdrant_config.get(
+                "api_key", os.getenv("QDRANT_API_KEY"))
+            self.collection_name = qdrant_config.get("collection", qdrant_config.get(
+                "collection_name", os.getenv("QDRANT_COLLECTION")))
+            self.dense_vector_name = qdrant_config.get(
+                "dense_vector_name", os.getenv("DENSE_VECTOR_NAME", "dense"))
+            self.sparse_vector_name = qdrant_config.get(
+                "sparse_vector_name", os.getenv("SPARSE_VECTOR_NAME", "sparse"))
+        else:
+            # Fall back to environment variables
+            self.host = os.getenv("QDRANT_HOST")
+            self.port = int(os.getenv("QDRANT_PORT"))
+            self.api_key = os.getenv("QDRANT_API_KEY")
+            self.collection_name = os.getenv("QDRANT_COLLECTION")
+            self.dense_vector_name = os.getenv("DENSE_VECTOR_NAME", "dense")
+            self.sparse_vector_name = os.getenv("SPARSE_VECTOR_NAME", "sparse")
+
         logger.info(f"Qdrant collection: {self.collection_name}")
         logger.info(f"Dense vector: {self.dense_vector_name}")
         logger.info(f"Sparse vector: {self.sparse_vector_name}")

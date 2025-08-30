@@ -22,7 +22,7 @@ class QdrantSparseRetriever(ModernBaseRetriever):
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the sparse retriever.
-        
+
         Args:
             config: Configuration dictionary containing:
                 - embedding: Sparse embedding configuration
@@ -31,23 +31,23 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                 - score_threshold: Minimum score threshold (default: 0.0)
         """
         super().__init__(config)
-        
+
         # Validate required configuration
         if 'embedding' not in config:
             logger.warning("No embedding config found, using default")
         if 'qdrant' not in config:
             logger.warning("No qdrant config found, using default")
-        
+
         # Initialize components lazily
         self.embedding = None
         self.vectorstore = None
         self._initialized = False
-        
+
     def _initialize_components(self):
         """Initialize embedding and vector store components."""
         if self._initialized:
             return
-            
+
         try:
             # Initialize sparse embedding
             from embedding.factory import get_embedder
@@ -59,13 +59,14 @@ class QdrantSparseRetriever(ModernBaseRetriever):
 
             # Initialize Qdrant vector store for sparse search
             from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB()
+            qdrant_db = QdrantVectorDB(strategy="sparse", config=self.config)
 
             # For testing, use dense mode if sparse vectors don't exist
             try:
                 # Get sparse vector configuration
                 sparse_config = self.config.get('qdrant', {})
-                sparse_vector_name = sparse_config.get('sparse_vector_name', 'sparse')
+                sparse_vector_name = sparse_config.get(
+                    'sparse_vector_name', 'sparse')
 
                 self.vectorstore = QdrantVectorStore(
                     client=qdrant_db.get_client(),
@@ -76,44 +77,48 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                 )
             except Exception:
                 # Fallback to dense mode for testing
-                logger.warning("Sparse vectors not available, falling back to dense mode")
+                logger.warning(
+                    "Sparse vectors not available, falling back to dense mode")
                 self.vectorstore = qdrant_db.as_langchain_vectorstore(
                     dense_embedding=self.embedding
                 )
 
             self._initialized = True
-            logger.info(f"Sparse retriever initialized with embedding: {type(self.embedding).__name__}")
+            logger.info(
+                f"Sparse retriever initialized with embedding: {type(self.embedding).__name__}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize sparse retriever components: {e}")
+            logger.error(
+                f"Failed to initialize sparse retriever components: {e}")
             self._initialized = False
-    
+
     @property
     def component_name(self) -> str:
         return "sparse_retriever"
-    
+
     def _perform_search(self, query: str, k: int) -> List[RetrievalResult]:
         """
         Perform sparse similarity search.
-        
+
         Args:
             query: Search query
             k: Number of results to retrieve
-            
+
         Returns:
             List of RetrievalResult objects
         """
         if not self._initialized:
             self._initialize_components()
-            
+
         if not self._initialized:
-            logger.warning("Sparse retriever not properly initialized, returning empty results")
+            logger.warning(
+                "Sparse retriever not properly initialized, returning empty results")
             return []
-            
+
         try:
             # Perform sparse similarity search with scores
             results = self.vectorstore.similarity_search_with_score(query, k=k)
-            
+
             # Convert to RetrievalResult objects
             retrieval_results = []
             for document, score in results:
@@ -126,12 +131,12 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                     }
                 )
                 retrieval_results.append(retrieval_result)
-            
+
             # Normalize scores for consistency
             retrieval_results = self._normalize_scores(retrieval_results)
-            
+
             return retrieval_results
-            
+
         except Exception as e:
             logger.error(f"Error during sparse search: {e}")
             return []

@@ -1,0 +1,28 @@
+# Benchmark Configuration Override Example
+# This shows minimal config overrides for benchmarking with Google Gemini
+# Base config comes from main config.yml
+
+# Override retrieval strategy for this benchmark
+benchmark:
+  retrieval:
+    strategy: hybrid  # Can be dense, sparse, hybrid, semantic
+    top_k: 50        # Override default top_k for more comprehensive retrieval
+    search_params:
+      score_threshold: 0.1  # Slightly higher threshold for quality
+
+# Override specific retriever settings if needed
+retrievers:
+  hybrid:
+    fusion:
+      dense_weight: 0.8  # Prefer dense results more (Google Gemini is good)
+      sparse_weight: 0.2
+    top_k: 50
+
+# Override collection name if using different test collection
+qdrant:
+  collection: sosum_stackoverflow_hybrid_benchmark_v1
+
+# Optional: Override embedding batch size for faster processing
+embedding:
+  dense:
+    batch_size: 64  # Larger batch for benchmarking

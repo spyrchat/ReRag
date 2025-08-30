@@ -59,7 +59,7 @@ class QdrantDenseRetriever(ModernBaseRetriever):
 
             # Initialize Qdrant vector store
             from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB()
+            qdrant_db = QdrantVectorDB(config=self.config)
             self.vectorstore = qdrant_db.as_langchain_vectorstore(
                 dense_embedding=self.embedding
             )

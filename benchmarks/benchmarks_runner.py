@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 from benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
 from benchmarks_metrics import BenchmarkMetrics
-from retrieval.factory import RetrievalEngineFactory
-from generation.factory import GenerationEngineFactory
+from components.retrieval_pipeline import RetrievalPipelineFactory
+from config.config_loader import get_benchmark_config, get_retriever_config
 
 
 class BenchmarkRunner:
@@ -16,21 +16,22 @@ class BenchmarkRunner:
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
+        self.benchmark_config = get_benchmark_config(config)
         self.metrics = BenchmarkMetrics()
 
-        # Initialize retrieval engine based on config
+        # Initialize retrieval engine based on unified config
         self.retrieval_engine = self._init_retrieval_engine()
 
         # Initialize generation engine (optional)
         self.generation_engine = self._init_generation_engine()
 
     def _init_retrieval_engine(self):
-        """Initialize retrieval engine from configuration."""
-        retrieval_config = self.config.get("retrieval", {})
-        strategy = retrieval_config.get("strategy", "hybrid")
+        """Initialize retrieval engine from unified configuration."""
+        benchmark_retrieval_config = self.benchmark_config.get("retrieval", {})
+        strategy = benchmark_retrieval_config.get("strategy", "hybrid")
 
-        # Use factory pattern for flexible component creation
-        return RetrievalEngineFactory.create(strategy, retrieval_config)
+        # Use unified config factory
+        return RetrievalPipelineFactory.create_from_unified_config(self.config, strategy)
 
     def _init_generation_engine(self):
         """Initialize generation engine from configuration."""
@@ -39,8 +40,8 @@ class BenchmarkRunner:
         if not generation_config.get("enabled", False):
             return None
 
-        provider = generation_config.get("provider", "openai")
-        return GenerationEngineFactory.create(provider, generation_config)
+        # For now, return None - generation engine can be implemented later
+        return None
 
     def run_benchmark(
         self,
@@ -51,7 +52,8 @@ class BenchmarkRunner:
         """Run comprehensive benchmark with configurable components."""
 
         print(f"🚀 Running benchmark: {adapter.name}")
-        print(f"🔍 Retrieval strategy: {self.retrieval_engine.strategy_name}")
+        print(
+            f"🔍 Retrieval strategy: {self.benchmark_config['retrieval']['strategy']}")
 
         if self.generation_engine:
             print(
@@ -81,8 +83,8 @@ class BenchmarkRunner:
         start_time = time.time()
         search_results = self.retrieval_engine.search(
             query.query_text,
-            top_k=self.config.get("retrieval", {}).get("top_k", 20),
-            **self.config.get("retrieval", {}).get("search_params", {})
+            top_k=self.benchmark_config.get("retrieval", {}).get("top_k", 20),
+            **self.benchmark_config.get("retrieval", {}).get("search_params", {})
         )
         retrieval_time = (time.time() - start_time) * 1000
 
@@ -96,7 +98,7 @@ class BenchmarkRunner:
             retrieval_scores = self.metrics.retrieval_metrics(
                 retrieved_doc_ids,
                 query.relevant_doc_ids,
-                k_values=self.config.get("evaluation", {}).get(
+                k_values=self.benchmark_config.get("evaluation", {}).get(
                     "k_values", [1, 5, 10, 20])
             )
 

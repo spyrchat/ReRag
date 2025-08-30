@@ -514,3 +514,135 @@ class RetrievalPipelineFactory:
         retriever = SemanticRetriever(config)
 
         return RetrievalPipeline([retriever], config)
+
+    @staticmethod
+    def create_from_retriever_config(retriever_type: str, global_config: Dict[str, Any] = None) -> 'RetrievalPipeline':
+        """
+        Create a retrieval pipeline from a retriever configuration file.
+
+        Args:
+            retriever_type: Type of retriever (dense, sparse, hybrid, semantic)
+            global_config: Optional global configuration to merge with
+
+        Returns:
+            Configured RetrievalPipeline
+        """
+        try:
+            from pipelines.configs.retriever_config_loader import load_retriever_config
+
+            # Load retriever-specific configuration
+            retriever_config = load_retriever_config(retriever_type)
+
+            # Merge with global config if provided
+            if global_config:
+                from pipelines.configs.retriever_config_loader import RetrieverConfigLoader
+                loader = RetrieverConfigLoader()
+                merged_config = loader.merge_with_global_config(
+                    retriever_config, global_config)
+            else:
+                merged_config = retriever_config
+
+            # Create retriever from the merged config
+            retriever = RetrievalPipelineFactory._create_retriever(
+                merged_config['retriever'], merged_config
+            )
+
+            # Create pipeline
+            pipeline = RetrievalPipeline([retriever], merged_config)
+
+            logger.info(
+                f"Created {retriever_type} pipeline from configuration file")
+            return pipeline
+
+        except Exception as e:
+            logger.error(
+                f"Failed to create pipeline from {retriever_type} config: {e}")
+            raise
+
+    @staticmethod
+    def list_available_retrievers() -> List[str]:
+        """
+        List all available retriever types from configuration files.
+
+        Returns:
+            List of available retriever types
+        """
+        try:
+            from pipelines.configs.retriever_config_loader import RetrieverConfigLoader
+            loader = RetrieverConfigLoader()
+            return loader.get_available_configs()
+        except Exception as e:
+            logger.warning(f"Could not load retriever configs: {e}")
+            return []
+
+    @staticmethod
+    def create_from_unified_config(config: Dict[str, Any], retriever_type: str = None) -> 'RetrievalPipeline':
+        """
+        Create a retrieval pipeline from unified configuration structure.
+
+        Args:
+            config: Complete configuration dictionary with retriever configs embedded
+            retriever_type: Type of retriever to use (if not specified, uses pipeline default)
+
+        Returns:
+            Configured RetrievalPipeline
+
+        Example usage:
+            config = load_config("config.yml")
+            pipeline = RetrievalPipelineFactory.create_from_unified_config(config, "hybrid")
+        """
+        from config.config_loader import get_retriever_config, get_pipeline_config
+
+        # Get pipeline configuration
+        pipeline_config = get_pipeline_config(config)
+
+        # Determine retriever type
+        if retriever_type is None:
+            retriever_type = pipeline_config.get("default_retriever", "hybrid")
+
+        # Get retriever-specific configuration
+        retriever_config = get_retriever_config(config, retriever_type)
+
+        # Create retriever using unified config
+        retriever = RetrievalPipelineFactory._create_retriever_from_unified_config(
+            retriever_config, config)
+
+        # Initialize pipeline with retriever
+        pipeline = RetrievalPipeline([retriever], config)
+
+        # Add components from pipeline config
+        components = pipeline_config.get("components", [])
+        for component_config in components:
+            if component_config.get("type") == "retriever":
+                # Skip retriever component as it's already added
+                continue
+
+            component = RetrievalPipelineFactory._create_stage_component(
+                component_config, config)
+            if component:
+                pipeline.add_component(component)
+
+        logger.info(
+            f"Created {retriever_type} pipeline from unified config with {len(pipeline.components)} components")
+        return pipeline
+
+    @staticmethod
+    def _create_retriever_from_unified_config(retriever_config: Dict[str, Any],
+                                              global_config: Dict[str, Any]) -> BaseRetriever:
+        """Create retriever from unified configuration structure."""
+        retriever_type = retriever_config.get("type")
+
+        if retriever_type == "dense":
+            from retrievers.dense_retriever import QdrantDenseRetriever
+            return QdrantDenseRetriever(retriever_config)
+        elif retriever_type == "sparse":
+            from retrievers.sparse_retriever import QdrantSparseRetriever
+            return QdrantSparseRetriever(retriever_config)
+        elif retriever_type == "hybrid":
+            from retrievers.hybrid_retriever import QdrantHybridRetriever
+            return QdrantHybridRetriever(retriever_config)
+        elif retriever_type == "semantic":
+            from retrievers.semantic_retriever import SemanticRetriever
+            return SemanticRetriever(retriever_config)
+        else:
+            raise ValueError(f"Unknown retriever type: {retriever_type}")

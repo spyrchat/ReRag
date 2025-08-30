@@ -1,30 +1,148 @@
+# Google Gemini Embedding Configuration
 embedding:
   dense:
+    provider: google
+    model: models/embedding-001
+    dimensions: 768
+    api_key_env: GOOGLE_API_KEY
     batch_size: 32
-    model_name: sentence-transformers/all-MiniLM-L6-v2
-    provider: hf
     vector_name: dense
   sparse:
-    model_name: Qdrant/bm25
-    provider: fastembed
+    provider: sparse
+    model: Qdrant/bm25
     vector_name: sparse
-embedding_strategy: hybrid
+  strategy: hybrid
+
+# LLM Configuration
 llm:
-  model: gpt-4.1-mini
+  model: gpt-4-mini
   provider: openai
   temperature: 0.0
+
+# Database Configurations
 postgres:
   database: tableDB
   host: localhost
   password: admin
   port: 5432
   user: admin
+
 qdrant:
-  collection: test_collection_hybrid
+  collection: sosum_stackoverflow_hybrid_v1
   dense_vector_name: dense
   sparse_vector_name: sparse
-retrieval:
-  config_path: pipelines/configs/retrieval/advanced_reranked.yml
-retriever:
-  top_k: 10
-  type: qdrant
+
+# Retriever Configurations
+retrievers:
+  dense:
+    type: dense
+    top_k: 10
+    score_threshold: 0.0
+    embedding:
+      provider: google
+      model: models/embedding-001
+      dimensions: 768
+      api_key_env: GOOGLE_API_KEY
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      vector_name: dense
+    performance:
+      lazy_initialization: true
+      batch_size: 32
+      enable_caching: true
+
+  sparse:
+    type: sparse
+    top_k: 10
+    score_threshold: 0.0
+    embedding:
+      provider: sparse
+      model: Qdrant/bm25
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      vector_name: sparse
+    performance:
+      lazy_initialization: true
+      batch_size: 32
+      enable_caching: true
+
+  hybrid:
+    type: hybrid
+    top_k: 10
+    score_threshold: 0.0
+    fusion_method: rrf
+    embedding:
+      strategy: hybrid
+      dense:
+        provider: google
+        model: models/embedding-001
+        dimensions: 768
+        api_key_env: GOOGLE_API_KEY
+      sparse:
+        provider: sparse
+        model: Qdrant/bm25
+        dimensions: null
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      dense_vector_name: dense
+      sparse_vector_name: sparse
+      hybrid_config:
+        alpha: 0.5
+        reciprocal_rank_constant: 60
+    fusion:
+      method: rrf
+      dense_weight: 0.7
+      sparse_weight: 0.3
+      rrf_k: 60
+    performance:
+      lazy_initialization: true
+      batch_size: 32
+      enable_caching: true
+      parallel_search: false
+
+  semantic:
+    type: semantic
+    top_k: 10
+    score_threshold: 0.0
+    embedding:
+      provider: google
+      model: models/embedding-001
+      dimensions: 768
+      api_key_env: GOOGLE_API_KEY
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      vector_name: dense
+    semantic_config:
+      similarity_threshold: 0.8
+      context_window: 3
+    performance:
+      lazy_initialization: true
+      batch_size: 32
+      enable_caching: true
+
+# Pipeline Configuration
+retrieval_pipeline:
+  default_retriever: hybrid
+  components:
+    - type: retriever
+      config:
+        retriever_type: hybrid
+    - type: score_filter
+      config:
+        min_score: 0.3
+    - type: reranker
+      config:
+        model_type: cross_encoder
+        model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
+        top_k: 5
+
+# Benchmarking Configuration
+benchmark:
+  evaluation:
+    k_values: [1, 5, 10, 20]
+    metrics: ["precision", "recall", "f1", "mrr", "ndcg"]
+  retrieval:
+    strategy: hybrid
+    top_k: 20
+    search_params:
+      score_threshold: 0.0
