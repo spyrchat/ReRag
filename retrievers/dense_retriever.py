@@ -49,12 +49,20 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             return
 
         try:
-            # Initialize embedding
+            # Initialize embedding - get the dense embedding config
             from embedding.factory import get_embedder
-            embedding_config = self.config.get('embedding', {
-                'type': 'sentence_transformers',
-                'model': 'sentence-transformers/all-MiniLM-L6-v2'
-            })
+            
+            # Extract dense embedding config from the main config
+            embedding_section = self.config.get('embedding', {})
+            if 'dense' in embedding_section:
+                embedding_config = embedding_section['dense']
+            else:
+                # Fallback to legacy config or default
+                embedding_config = embedding_section or {
+                    'type': 'sentence_transformers',
+                    'model': 'sentence-transformers/all-MiniLM-L6-v2'
+                }
+            
             self.embedding = get_embedder(embedding_config)
 
             # Initialize Qdrant vector store
@@ -80,7 +88,7 @@ class QdrantDenseRetriever(ModernBaseRetriever):
 
     def _perform_search(self, query: str, k: int) -> List[RetrievalResult]:
         """
-        Perform dense similarity search.
+        Perform dense similarity search using direct Qdrant API to preserve external_id.
 
         Args:
             query: Search query
@@ -98,18 +106,48 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             return []
 
         try:
-            # Perform similarity search with scores
-            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            # Get query embedding
+            query_vector = self.embedding.embed_query(query)
+            
+            # Get Qdrant database instance
+            from database.qdrant_controller import QdrantVectorDB
+            qdrant_db = QdrantVectorDB(config=self.config)
+            
+            # Direct Qdrant search to preserve external_id
+            from qdrant_client.models import NamedVector
+            
+            search_result = qdrant_db.client.search(
+                collection_name=qdrant_db.collection_name,
+                query_vector=NamedVector(
+                    name=qdrant_db.dense_vector_name,
+                    vector=query_vector
+                ),
+                limit=k,
+                with_payload=True  # Include all payload data including external_id
+            )
 
             # Convert to RetrievalResult objects
             retrieval_results = []
-            for document, score in results:
+            for result in search_result:
+                payload = result.payload or {}
+                
+                # Create document with preserved external_id
+                document = Document(
+                    page_content=payload.get('page_content', ''),
+                    metadata={
+                        **payload.get('metadata', {}),
+                        'external_id': payload.get('external_id'),  # Ensure external_id is in metadata
+                        'qdrant_id': str(result.id)  # Also store the Qdrant UUID for reference
+                    }
+                )
+                
                 retrieval_result = self._create_retrieval_result(
                     document=document,
-                    score=score,
+                    score=result.score,
                     additional_metadata={
                         'search_type': 'dense_similarity',
-                        'embedding_model': type(self.embedding).__name__
+                        'embedding_model': type(self.embedding).__name__,
+                        'external_id': payload.get('external_id')  # Also add to retrieval metadata
                     }
                 )
                 retrieval_results.append(retrieval_result)

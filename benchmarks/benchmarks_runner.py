@@ -110,7 +110,8 @@ class BenchmarkRunner:
             )
         else:
             # If no ground truth, return NaN metrics to indicate unavailable evaluation
-            k_values = self.config.get("evaluation", {}).get("k_values", [1, 5, 10, 20])
+            k_values = self.config.get("evaluation", {}).get(
+                "k_values", [1, 5, 10, 20])
             for k in k_values:
                 retrieval_scores[f"precision@{k}"] = float('nan')
                 retrieval_scores[f"recall@{k}"] = float('nan')
@@ -182,12 +183,12 @@ class BenchmarkRunner:
             },
             "metrics": {}
         }
-        
+
         # Handle metrics with proper NaN handling
         for metric, scores in all_scores.items():
             # Filter out NaN values for computation
             valid_scores = [s for s in scores if not np.isnan(s)]
-            
+
             if valid_scores:
                 aggregated["metrics"][metric] = {
                     "mean": np.mean(valid_scores),
@@ -215,7 +216,7 @@ class BenchmarkRunner:
     def _extract_document_id_from_result(self, result) -> str:
         """
         Extract document ID from retrieval result.
-        
+
         For Qdrant, we need to get the external_id from the payload since
         LangChain doesn't expose it in the document metadata.
         """
@@ -224,34 +225,50 @@ class BenchmarkRunner:
             doc_id = result.metadata.get("external_id")
             if doc_id:
                 return str(doc_id)
+
+        # Second try: check document's metadata directly  
+        if hasattr(result, 'page_content'):
+            # This is a Document object, check its metadata
+            if hasattr(result, 'metadata') and result.metadata:
+                doc_id = result.metadata.get("external_id")
+                if doc_id:
+                    return str(doc_id)
         
-        # Second try: check document's metadata directly
-        if hasattr(result, 'document') and result.document.metadata:
-            doc_id = result.document.metadata.get("external_id")
-            if doc_id:
-                return str(doc_id)
-        
-        # Third try: For Qdrant, try to get the external_id from the point payload
-        # We need to access the Qdrant client directly
+        # Third try: if result has document attribute
+        if hasattr(result, 'document'):
+            if hasattr(result.document, 'metadata') and result.document.metadata:
+                doc_id = result.document.metadata.get("external_id")
+                if doc_id:
+                    return str(doc_id)
+
+        # Fourth try: For complex document IDs, try to extract the external_id part
+        # Look for patterns like "stackoverflow_sosum:a_123456:hash" -> "a_123456"
         try:
-            if hasattr(self.retrieval_pipeline, 'components'):
-                for component in self.retrieval_pipeline.components:
-                    if hasattr(component, 'vector_db') and hasattr(component.vector_db, 'client'):
-                        qdrant_client = component.vector_db.client
-                        collection_name = component.vector_db.collection_name
+            # Check all possible metadata locations for any ID-like fields
+            metadata_sources = []
+            
+            if hasattr(result, 'metadata') and result.metadata:
+                metadata_sources.append(result.metadata)
+            if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
+                metadata_sources.append(result.document.metadata)
+                
+            for metadata in metadata_sources:
+                for key, value in metadata.items():
+                    if isinstance(value, str):
+                        # Try to extract answer ID from complex document IDs
+                        if ':a_' in value:
+                            # Pattern: "stackoverflow_sosum:a_123456:hash"
+                            parts = value.split(':')
+                            for part in parts:
+                                if part.startswith('a_'):
+                                    return part
                         
-                        # Try to find the point ID from the result
-                        # This is a bit hacky but necessary due to LangChain limitations
-                        content = result.document.page_content
-                        
-                        # Search for points with matching content (not ideal but works)
-                        # Since we can't easily get the point ID from LangChain result
-                        # We'll use a content-based lookup as a fallback
-                        
-                        # For now, we'll skip this complex lookup and rely on re-ingestion
-                        break
+                        # Direct match for answer IDs
+                        if value.startswith('a_') and value.replace('a_', '').replace('_', '').isdigit():
+                            return value
+                            
         except Exception as e:
             pass
-        
+
         # Fallback to unknown if no ID found
         return "unknown"

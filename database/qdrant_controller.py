@@ -127,14 +127,29 @@ class QdrantVectorDB(BaseVectorDB):
 
         # Use external_id from metadata if available, otherwise generate UUID
         ids = []
+        processed_documents = []
         for doc in documents:
             external_id = doc.metadata.get("external_id")
             if external_id:
                 ids.append(str(external_id))
+                # Ensure external_id is preserved in the document metadata
+                # Create a copy of the document with external_id explicitly in metadata
+                doc_copy = Document(
+                    page_content=doc.page_content,
+                    metadata={**doc.metadata, "external_id": str(external_id)}
+                )
+                processed_documents.append(doc_copy)
             else:
-                ids.append(str(uuid.uuid4()))
+                generated_id = str(uuid.uuid4())
+                ids.append(generated_id)
+                # Add the generated ID to metadata as well
+                doc_copy = Document(
+                    page_content=doc.page_content,
+                    metadata={**doc.metadata, "external_id": generated_id}
+                )
+                processed_documents.append(doc_copy)
         
-        vectorstore.add_documents(documents=documents, ids=ids)
+        vectorstore.add_documents(documents=processed_documents, ids=ids)
 
         logger.info(
             f"Inserted {len(documents)} documents into '{self.collection_name}' "

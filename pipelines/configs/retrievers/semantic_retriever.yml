@@ -1,0 +1,80 @@
+# Semantic Retriever Configuration
+# Intelligent multi-strategy retrieval with query analysis and routing
+
+retriever:
+  type: semantic
+  top_k: 10
+  score_threshold: 0.0
+  default_strategy: hybrid
+
+# Available retrieval strategies
+strategies:
+  dense:
+    enabled: true
+    weight: 1.0
+    embedding:
+      type: sentence_transformers
+      model: sentence-transformers/all-MiniLM-L6-v2
+  
+  sparse:
+    enabled: true  
+    weight: 1.0
+    embedding:
+      type: splade
+      model: naver/splade-cocondenser-ensembledistil
+  
+  hybrid:
+    enabled: true
+    weight: 1.5  # Preferred strategy
+    embedding:
+      dense:
+        type: sentence_transformers
+        model: sentence-transformers/all-MiniLM-L6-v2
+      sparse:
+        type: splade
+        model: naver/splade-cocondenser-ensembledistil
+
+# Query analysis and routing rules
+query_analyzer:
+  enabled: false  # Set to true for advanced query analysis
+  model: null     # Could integrate with LLM for query classification
+  
+# Rule-based routing (simple but effective)
+routing_rules:
+  # Short queries prefer sparse (keyword matching)
+  "short_query": ["sparse"]
+  # Conceptual queries prefer dense (semantic)
+  "how to": ["dense"]
+  "what is": ["dense"] 
+  "explain": ["dense"]
+  # Technical queries use hybrid
+  "error": ["hybrid"]
+  "exception": ["hybrid"]
+
+# Fusion settings for multi-strategy queries
+fusion:
+  method: weighted_rrf
+  rrf_k: 60
+  score_normalization: minmax
+  duplicate_handling: external_id  # or content_hash
+
+# Vector database configuration (shared)
+qdrant:
+  collection_name: sosum_stackoverflow_minilm_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+# Performance settings
+performance:
+  lazy_initialization: true
+  batch_size: 32
+  enable_caching: true
+  strategy_timeout: 30  # seconds per strategy
+  max_parallel_strategies: 2
+
+# Logging
+logging:
+  level: INFO
+  log_queries: true
+  log_strategy_selection: true
+  log_fusion_details: false
