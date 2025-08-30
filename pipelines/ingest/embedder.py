@@ -26,8 +26,16 @@ class EmbeddingPipeline:
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.embedding_strategy = config.get(
-            "embedding_strategy", "dense").lower()
+
+        # Check for strategy in multiple locations for backward compatibility
+        self.embedding_strategy = (
+            config.get("embedding_strategy") or  # Top level (legacy)
+            # Under embedding (current)
+            config.get("embedding", {}).get("strategy") or
+            "dense"  # Default fallback
+        ).lower()
+
+        logger.info(f"Using embedding strategy: {self.embedding_strategy}")
 
         # Initialize embedders based on strategy
         self.dense_embedder = None

@@ -278,3 +278,50 @@ class SmokeTestRunner:
                 passed=False,
                 message=f"Error in data quality check: {str(e)}"
             )
+
+    def run_all_tests(self, collection_name: str, chunk_metas: Optional[List[ChunkMeta]] = None) -> Dict[str, Any]:
+        """
+        Run all smoke tests and return summary results.
+
+        Args:
+            collection_name: Name of the Qdrant collection to test
+            chunk_metas: Optional list of ingested chunk metadata
+
+        Returns:
+            Dictionary with test results and summary
+        """
+        if chunk_metas is None:
+            chunk_metas = []
+
+        test_results = self.run_smoke_tests(collection_name, chunk_metas)
+
+        # Calculate summary statistics
+        passed_tests = sum(1 for r in test_results if r.passed)
+        total_tests = len(test_results)
+        success_rate = passed_tests / total_tests if total_tests > 0 else 0
+
+        # Check if overall success rate meets minimum threshold
+        overall_passed = success_rate >= self.min_success_rate
+
+        summary = {
+            "overall_passed": overall_passed,
+            "success_rate": success_rate,
+            "passed_tests": passed_tests,
+            "total_tests": total_tests,
+            "min_success_rate": self.min_success_rate,
+            "test_results": [
+                {
+                    "test_name": result.test_name,
+                    "passed": result.passed,
+                    "message": result.message,
+                    "details": result.details
+                }
+                for result in test_results
+            ],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+        logger.info(
+            f"Smoke tests summary: {passed_tests}/{total_tests} passed ({success_rate:.1%}) - Overall: {'PASS' if overall_passed else 'FAIL'}")
+
+        return summary

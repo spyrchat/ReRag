@@ -131,7 +131,7 @@ class IngestionPipeline:
 
                 # Step 5: Run smoke tests
                 logger.info("Step 5: Running smoke tests...")
-                smoke_results = self._run_smoke_tests()
+                smoke_results = self._run_smoke_tests(chunk_metas)
                 record.metadata = {"smoke_test_results": smoke_results}
 
             else:
@@ -292,11 +292,13 @@ class IngestionPipeline:
 
         return upload_record
 
-    def _run_smoke_tests(self) -> Dict[str, Any]:
+    def _run_smoke_tests(self, chunk_metas: List[ChunkMeta]) -> Dict[str, Any]:
         """Run post-ingestion smoke tests."""
         # Pass the actual collection name being used
         actual_collection = self.uploader.collection_name
-        return self.smoke_test_runner.run_all_tests(collection_name=actual_collection)
+        results = self.smoke_test_runner.run_smoke_tests(
+            collection_name=actual_collection, chunk_metas=chunk_metas)
+        return {"test_results": results, "passed": all(r.passed for r in results)}
 
     def _save_lineage(self, record: IngestionRecord):
         """Save ingestion lineage for reproducibility."""

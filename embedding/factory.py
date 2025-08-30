@@ -41,7 +41,8 @@ def get_embedder(cfg: dict):
         )
 
     elif provider == "sparse":
-        model_name = cfg.get("model_name", "BAAI/bge-base-en")
+        # Support both 'model' and 'model_name' for consistency with other providers
+        model_name = cfg.get("model") or cfg.get("model_name") or "Qdrant/bm25"
         device = cfg.get("device", "cpu")
         return SparseEmbedder(model_name=model_name, device=device)
 
