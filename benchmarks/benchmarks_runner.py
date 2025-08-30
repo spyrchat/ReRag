@@ -96,8 +96,7 @@ class BenchmarkRunner:
         # Extract document IDs from results
         retrieved_doc_ids = []
         for result in search_results:
-            doc_id = result.metadata.get(
-                "external_id") or result.metadata.get("id") or "unknown"
+            doc_id = self._extract_document_id_from_result(result)
             retrieved_doc_ids.append(str(doc_id))
 
         # Compute retrieval metrics
@@ -110,13 +109,13 @@ class BenchmarkRunner:
                     "k_values", [1, 5, 10, 20])
             )
         else:
-            # If no ground truth, use dummy metrics for testing
-            retrieval_scores = self.metrics.retrieval_metrics(
-                retrieved_doc_ids,
-                retrieved_doc_ids[:1] if retrieved_doc_ids else [],
-                k_values=self.config.get("evaluation", {}).get(
-                    "k_values", [1, 5, 10, 20])
-            )
+            # If no ground truth, return NaN metrics to indicate unavailable evaluation
+            k_values = self.config.get("evaluation", {}).get("k_values", [1, 5, 10, 20])
+            for k in k_values:
+                retrieval_scores[f"precision@{k}"] = float('nan')
+                retrieval_scores[f"recall@{k}"] = float('nan')
+                retrieval_scores[f"ndcg@{k}"] = float('nan')
+            retrieval_scores["mrr"] = float('nan')
 
         # Generation evaluation (if enabled)
         generation_scores = {}
@@ -167,7 +166,7 @@ class BenchmarkRunner:
             component_names = [
                 comp.component_name for comp in self.retrieval_pipeline.components]
 
-        # Compute averages and stats
+        # Compute averages and stats, handling NaN values
         aggregated = {
             "dataset": dataset_name,
             "config": {
@@ -181,16 +180,78 @@ class BenchmarkRunner:
                 "avg_generation_time_ms": np.mean([r.generation_time_ms for r in results]),
                 "total_time_ms": sum(r.retrieval_time_ms + r.generation_time_ms for r in results)
             },
-            "metrics": {
-                metric: {
-                    "mean": np.mean(scores),
-                    "std": np.std(scores),
-                    "min": np.min(scores),
-                    "max": np.max(scores),
-                    "median": np.median(scores)
-                }
-                for metric, scores in all_scores.items()
-            }
+            "metrics": {}
         }
+        
+        # Handle metrics with proper NaN handling
+        for metric, scores in all_scores.items():
+            # Filter out NaN values for computation
+            valid_scores = [s for s in scores if not np.isnan(s)]
+            
+            if valid_scores:
+                aggregated["metrics"][metric] = {
+                    "mean": np.mean(valid_scores),
+                    "std": np.std(valid_scores),
+                    "min": np.min(valid_scores),
+                    "max": np.max(valid_scores),
+                    "median": np.median(valid_scores),
+                    "count": len(valid_scores),
+                    "total_queries": len(scores)
+                }
+            else:
+                aggregated["metrics"][metric] = {
+                    "mean": float('nan'),
+                    "std": float('nan'),
+                    "min": float('nan'),
+                    "max": float('nan'),
+                    "median": float('nan'),
+                    "count": 0,
+                    "total_queries": len(scores),
+                    "note": "No ground truth available for evaluation"
+                }
 
         return aggregated
+
+    def _extract_document_id_from_result(self, result) -> str:
+        """
+        Extract document ID from retrieval result.
+        
+        For Qdrant, we need to get the external_id from the payload since
+        LangChain doesn't expose it in the document metadata.
+        """
+        # First try: check if external_id is in document metadata
+        if hasattr(result, 'metadata') and result.metadata:
+            doc_id = result.metadata.get("external_id")
+            if doc_id:
+                return str(doc_id)
+        
+        # Second try: check document's metadata directly
+        if hasattr(result, 'document') and result.document.metadata:
+            doc_id = result.document.metadata.get("external_id")
+            if doc_id:
+                return str(doc_id)
+        
+        # Third try: For Qdrant, try to get the external_id from the point payload
+        # We need to access the Qdrant client directly
+        try:
+            if hasattr(self.retrieval_pipeline, 'components'):
+                for component in self.retrieval_pipeline.components:
+                    if hasattr(component, 'vector_db') and hasattr(component.vector_db, 'client'):
+                        qdrant_client = component.vector_db.client
+                        collection_name = component.vector_db.collection_name
+                        
+                        # Try to find the point ID from the result
+                        # This is a bit hacky but necessary due to LangChain limitations
+                        content = result.document.page_content
+                        
+                        # Search for points with matching content (not ideal but works)
+                        # Since we can't easily get the point ID from LangChain result
+                        # We'll use a content-based lookup as a fallback
+                        
+                        # For now, we'll skip this complex lookup and rely on re-ingestion
+                        break
+        except Exception as e:
+            pass
+        
+        # Fallback to unknown if no ID found
+        return "unknown"

@@ -16,9 +16,14 @@ class BenchmarkMetrics:
         """Compute retrieval metrics."""
         metrics = {}
 
-        # If no relevant docs provided, assume first retrieved doc is relevant for testing
-        if not relevant_docs and retrieved_docs:
-            relevant_docs = retrieved_docs[:1]
+        # If no ground truth is available, return NaN metrics to indicate unavailable evaluation
+        if not relevant_docs:
+            for k in k_values:
+                metrics[f"precision@{k}"] = float('nan')
+                metrics[f"recall@{k}"] = float('nan')
+                metrics[f"ndcg@{k}"] = float('nan')
+            metrics["mrr"] = float('nan')
+            return metrics
 
         # Precision@K
         for k in k_values:

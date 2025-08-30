@@ -125,7 +125,15 @@ class QdrantVectorDB(BaseVectorDB):
             sparse_embedding=sparse_embedder,
         )
 
-        ids = [str(uuid.uuid4()) for _ in documents]
+        # Use external_id from metadata if available, otherwise generate UUID
+        ids = []
+        for doc in documents:
+            external_id = doc.metadata.get("external_id")
+            if external_id:
+                ids.append(str(external_id))
+            else:
+                ids.append(str(uuid.uuid4()))
+        
         vectorstore.add_documents(documents=documents, ids=ids)
 
         logger.info(

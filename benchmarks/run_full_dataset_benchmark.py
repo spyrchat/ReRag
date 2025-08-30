@@ -9,6 +9,87 @@ from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter
 from config.config_loader import load_config
 
 
+# Create custom adapter for loading ground truth
+class FullDatasetAdapter(StackOverflowBenchmarkAdapter):
+    def load_queries(self, split: str = "test"):
+        """Load ALL questions from question.csv with proper ground truth."""
+        import pandas as pd
+
+        question_file = self.dataset_path / "question.csv"
+        answer_file = self.dataset_path / "answer.csv"
+        print(f"📂 Loading ALL queries from {question_file}")
+        print(f"📂 Loading answers from {answer_file}")
+
+        try:
+            # Load questions and answers
+            questions_df = pd.read_csv(question_file)
+            answers_df = pd.read_csv(answer_file)
+            
+            total_questions = len(questions_df)
+            print(f"📊 Found {total_questions} questions and {len(answers_df)} answers in dataset")
+
+            # Create a mapping of answer_id to answer content for ground truth
+            answer_mapping = {}
+            for _, answer_row in answers_df.iterrows():
+                answer_mapping[answer_row['answer_id']] = answer_row['answer_body']
+
+            queries = []
+            valid_queries = 0
+            
+            for idx, row in questions_df.iterrows():
+                # No limit - process ALL rows
+                if pd.isna(row['question_title']) or not row['question_title']:
+                    continue
+
+                # Extract answer IDs for this question (ground truth)
+                relevant_doc_ids = []
+                if not pd.isna(row['answer_posts']):
+                    try:
+                        # Parse the answer_posts list (it's stored as string representation of list)
+                        import ast
+                        answer_ids = ast.literal_eval(row['answer_posts'])
+                        relevant_doc_ids = [f"a_{aid}" for aid in answer_ids]
+                    except:
+                        relevant_doc_ids = None
+
+                from benchmarks.benchmark_contracts import BenchmarkQuery
+                query = BenchmarkQuery(
+                    query_id=f"full_so_{row['question_id']}",
+                    query_text=str(row['question_title']),
+                    expected_answer=str(row['question_body'])[:500] if not pd.isna(
+                        row['question_body']) else None,
+                    relevant_doc_ids=relevant_doc_ids,  # ✅ Now we have real ground truth!
+                    difficulty="medium",
+                    category=str(row['tags']) if not pd.isna(
+                        row['tags']) else "programming",
+                    metadata={
+                        "original_question_id": row['question_id'],
+                        "question_type": row['question_type'],
+                        "tags": row['tags'],
+                        "source": "full_stackoverflow_dataset",
+                        "has_ground_truth": relevant_doc_ids is not None
+                    }
+                )
+                queries.append(query)
+                valid_queries += 1
+
+            queries_with_gt = sum(1 for q in queries if q.relevant_doc_ids)
+            queries_without_gt = valid_queries - queries_with_gt
+            
+            print(f"✅ Loaded {valid_queries} valid queries from {total_questions} total questions")
+            print(f"📊 Ground truth available: {queries_with_gt} queries")
+            print(f"📊 No ground truth: {queries_without_gt} queries")
+            print(f"📊 Will evaluate retrieval meaningfully on {queries_with_gt} queries")
+            
+            return queries
+
+        except Exception as e:
+            print(f"❌ Error loading full dataset: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._create_dummy_queries()
+
+
 def run_full_dataset_benchmark():
     """Run benchmark with ALL StackOverflow questions in the dataset."""
 
@@ -31,59 +112,6 @@ def run_full_dataset_benchmark():
             "retrieval": ["precision@k", "recall@k", "mrr", "ndcg@k"]
         }
     }
-
-    # Create adapter that loads ALL queries
-    class FullDatasetAdapter(StackOverflowBenchmarkAdapter):
-        def load_queries(self, split: str = "test"):
-            """Load ALL questions from question.csv."""
-            import pandas as pd
-
-            question_file = self.dataset_path / "question.csv"
-            print(f"📂 Loading ALL queries from {question_file}")
-
-            try:
-                df = pd.read_csv(question_file)
-                total_questions = len(df)
-                print(f"📊 Found {total_questions} questions in dataset")
-
-                queries = []
-                valid_queries = 0
-                
-                for idx, row in df.iterrows():
-                    # No limit - process ALL rows
-                    if pd.isna(row['question_title']) or not row['question_title']:
-                        continue
-
-                    from benchmark_contracts import BenchmarkQuery
-                    query = BenchmarkQuery(
-                        query_id=f"full_so_{row['question_id']}",
-                        query_text=str(row['question_title']),
-                        expected_answer=str(row['question_body'])[:500] if not pd.isna(
-                            row['question_body']) else None,
-                        relevant_doc_ids=None,  # No ground truth available
-                        difficulty="medium",
-                        category=str(row['tags']) if not pd.isna(
-                            row['tags']) else "programming",
-                        metadata={
-                            "original_question_id": row['question_id'],
-                            "question_type": row['question_type'],
-                            "tags": row['tags'],
-                            "source": "full_stackoverflow_dataset"
-                        }
-                    )
-                    queries.append(query)
-                    valid_queries += 1
-
-                print(f"✅ Loaded {valid_queries} valid queries from {total_questions} total questions")
-                print(f"📊 Will evaluate retrieval on ALL {valid_queries} queries")
-                
-                return queries
-
-            except Exception as e:
-                print(f"❌ Error loading full dataset: {e}")
-                import traceback
-                traceback.print_exc()
-                return self._create_dummy_queries()
 
     # Initialize components
     runner = BenchmarkRunner(config)
@@ -124,14 +152,23 @@ def run_full_dataset_benchmark():
                        'recall@1', 'recall@3', 'recall@5', 'recall@10', 'mrr']:
         if metric_name in results['metrics']:
             stats = results['metrics'][metric_name]
-            print(f"   {metric_name:15}: {stats['mean']:.4f} ± {stats['std']:.4f} "
-                  f"(min: {stats['min']:.4f}, max: {stats['max']:.4f})")
+            if 'count' in stats and stats['count'] > 0:
+                print(f"   {metric_name:15}: {stats['mean']:.4f} ± {stats['std']:.4f} "
+                      f"(min: {stats['min']:.4f}, max: {stats['max']:.4f}) "
+                      f"[{stats['count']}/{stats['total_queries']} queries with ground truth]")
+            else:
+                print(f"   {metric_name:15}: No ground truth available for evaluation")
 
-    # Additional analysis
-    print(f"\n📈 Statistical Summary:")
-    print(f"   Median precision@5: {results['metrics']['precision@5']['median']:.4f}")
-    print(f"   Median recall@5: {results['metrics']['recall@5']['median']:.4f}")
-    print(f"   Mean Reciprocal Rank: {results['metrics']['mrr']['mean']:.4f}")
+    # Additional analysis if we have meaningful metrics
+    if 'precision@5' in results['metrics'] and results['metrics']['precision@5'].get('count', 0) > 0:
+        print(f"\n📈 Statistical Summary (Ground Truth Available):")
+        print(f"   Median precision@5: {results['metrics']['precision@5']['median']:.4f}")
+        print(f"   Median recall@5: {results['metrics']['recall@5']['median']:.4f}")
+        print(f"   Mean Reciprocal Rank: {results['metrics']['mrr']['mean']:.4f}")
+    else:
+        print(f"\n⚠️  No meaningful evaluation metrics available:")
+        print(f"   Ground truth (answer IDs) needed for proper retrieval evaluation")
+        print(f"   Current metrics show NaN because no relevant document IDs are provided")
 
     return results
 
@@ -153,7 +190,7 @@ def run_sample_benchmark(sample_size=100):
     }
 
     runner = BenchmarkRunner(config)
-    adapter = StackOverflowBenchmarkAdapter(
+    adapter = FullDatasetAdapter(  # ✅ Use the improved adapter with ground truth
         dataset_path="/home/spiros/Desktop/Thesis/datasets/sosum/data"
     )
 
@@ -164,7 +201,10 @@ def run_sample_benchmark(sample_size=100):
     for metric in ['precision@5', 'precision@10', 'mrr']:
         if metric in results['metrics']:
             stats = results['metrics'][metric]
-            print(f"{metric:12}: {stats['mean']:.3f} ± {stats['std']:.3f}")
+            if 'count' in stats and stats['count'] > 0:
+                print(f"{metric:12}: {stats['mean']:.3f} ± {stats['std']:.3f} [{stats['count']}/{stats['total_queries']} with GT]")
+            else:
+                print(f"{metric:12}: No ground truth available")
     
     return results
 
