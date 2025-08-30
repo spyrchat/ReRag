@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest requests
+          pip install -r tests/requirements-minimal.txt
       
       - name: Run minimal pipeline tests (no external services)
         run: |
@@ -69,12 +69,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.13'
       
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest requests
+          pip install -r tests/requirements-test.txt
       
       - name: Wait for Qdrant to be ready
         run: |
@@ -112,13 +112,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.13'
       
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest requests
-          pip install langchain-google-genai  # For Google embeddings
+          pip install -r tests/requirements-test.txt
       
       - name: Wait for Qdrant to be ready
         run: |

@@ -1,0 +1,17 @@
+# Minimal Testing Dependencies
+# Use this file for basic testing without optional dependencies
+
+# Core Testing Framework
+pytest>=8.4.0
+pytest-cov>=6.0.0
+pytest-mock>=3.14.0
+
+# Pipeline Testing Essentials
+langchain-google-genai>=2.1.0
+qdrant-client>=1.15.0
+requests>=2.31.0
+PyYAML>=6.0.0
+
+# Basic Utilities
+python-dotenv>=1.0.0
+responses>=0.25.0
