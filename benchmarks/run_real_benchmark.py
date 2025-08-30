@@ -2,9 +2,11 @@
 
 import sys
 import os
+sys.path.append('/home/spiros/Desktop/Thesis/Thesis')
 
 from benchmarks.benchmarks_runner import BenchmarkRunner
 from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter
+from benchmarks.benchmark_contracts import BenchmarkQuery
 from config.config_loader import load_config
 
 
@@ -51,7 +53,7 @@ def run_real_stackoverflow_benchmark():
                     if pd.isna(row['question_title']) or not row['question_title']:
                         continue
 
-                    from benchmark_contracts import BenchmarkQuery
+                    from benchmarks.benchmark_contracts import BenchmarkQuery
                     query = BenchmarkQuery(
                         query_id=f"real_so_{row['question_id']}",
                         query_text=str(row['question_title']),

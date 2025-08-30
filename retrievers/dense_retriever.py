@@ -51,7 +51,7 @@ class QdrantDenseRetriever(ModernBaseRetriever):
         try:
             # Initialize embedding - get the dense embedding config
             from embedding.factory import get_embedder
-            
+
             # Extract dense embedding config from the main config
             embedding_section = self.config.get('embedding', {})
             if 'dense' in embedding_section:
@@ -62,7 +62,7 @@ class QdrantDenseRetriever(ModernBaseRetriever):
                     'type': 'sentence_transformers',
                     'model': 'sentence-transformers/all-MiniLM-L6-v2'
                 }
-            
+
             self.embedding = get_embedder(embedding_config)
 
             # Initialize Qdrant vector store
@@ -108,14 +108,14 @@ class QdrantDenseRetriever(ModernBaseRetriever):
         try:
             # Get query embedding
             query_vector = self.embedding.embed_query(query)
-            
+
             # Get Qdrant database instance
             from database.qdrant_controller import QdrantVectorDB
             qdrant_db = QdrantVectorDB(config=self.config)
-            
+
             # Direct Qdrant search to preserve external_id
             from qdrant_client.models import NamedVector
-            
+
             search_result = qdrant_db.client.search(
                 collection_name=qdrant_db.collection_name,
                 query_vector=NamedVector(
@@ -130,24 +130,27 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             retrieval_results = []
             for result in search_result:
                 payload = result.payload or {}
-                
+
                 # Create document with preserved external_id
                 document = Document(
                     page_content=payload.get('page_content', ''),
                     metadata={
                         **payload.get('metadata', {}),
-                        'external_id': payload.get('external_id'),  # Ensure external_id is in metadata
-                        'qdrant_id': str(result.id)  # Also store the Qdrant UUID for reference
+                        # Ensure external_id is in metadata
+                        'external_id': payload.get('external_id'),
+                        # Also store the Qdrant UUID for reference
+                        'qdrant_id': str(result.id)
                     }
                 )
-                
+
                 retrieval_result = self._create_retrieval_result(
                     document=document,
                     score=result.score,
                     additional_metadata={
                         'search_type': 'dense_similarity',
                         'embedding_model': type(self.embedding).__name__,
-                        'external_id': payload.get('external_id')  # Also add to retrieval metadata
+                        # Also add to retrieval metadata
+                        'external_id': payload.get('external_id')
                     }
                 )
                 retrieval_results.append(retrieval_result)

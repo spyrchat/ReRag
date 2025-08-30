@@ -184,3 +184,91 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
     def get_ground_truth(self, query_id: str) -> Dict[str, Any]:
         """Get ground truth for evaluation."""
         return {"relevant_docs": [], "expected_answer": None}
+
+
+class FullDatasetAdapter(StackOverflowBenchmarkAdapter):
+    """Adapter that uses the full dataset with ground truth for proper evaluation."""
+
+    def __init__(self, dataset_path: str):
+        super().__init__(dataset_path)
+
+    @property
+    def name(self) -> str:
+        return "stackoverflow_full_dataset"
+
+    def load_queries(self, split: str = "test") -> List[BenchmarkQuery]:
+        """Load queries with ground truth from the full dataset."""
+        import pandas as pd
+        import ast
+
+        question_file = self.dataset_path / "question.csv"
+
+        if not question_file.exists():
+            print(f"❌ Question file not found: {question_file}")
+            return self._create_dummy_queries()
+
+        try:
+            print(f"📂 Loading questions from {question_file}")
+            df = pd.read_csv(question_file)
+            print(f"📊 Total questions in dataset: {len(df)}")
+
+            # Filter for questions with ground truth (answer_posts)
+            df_with_gt = df[df['answer_posts'].notna()]
+            print(f"📊 Questions with ground truth: {len(df_with_gt)}")
+
+            queries = []
+            for idx, row in df_with_gt.iterrows():
+                if pd.isna(row['question_title']) or not row['question_title'].strip():
+                    continue
+
+                # Parse answer IDs from the answer_posts field
+                try:
+                    if isinstance(row['answer_posts'], str):
+                        # Try to parse as literal (list format)
+                        answer_ids = ast.literal_eval(row['answer_posts'])
+                    else:
+                        # Could be a single ID or other format
+                        answer_ids = [int(row['answer_posts'])]
+
+                    # Convert to document IDs with 'a_' prefix
+                    relevant_doc_ids = [f"a_{aid}" for aid in answer_ids]
+
+                    if not relevant_doc_ids:
+                        continue  # Skip if no valid answer IDs
+
+                except (ValueError, SyntaxError, TypeError) as e:
+                    print(
+                        f"⚠️  Failed to parse answer_posts for question {row['question_id']}: {e}")
+                    continue
+
+                query = BenchmarkQuery(
+                    query_id=f"full_so_{row['question_id']}",
+                    query_text=str(row['question_title']).strip(),
+                    expected_answer=None,  # We don't need the answer text for retrieval eval
+                    relevant_doc_ids=relevant_doc_ids,
+                    difficulty="medium",
+                    category="programming",
+                    metadata={
+                        "source": "full_dataset_with_ground_truth",
+                        "original_question_id": row['question_id'],
+                        "question_type": row.get('question_type', 'unknown'),
+                        "tags": row.get('tags', ''),
+                        "num_ground_truth_docs": len(relevant_doc_ids)
+                    }
+                )
+                queries.append(query)
+
+            print(
+                f"✅ Successfully loaded {len(queries)} queries with ground truth")
+            return queries
+
+        except Exception as e:
+            print(f"❌ Error loading full dataset: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._create_dummy_queries()
+
+    def get_ground_truth(self, query_id: str) -> Dict[str, Any]:
+        """Get ground truth for evaluation (override parent method)."""
+        # For this adapter, ground truth is already in the query's relevant_doc_ids
+        return {"relevant_docs": [], "expected_answer": None}

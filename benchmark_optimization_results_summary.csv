@@ -1,0 +1,9 @@
+scenario_name,description,default_retriever,total_queries,avg_time_ms,precision@5_mean,recall@5_mean,mrr_mean
+dense_baseline,"Dense retrieval with Google Gemini embeddings, top_k=10",N/A,50,537.6035261154175,0.51,0.6662301587301588,0.7773333333333333
+dense_high_recall,Dense retrieval with higher top_k=20 for better recall,N/A,50,484.0451240539551,0.49200000000000005,0.6532301587301588,0.7660000000000001
+dense_high_precision,Dense retrieval with higher score threshold for precision,N/A,50,477.4995946884155,0.51,0.6662301587301588,0.7773333333333333
+sparse_bm25,DISABLED - Sparse retrieval with BM25 (needs fixing),N/A,50,491.6574478149414,0.5,0.6598968253968254,0.743
+hybrid_retrieval,Hybrid dense+sparse retrieval for best of both worlds,N/A,50,505.08240699768066,0.564,0.7662301587301588,0.7935238095238095
+quick_test,Quick test with small dataset for rapid iteration,N/A,10,733.5125923156738,0.66,0.72,0.9199999999999999
+hybrid_advanced,Advanced hybrid retrieval with optimized fusion parameters,N/A,100,486.16984128952026,0.604,0.7527853535353535,0.8363333333333333
+hybrid_weighted,Hybrid retrieval using weighted sum fusion with optimized weights,N/A,100,476.72856092453003,0.604,0.7527853535353535,0.8363333333333333

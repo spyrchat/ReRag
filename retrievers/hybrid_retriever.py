@@ -45,6 +45,12 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         self.vectorstore = None
         self.fusion_method = config.get(
             'fusion_method', 'rrf')  # Reciprocal Rank Fusion
+
+        # Load fusion parameters from config
+        fusion_config = config.get('fusion', {})
+        self.rrf_k = fusion_config.get('rrf_k', 60)  # Standard RRF constant
+        self.dense_weight = fusion_config.get('dense_weight', 0.5)
+        self.sparse_weight = fusion_config.get('sparse_weight', 0.5)
         self._initialized = False
 
     def _initialize_components(self):
@@ -56,49 +62,39 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             # Initialize embeddings
             from embedding.factory import get_embedder
 
-            embedding_config = self.config.get('embedding', {})
+            embedding_section = self.config.get('embedding', {})
 
-            # For testing, use same embedding for both dense and sparse if not specified
-            if 'dense' in embedding_config and 'sparse' in embedding_config:
-                self.dense_embedding = get_embedder(embedding_config['dense'])
-                self.sparse_embedding = get_embedder(
-                    embedding_config['sparse'])
+            # Extract dense and sparse embedding configs
+            if 'dense' in embedding_section:
+                dense_config = embedding_section['dense']
             else:
-                # Use same embedding for both - fallback for testing
-                default_config = embedding_config if embedding_config else {
-                    'type': 'sentence_transformers',
-                    'model': 'sentence-transformers/all-MiniLM-L6-v2'
+                # Default dense embedding config
+                dense_config = {
+                    'provider': 'google',
+                    'model': 'models/embedding-001',
+                    'dimensions': 768,
+                    'api_key_env': 'GOOGLE_API_KEY'
                 }
-                self.dense_embedding = get_embedder(default_config)
-                self.sparse_embedding = get_embedder(default_config)
 
-            # Initialize Qdrant vector store for hybrid search
+            if 'sparse' in embedding_section:
+                sparse_config = embedding_section['sparse']
+            else:
+                # Default sparse embedding config
+                sparse_config = {
+                    'provider': 'sparse',
+                    'model': 'Qdrant/bm25',
+                    'vector_name': 'sparse'
+                }
+
+            self.dense_embedding = get_embedder(dense_config)
+            self.sparse_embedding = get_embedder(sparse_config)
+
+            # Initialize Qdrant database
             from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB(strategy="hybrid", config=self.config)
+            qdrant_db = QdrantVectorDB(config=self.config)
 
-            # Get vector configuration
-            qdrant_config = self.config.get('qdrant', {})
-            dense_vector_name = qdrant_config.get('dense_vector_name', 'dense')
-            sparse_vector_name = qdrant_config.get(
-                'sparse_vector_name', 'sparse')
-
-            try:
-                self.vectorstore = QdrantVectorStore(
-                    client=qdrant_db.get_client(),
-                    collection_name=qdrant_db.get_collection_name(),
-                    embedding=self.dense_embedding,
-                    vector_name=dense_vector_name,
-                    sparse_embedding=self.sparse_embedding,
-                    sparse_vector_name=sparse_vector_name,
-                    retrieval_mode=RetrievalMode.HYBRID
-                )
-            except Exception:
-                # Fallback to dense mode if hybrid is not available
-                logger.warning(
-                    "Hybrid mode not available, falling back to dense mode")
-                self.vectorstore = qdrant_db.as_langchain_vectorstore(
-                    dense_embedding=self.dense_embedding
-                )
+            # Store qdrant_db for direct API access
+            self.qdrant_db = qdrant_db
 
             self._initialized = True
             logger.info(f"Hybrid retriever initialized with dense: {type(self.dense_embedding).__name__}, "
@@ -107,6 +103,8 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         except Exception as e:
             logger.error(
                 f"Failed to initialize hybrid retriever components: {e}")
+            import traceback
+            traceback.print_exc()
             self._initialized = False
 
     @property
@@ -133,70 +131,270 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             return []
 
         try:
-            # Perform hybrid similarity search with scores
-            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            # Perform separate dense and sparse searches then combine
+            dense_results = self._perform_dense_search(query, k)
+            sparse_results = self._perform_sparse_search(query, k)
 
-            # Convert to RetrievalResult objects
-            retrieval_results = []
-            for document, score in results:
-                retrieval_result = self._create_retrieval_result(
-                    document=document,
-                    score=score,
-                    additional_metadata={
-                        'search_type': 'hybrid_similarity',
-                        'dense_embedding_model': type(self.dense_embedding).__name__,
-                        'sparse_embedding_model': type(self.sparse_embedding).__name__,
-                        'fusion_method': self.fusion_method
-                    }
-                )
-                retrieval_results.append(retrieval_result)
+            # Combine results using Reciprocal Rank Fusion (RRF)
+            combined_results = self._fuse_results(
+                dense_results, sparse_results, k)
 
-            # Normalize scores for consistency
-            retrieval_results = self._normalize_scores(retrieval_results)
-
-            return retrieval_results
+            return combined_results
 
         except Exception as e:
             logger.error(f"Error during hybrid search: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
-    def _perform_separate_searches(self, query: str, k: int) -> Dict[str, List[RetrievalResult]]:
-        """
-        Perform separate dense and sparse searches for advanced fusion.
-
-        Args:
-            query: Search query
-            k: Number of results per search type
-
-        Returns:
-            Dictionary with 'dense' and 'sparse' search results
-        """
-        results = {'dense': [], 'sparse': []}
-
+    def _perform_dense_search(self, query: str, k: int) -> List[RetrievalResult]:
+        """Perform dense search using direct Qdrant API."""
         try:
-            # Dense search
-            dense_config = self.config.copy()
-            dense_config['embedding'] = self.config['embedding']['dense'] if 'dense' in self.config.get(
-                'embedding', {}) else self.config.get('embedding', {})
+            # Get dense query vector
+            query_vector = self.dense_embedding.embed_query(query)
 
-            from .dense_retriever import QdrantDenseRetriever
-            dense_retriever = QdrantDenseRetriever(dense_config)
-            results['dense'] = dense_retriever._perform_search(query, k)
+            # Direct Qdrant search for dense vectors
+            from qdrant_client.models import NamedVector
 
-            # Sparse search
-            sparse_config = self.config.copy()
-            sparse_config['embedding'] = self.config['embedding']['sparse'] if 'sparse' in self.config.get(
-                'embedding', {}) else self.config.get('embedding', {})
+            search_result = self.qdrant_db.client.search(
+                collection_name=self.qdrant_db.collection_name,
+                query_vector=NamedVector(
+                    name=self.qdrant_db.dense_vector_name,
+                    vector=query_vector
+                ),
+                limit=k,
+                with_payload=True
+            )
 
-            from .sparse_retriever import QdrantSparseRetriever
-            sparse_retriever = QdrantSparseRetriever(sparse_config)
-            results['sparse'] = sparse_retriever._perform_search(query, k)
+            # Convert to RetrievalResult objects
+            results = []
+            for result in search_result:
+                payload = result.payload or {}
+
+                document = Document(
+                    page_content=payload.get('page_content', ''),
+                    metadata={
+                        **payload.get('metadata', {}),
+                        'external_id': payload.get('external_id'),
+                        'qdrant_id': str(result.id)
+                    }
+                )
+
+                retrieval_result = self._create_retrieval_result(
+                    document=document,
+                    score=result.score,
+                    additional_metadata={
+                        'search_type': 'dense_component',
+                        'embedding_model': type(self.dense_embedding).__name__,
+                        'external_id': payload.get('external_id')
+                    }
+                )
+                results.append(retrieval_result)
+
+            return results
 
         except Exception as e:
-            logger.warning(
-                f"Separate searches failed, falling back to Qdrant hybrid: {e}")
+            logger.error(f"Dense search component failed: {e}")
+            return []
 
-        return results
+    def _perform_sparse_search(self, query: str, k: int) -> List[RetrievalResult]:
+        """Perform sparse search using direct Qdrant API."""
+        try:
+            # Get sparse query vector
+            if hasattr(self.sparse_embedding, 'embed_query'):
+                query_vector = self.sparse_embedding.embed_query(query)
+            else:
+                query_vector = self.sparse_embedding.embed_documents([query])[
+                    0]
+
+            # Convert sparse dict to Qdrant sparse vector format for named sparse vectors
+            if isinstance(query_vector, dict):
+                from qdrant_client.models import NamedSparseVector
+
+                search_result = self.qdrant_db.client.search(
+                    collection_name=self.qdrant_db.collection_name,
+                    query_vector=NamedSparseVector(
+                        name=self.qdrant_db.sparse_vector_name,
+                        vector={"indices": list(query_vector.keys()), "values": list(
+                            query_vector.values())}
+                    ),
+                    limit=k,
+                    with_payload=True
+                )
+            else:
+                # Dense vector format (list) - fallback
+                from qdrant_client.models import NamedVector
+
+                search_result = self.qdrant_db.client.search(
+                    collection_name=self.qdrant_db.collection_name,
+                    query_vector=NamedVector(
+                        name=self.qdrant_db.sparse_vector_name,
+                        vector=query_vector
+                    ),
+                    limit=k,
+                    with_payload=True
+                )
+
+            # Convert to RetrievalResult objects
+            results = []
+            for result in search_result:
+                payload = result.payload or {}
+
+                document = Document(
+                    page_content=payload.get('page_content', ''),
+                    metadata={
+                        **payload.get('metadata', {}),
+                        'external_id': payload.get('external_id'),
+                        'qdrant_id': str(result.id)
+                    }
+                )
+
+                retrieval_result = self._create_retrieval_result(
+                    document=document,
+                    score=result.score,
+                    additional_metadata={
+                        'search_type': 'sparse_component',
+                        'embedding_model': type(self.sparse_embedding).__name__,
+                        'external_id': payload.get('external_id')
+                    }
+                )
+                results.append(retrieval_result)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Sparse search component failed: {e}")
+            return []
+
+    def _fuse_results(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+        """Combine dense and sparse results using standard fusion methods."""
+        try:
+            if self.fusion_method == 'rrf':
+                return self._fuse_with_rrf(dense_results, sparse_results, k)
+            elif self.fusion_method == 'weighted_sum':
+                return self._fuse_with_weighted_sum(dense_results, sparse_results, k)
+            else:
+                logger.warning(
+                    f"Unknown fusion method: {self.fusion_method}, falling back to RRF")
+                return self._fuse_with_rrf(dense_results, sparse_results, k)
+        except Exception as e:
+            logger.error(f"Result fusion failed: {e}")
+            # Fallback to dense results
+            return dense_results[:k]
+
+    def _fuse_with_rrf(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+        """Standard Reciprocal Rank Fusion (Cormack et al. 2009)."""
+        doc_scores = {}
+        rrf_k = self.rrf_k  # Use configurable RRF constant
+
+        # Add dense results with standard RRF scoring
+        for rank, result in enumerate(dense_results, 1):
+            doc_id = result.document.metadata.get('external_id')
+            if doc_id:
+                rrf_score = 1.0 / (rrf_k + rank)  # Standard RRF formula
+                if doc_id not in doc_scores:
+                    doc_scores[doc_id] = {
+                        'result': result, 'dense_score': rrf_score, 'sparse_score': 0}
+                else:
+                    doc_scores[doc_id]['dense_score'] = rrf_score
+
+        # Add sparse results with standard RRF scoring
+        for rank, result in enumerate(sparse_results, 1):
+            doc_id = result.document.metadata.get('external_id')
+            if doc_id:
+                rrf_score = 1.0 / (rrf_k + rank)  # Standard RRF formula
+                if doc_id not in doc_scores:
+                    doc_scores[doc_id] = {
+                        'result': result, 'dense_score': 0, 'sparse_score': rrf_score}
+                else:
+                    doc_scores[doc_id]['sparse_score'] = rrf_score
+
+        # Combine scores and sort
+        combined_results = []
+        for doc_id, scores in doc_scores.items():
+            combined_score = scores['dense_score'] + scores['sparse_score']
+            result = scores['result']
+            result.score = combined_score
+            result.metadata.update({
+                'search_type': 'hybrid_rrf',
+                'dense_rrf_score': scores['dense_score'],
+                'sparse_rrf_score': scores['sparse_score'],
+                'fusion_method': 'rrf',
+                'rrf_k': rrf_k
+            })
+            combined_results.append(result)
+
+        # Sort by combined score and return top k
+        combined_results.sort(key=lambda x: x.score, reverse=True)
+        return combined_results[:k]
+
+    def _fuse_with_weighted_sum(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+        """Weighted sum fusion with score normalization."""
+        # Get weights from config
+        dense_weight = self.dense_weight
+        sparse_weight = self.sparse_weight
+
+        # Normalize weights to sum to 1
+        total_weight = dense_weight + sparse_weight
+        if total_weight > 0:
+            dense_weight /= total_weight
+            sparse_weight /= total_weight
+        else:
+            dense_weight = sparse_weight = 0.5
+
+        # Normalize scores using min-max normalization
+        def normalize_scores(results):
+            if not results:
+                return {}
+            scores = [r.score for r in results]
+            min_score, max_score = min(scores), max(scores)
+            score_range = max_score - min_score
+
+            normalized = {}
+            for result in results:
+                doc_id = result.document.metadata.get('external_id')
+                if doc_id and score_range > 0:
+                    normalized[doc_id] = {
+                        'result': result,
+                        'score': (result.score - min_score) / score_range
+                    }
+                elif doc_id:
+                    normalized[doc_id] = {'result': result, 'score': 1.0}
+            return normalized
+
+        dense_normalized = normalize_scores(dense_results)
+        sparse_normalized = normalize_scores(sparse_results)
+
+        # Combine normalized scores
+        doc_scores = {}
+        all_doc_ids = set(dense_normalized.keys()) | set(
+            sparse_normalized.keys())
+
+        for doc_id in all_doc_ids:
+            dense_score = dense_normalized.get(doc_id, {}).get('score', 0.0)
+            sparse_score = sparse_normalized.get(doc_id, {}).get('score', 0.0)
+
+            combined_score = dense_weight * dense_score + sparse_weight * sparse_score
+
+            # Use the result from whichever retriever found this document
+            result = (dense_normalized.get(doc_id)
+                      or sparse_normalized.get(doc_id))['result']
+            result.score = combined_score
+            result.metadata.update({
+                'search_type': 'hybrid_weighted',
+                'dense_weight': dense_weight,
+                'sparse_weight': sparse_weight,
+                'dense_norm_score': dense_score,
+                'sparse_norm_score': sparse_score,
+                'fusion_method': 'weighted_sum'
+            })
+
+            doc_scores[doc_id] = result
+
+        # Sort by combined score and return top k
+        combined_results = list(doc_scores.values())
+        combined_results.sort(key=lambda x: x.score, reverse=True)
+        return combined_results[:k]
 
 
 # Backward compatibility alias

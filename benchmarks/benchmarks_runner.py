@@ -28,10 +28,20 @@ class BenchmarkRunner:
 
     def _init_retrieval_pipeline(self):
         """Initialize retrieval pipeline from unified configuration."""
-        retrieval_config = self.config.get("retrieval", {})
-        retrieval_type = retrieval_config.get("type", "dense")
-
-        # Use unified config factory
+        # Try to get retriever type from multiple config locations
+        retrieval_type = None
+        
+        # Check if explicitly set in the config (for benchmark optimizer)
+        if 'default_retriever' in self.config:
+            retrieval_type = self.config['default_retriever']
+        elif 'retrieval' in self.config:
+            retrieval_config = self.config.get("retrieval", {})
+            retrieval_type = retrieval_config.get("type")
+        elif 'benchmark' in self.config and 'retrieval' in self.config['benchmark']:
+            benchmark_retrieval = self.config['benchmark']['retrieval']
+            retrieval_type = benchmark_retrieval.get("strategy")
+        
+        # Use unified config factory (will use pipeline default if retrieval_type is None)
         return RetrievalPipelineFactory.create_from_unified_config(self.config, retrieval_type)
 
     def _init_generation_engine(self):
@@ -226,14 +236,14 @@ class BenchmarkRunner:
             if doc_id:
                 return str(doc_id)
 
-        # Second try: check document's metadata directly  
+        # Second try: check document's metadata directly
         if hasattr(result, 'page_content'):
             # This is a Document object, check its metadata
             if hasattr(result, 'metadata') and result.metadata:
                 doc_id = result.metadata.get("external_id")
                 if doc_id:
                     return str(doc_id)
-        
+
         # Third try: if result has document attribute
         if hasattr(result, 'document'):
             if hasattr(result.document, 'metadata') and result.document.metadata:
@@ -246,12 +256,12 @@ class BenchmarkRunner:
         try:
             # Check all possible metadata locations for any ID-like fields
             metadata_sources = []
-            
+
             if hasattr(result, 'metadata') and result.metadata:
                 metadata_sources.append(result.metadata)
             if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
                 metadata_sources.append(result.document.metadata)
-                
+
             for metadata in metadata_sources:
                 for key, value in metadata.items():
                     if isinstance(value, str):
@@ -262,11 +272,11 @@ class BenchmarkRunner:
                             for part in parts:
                                 if part.startswith('a_'):
                                     return part
-                        
+
                         # Direct match for answer IDs
                         if value.startswith('a_') and value.replace('a_', '').replace('_', '').isdigit():
                             return value
-                            
+
         except Exception as e:
             pass
 
