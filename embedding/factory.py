@@ -1,7 +1,9 @@
-from embedding.hf_embedder import HuggingFaceEmbedder
+from embedding.embeddings import HuggingFaceEmbedder
 from embedding.bedrock_embeddings import TitanEmbedder
 from embedding.sparse_embedder import SparseEmbedder
 from langchain_qdrant import FastEmbedSparse
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import os
 
 
 def get_embedder(cfg: dict):
@@ -31,6 +33,13 @@ def get_embedder(cfg: dict):
         model_name = cfg.get("model_name", "BAAI/bge-small-en-v1.5")
         return FastEmbedSparse(model_name=model_name)
 
+    elif provider == "google":
+        model_name = cfg.get("model", "models/embedding-001")
+        return GoogleGenerativeAIEmbeddings(
+            model=model_name,
+            google_api_key=os.getenv("GOOGLE_API_KEY")
+        )
+
     elif provider == "sparse":
         model_name = cfg.get("model_name", "BAAI/bge-base-en")
         device = cfg.get("device", "cpu")
@@ -38,5 +47,5 @@ def get_embedder(cfg: dict):
 
     else:
         raise ValueError(
-            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed, sparse"
+            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed, sparse, google"
         )

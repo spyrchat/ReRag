@@ -56,14 +56,14 @@ class SimpleQAAgent:
             answer += f"{i}. **Score: {doc['score']:.3f}** | Method: {doc['retrieval_method']}\n"
 
             if doc['question_title']:
-                answer += f"   📝 Question: {doc['question_title']}\n"
+                answer += f"   Question: {doc['question_title']}\n"
 
             if doc['tags']:
-                answer += f"   🏷️  Tags: {', '.join(doc['tags'][:3])}\n"
+                answer += f"   Tags: {', '.join(doc['tags'][:3])}\n"
 
             content_preview = doc['content'][:200] + \
                 "..." if len(doc['content']) > 200 else doc['content']
-            answer += f"   💡 Answer: {content_preview}\n\n"
+            answer += f"   Answer: {content_preview}\n\n"
 
         return answer
 
@@ -80,7 +80,7 @@ class SimpleQAAgent:
 
 def main():
     """Demonstrate the Q&A agent with different configurations."""
-    print("🚀 Simple Q&A Agent Demo")
+    print("Simple Q&A Agent Demo")
     print("=" * 50)
 
     # Test questions
@@ -107,10 +107,10 @@ def main():
             print(answer)
 
         except Exception as e:
-            print(f"❌ Error with {config}: {e}")
+            print(f"Error with {config}: {e}")
 
     # Demonstrate configuration switching
-    print("\n🔄 CONFIGURATION SWITCHING DEMO")
+    print("\nCONFIGURATION SWITCHING DEMO")
     print("=" * 50)
 
     try:

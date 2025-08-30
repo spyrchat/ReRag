@@ -30,31 +30,31 @@ Our pipeline addresses these challenges through systematic MLOps practices.
 ## 2. Overall Architecture {#overall-architecture}
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           RAG MLOps Pipeline                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
+┌────────────────────────────────────────────────────────────────────┐
+│                           RAG MLOps Pipeline                       │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐             │
-│  │   Raw Data  │───▶│  Adapters   │───▶│ Validation  │             │
+│  │   Raw Data  │───>│  Adapters   │───>│ Validation  │             │
 │  │ (Multiple   │    │ (Dataset    │    │ & Quality   │             │
-│  │  Sources)   │    │ Specific)   │    │   Checks)   │             │
+│  │  Sources)   │    │ Specific)   │    │   Checks    │             │
 │  └─────────────┘    └─────────────┘    └─────────────┘             │
-│                                                │                     │
-│                                                ▼                     │
+│                                                │                   │
+│                                                ▼                   │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐             │
-│  │ Vector Store│◀───│  Embedder   │◀───│   Chunker   │             │
+│  │ Vector Store│◀──│  Embedder   │◀─ | Chunker     │             │
 │  │ (Qdrant)    │    │ (Multiple   │    │ (Strategy   │             │
 │  │             │    │ Strategies) │    │  Based)     │             │
 │  └─────────────┘    └─────────────┘    └─────────────┘             │
-│                                                │                     │
-│                                                ▼                     │
+│                                                │                   │
+│                                                ▼                   │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐             │
-│  │ Evaluation  │◀───│ Smoke Tests │◀───│  Lineage    │             │
+│  │ Evaluation  │◀──│ Smoke Tests │◀─ │  Lineage    │             │
 │  │ Framework   │    │ & Quality   │    │ Tracking    │             │
 │  │             │    │ Assurance   │    │             │             │
 │  └─────────────┘    └─────────────┘    └─────────────┘             │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+│                                                                    │
+└────────────────────────────────────────────────────────────────────|
 ```
 
 ### Key Design Principles:

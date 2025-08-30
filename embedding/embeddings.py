@@ -1,4 +1,5 @@
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 
 class HuggingFaceEmbedder(HuggingFaceEmbeddings):
