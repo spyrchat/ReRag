@@ -1,0 +1,47 @@
+description: "Google Gemini only retrieval config for CI testing"
+
+retrieval_pipeline:
+  retriever:
+    type: "dense"
+    top_k: 5
+    score_threshold: 0.1
+    
+    # Embedding config needs to be inside the retriever config
+    embedding:
+      strategy: dense
+      dense:
+        provider: google
+        model: models/embedding-001
+        dimensions: 768
+        api_key_env: GOOGLE_API_KEY
+        batch_size: 16
+        vector_name: dense
+    
+    # Qdrant config needs to be inside the retriever config  
+    qdrant:
+      collection_name: test_ci_collection
+      dense_vector_name: dense
+      host: localhost
+      port: 6333
+    
+    performance:
+      lazy_initialization: true
+      batch_size: 16
+      enable_caching: false
+
+  stages:
+    - type: retriever
+      name: primary_retriever
+    - type: score_filter
+      name: score_filter
+      config:
+        min_score: 0.1
+        max_results: 5
+
+# Global configs for backward compatibility
+embedding_strategy: dense
+
+qdrant:
+  collection: test_ci_collection
+  host: localhost
+  port: 6333

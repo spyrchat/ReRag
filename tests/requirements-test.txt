@@ -1,0 +1,4 @@
+# Additional dependencies for end-to-end testing
+langchain-google-genai>=1.0.0  # For Google Gemini embeddings
+qdrant-client>=1.8.0           # For Qdrant operations  
+requests>=2.31.0               # For HTTP requests to Qdrant API

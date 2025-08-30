@@ -36,7 +36,6 @@ llm:
   model: gpt-4.1-mini
   provider: openai
   temperature: 0.0
-
 qdrant:
   collection: sosum_stackoverflow_hybrid_v1
   dense_vector_name: dense
