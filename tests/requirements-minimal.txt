@@ -13,6 +13,9 @@ qdrant-client>=1.15.0          # Qdrant operations (connectivity + e2e tests)
 requests>=2.31.0               # HTTP requests to Qdrant API
 PyYAML>=6.0.0                  # YAML configuration parsing
 python-dotenv>=1.0.0           # Environment variable loading
+boto3==1.40.14
+botocore==1.40.14
+langchain-qdrant==0.2.0
 
 
 # Optional: Uncomment if needed for specific tests
