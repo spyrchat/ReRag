@@ -7,12 +7,16 @@ pytest>=8.4.0
 # Pipeline Testing Essentials
 langchain-google-genai>=2.1.0  # Google Gemini embeddings (end-to-end tests)
 langchain-core>=0.3.0          # Document class (component tests)
+langchain>=0.3.0               # Core LangChain package
+langchain-openai>=0.2.0        # OpenAI integration (generator node)
 qdrant-client>=1.15.0          # Qdrant operations (connectivity + e2e tests)
 requests>=2.31.0               # HTTP requests to Qdrant API
 PyYAML>=6.0.0                  # YAML configuration parsing
+python-dotenv>=1.0.0           # Environment variable loading
+
 
 # Optional: Uncomment if needed for specific tests
 # pytest-cov>=6.0.0            # Coverage reporting
 # pytest-mock>=3.14.0          # Mocking support  
-# python-dotenv>=1.0.0         # Environment variable loading
 # responses>=0.25.0             # HTTP response mocking
+
