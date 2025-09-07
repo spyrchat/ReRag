@@ -76,7 +76,7 @@ jobs:
       - name: Wait for Qdrant to be ready
         run: |
           for i in {1..30}; do
-            if curl -fs http://localhost:6333/healthz | grep -q "ok"; then
+            if curl -fs http://localhost:6333/readyz | grep -q "ok"; then
               echo "Qdrant is ready!"
               exit 0
             fi
@@ -125,7 +125,7 @@ jobs:
       - name: Wait for Qdrant to be ready
         run: |
           for i in {1..30}; do
-            if curl -fs http://localhost:6333/healthz | grep -q "ok"; then
+            if curl -fs http://localhost:6333/readyz | grep -q "ok"; then
               echo "Qdrant is ready!"
               exit 0
             fi
