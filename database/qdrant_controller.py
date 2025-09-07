@@ -17,10 +17,16 @@ logger = get_logger(__name__)
 
 class QdrantVectorDB(BaseVectorDB):
     def __init__(self, strategy: str = "dense", config: Optional[Dict[str, Any]] = None):
-        load_dotenv(override=True)
+        # Only load .env if it exists, don't fail if it doesn't
+        try:
+            load_dotenv(override=True)
+        except Exception:
+            logger.debug(
+                "No .env file found, using environment variables and defaults")
+
         self.strategy = strategy.lower()
 
-        # Use config if provided, otherwise fall back to environment variables
+        # Use config if provided, otherwise fall back to environment variables with defaults
         if config and "qdrant" in config:
             qdrant_config = config["qdrant"]
             self.host = qdrant_config.get(
@@ -30,29 +36,43 @@ class QdrantVectorDB(BaseVectorDB):
             self.api_key = qdrant_config.get(
                 "api_key", os.getenv("QDRANT_API_KEY"))
             self.collection_name = qdrant_config.get("collection", qdrant_config.get(
-                "collection_name", os.getenv("QDRANT_COLLECTION")))
+                "collection_name", os.getenv("QDRANT_COLLECTION", "default_collection")))
             self.dense_vector_name = qdrant_config.get(
                 "dense_vector_name", os.getenv("DENSE_VECTOR_NAME", "dense"))
             self.sparse_vector_name = qdrant_config.get(
                 "sparse_vector_name", os.getenv("SPARSE_VECTOR_NAME", "sparse"))
         else:
-            # Fall back to environment variables
-            self.host = os.getenv("QDRANT_HOST")
-            self.port = int(os.getenv("QDRANT_PORT"))
+            # Fall back to environment variables with sensible defaults
+            self.host = os.getenv("QDRANT_HOST", "localhost")
+            self.port = int(os.getenv("QDRANT_PORT", "6333"))
+            # Can be None for local instances
             self.api_key = os.getenv("QDRANT_API_KEY")
-            self.collection_name = os.getenv("QDRANT_COLLECTION")
+            self.collection_name = os.getenv(
+                "QDRANT_COLLECTION", "default_collection")
             self.dense_vector_name = os.getenv("DENSE_VECTOR_NAME", "dense")
             self.sparse_vector_name = os.getenv("SPARSE_VECTOR_NAME", "sparse")
 
         logger.info(f"Qdrant collection: {self.collection_name}")
         logger.info(f"Dense vector: {self.dense_vector_name}")
         logger.info(f"Sparse vector: {self.sparse_vector_name}")
+        logger.info(f"Connecting to Qdrant at {self.host}:{self.port}")
 
-        self.client = QdrantClient(
-            host=self.host,
-            port=self.port,
-            api_key=self.api_key or None,
-        )
+        # Validate required configuration
+        if not self.host:
+            raise ValueError("QDRANT_HOST is required but not provided")
+        if not self.collection_name:
+            raise ValueError("QDRANT_COLLECTION is required but not provided")
+
+        try:
+            self.client = QdrantClient(
+                host=self.host,
+                port=self.port,
+                api_key=self.api_key or None,
+            )
+            logger.info("Successfully connected to Qdrant")
+        except Exception as e:
+            logger.error(f"Failed to connect to Qdrant: {e}")
+            raise
 
     def init_collection(self, dense_vector_size: int) -> None:
         """
