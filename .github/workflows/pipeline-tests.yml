@@ -40,9 +40,9 @@ jobs:
               try:
                   with open(config) as f:
                       yaml.safe_load(f)
-                  print(f'✅ {config} is valid')
+                  print(f'{config} is valid')
               except Exception as e:
-                  print(f'❌ {config} failed: {e}')
+                  print(f'{config} failed: {e}')
                   sys.exit(1)
           "
 
@@ -55,15 +55,17 @@ jobs:
         image: qdrant/qdrant:latest
         ports:
           - 6333:6333
+          - 6334:6334
         env:
           QDRANT__SERVICE__HTTP_PORT: 6333
           QDRANT__SERVICE__GRPC_PORT: 6334
         options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"
-          --health-interval 15s
-          --health-timeout 10s
-          --health-retries 20
-          --health-start-period 30s
+          --health-cmd="curl --fail http://localhost:6333/healthz || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+          --health-start-period=20s
+
     
     steps:
       - name: Checkout code
@@ -101,15 +103,17 @@ jobs:
         image: qdrant/qdrant:latest
         ports:
           - 6333:6333
+          - 6334:6334
         env:
           QDRANT__SERVICE__HTTP_PORT: 6333
           QDRANT__SERVICE__GRPC_PORT: 6334
         options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"
-          --health-interval 15s
-          --health-timeout 10s
-          --health-retries 20
-          --health-start-period 30s
+          --health-cmd="curl --fail http://localhost:6333/healthz || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+          --health-start-period=20s
+
     
     steps:
       - name: Checkout code
@@ -142,11 +146,11 @@ jobs:
           QDRANT_PORT: 6333
         run: |
           if [ -z "$GOOGLE_API_KEY" ]; then
-            echo "⚠️ GOOGLE_API_KEY not set - skipping end-to-end tests"
+            echo "GOOGLE_API_KEY not set - skipping end-to-end tests"
             exit 0
           fi
           
-          echo "🔑 API key available - running full end-to-end tests"
+          echo "API key available - running full end-to-end tests"
           python -m pytest tests/pipeline/test_end_to_end.py -v --tb=short -m "requires_api"
       
       - name: Run comprehensive test suite
@@ -156,10 +160,10 @@ jobs:
           QDRANT_PORT: 6333
         run: |
           if [ -n "$GOOGLE_API_KEY" ]; then
-            echo "🚀 Running comprehensive test suite with API"
+            echo "Running comprehensive test suite with API"
             python tests/pipeline/run_tests.py
           else
-            echo "⚠️ Running minimal test suite without API"
+            echo "Running minimal test suite without API"
             python -m pytest tests/pipeline/test_minimal_pipeline.py tests/pipeline/test_components.py -v
           fi
 
@@ -175,16 +179,16 @@ jobs:
         run: |
           # Check that no API keys are hardcoded
           if grep -r "sk-" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml"; then
-            echo "❌ Found potential hardcoded API keys"
+            echo "Found potential hardcoded API keys"
             exit 1
           fi
           
           if grep -r "google_api_key.*=" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml" | grep -v "getenv\|environ"; then
-            echo "❌ Found potential hardcoded Google API keys"
+            echo "Found potential hardcoded Google API keys"
             exit 1
           fi
           
-          echo "✅ No hardcoded secrets found"
+          echo "No hardcoded secrets found"
       
       - name: Validate configuration structure
         run: |
@@ -202,5 +206,5 @@ jobs:
           assert 'google' == config['retrieval_pipeline']['retriever']['embedding']['dense']['provider']
           assert 'GOOGLE_API_KEY' == config['retrieval_pipeline']['retriever']['embedding']['dense']['api_key_env']
           
-          print('✅ Configuration structure is valid')
+          print('Configuration structure is valid')
           "
