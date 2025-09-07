@@ -23,23 +23,19 @@ jobs:
           python-version: '3.13'
       
       - name: Install dependencies
-        run: |
-          pip install -r tests/requirements-minimal.txt
+        run: pip install -r tests/requirements-minimal.txt
       
       - name: Run minimal pipeline tests (no external services)
-        run: |
-          python -m pytest tests/pipeline/test_minimal_pipeline.py tests/pipeline/test_components.py -v --tb=short
+        run: python -m pytest tests/pipeline/test_minimal_pipeline.py tests/pipeline/test_components.py -v --tb=short
       
       - name: Run configuration validation
         run: |
           python -c "
-          import yaml
-          import sys
+          import yaml, sys
           configs = ['config.yml', 'pipelines/configs/retrieval/ci_google_gemini.yml']
           for config in configs:
               try:
-                  with open(config) as f:
-                      yaml.safe_load(f)
+                  with open(config) as f: yaml.safe_load(f)
                   print(f'{config} is valid')
               except Exception as e:
                   print(f'{config} failed: {e}')
@@ -72,29 +68,26 @@ jobs:
           python-version: '3.13'
       
       - name: Install dependencies
-        run: |
-          pip install -r tests/requirements-minimal.txt
+        run: pip install -r tests/requirements-minimal.txt
       
       - name: Wait for Qdrant to be ready
         run: |
           for i in {1..30}; do
             if curl -fs http://localhost:6333/readyz | grep -q "ok"; then
-              echo "Qdrant is ready!"
+              echo "✅ Qdrant is ready!"
               exit 0
             fi
-            echo "Waiting for Qdrant ($i/30)..."
+            echo "⏳ Waiting for Qdrant ($i/30)..."
             sleep 2
           done
-          echo "Qdrant did not become ready in time"
+          echo "❌ Qdrant did not become ready in time"
           exit 1
 
       - name: Test Qdrant connectivity
-        run: |
-          python -m pytest tests/pipeline/test_qdrant_connectivity.py -v --tb=short
+        run: python -m pytest tests/pipeline/test_qdrant_connectivity.py -v --tb=short
       
       - name: Run basic integration tests
-        run: |
-          python -m pytest tests/pipeline/ -v --tb=short -m "not requires_api"
+        run: python -m pytest tests/pipeline/ -v --tb=short -m "not requires_api"
 
   test-end-to-end:
     name: End-to-End Pipeline Tests
@@ -123,20 +116,19 @@ jobs:
           python-version: '3.13'
       
       - name: Install dependencies
-        run: |
-          pip install -r tests/requirements-minimal.txt
+        run: pip install -r tests/requirements-minimal.txt
       
       - name: Wait for Qdrant to be ready
         run: |
           for i in {1..30}; do
             if curl -fs http://localhost:6333/readyz | grep -q "ok"; then
-              echo "Qdrant is ready!"
+              echo "✅ Qdrant is ready!"
               exit 0
             fi
-            echo "Waiting for Qdrant ($i/30)..."
+            echo "⏳ Waiting for Qdrant ($i/30)..."
             sleep 2
           done
-          echo "Qdrant did not become ready in time"
+          echo "❌ Qdrant did not become ready in time"
           exit 1
       
       - name: Test Qdrant health
@@ -152,10 +144,9 @@ jobs:
           QDRANT_PORT: 6333
         run: |
           if [ -z "$GOOGLE_API_KEY" ]; then
-            echo "GOOGLE_API_KEY not set - skipping end-to-end tests"
+            echo "⚠️ GOOGLE_API_KEY not set - skipping end-to-end tests"
             exit 0
           fi
-          
           echo "API key available - running full end-to-end tests"
           python -m pytest tests/pipeline/test_end_to_end.py -v --tb=short -m "requires_api"
       
@@ -166,10 +157,10 @@ jobs:
           QDRANT_PORT: 6333
         run: |
           if [ -n "$GOOGLE_API_KEY" ]; then
-            echo "Running comprehensive test suite with API"
+            echo "🚀 Running comprehensive test suite with API"
             python tests/pipeline/run_tests.py
           else
-            echo "Running minimal test suite without API"
+            echo "⚠️ Running minimal test suite without API"
             python -m pytest tests/pipeline/test_minimal_pipeline.py tests/pipeline/test_components.py -v
 
   test-security:
@@ -185,14 +176,14 @@ jobs:
       - name: Check for hardcoded secrets
         run: |
           if grep -r "sk-" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml"; then
-            echo "Found potential hardcoded API keys"
+            echo "❌ Found potential hardcoded API keys"
             exit 1
           fi
           if grep -r "google_api_key.*=" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml" | grep -v "getenv\|environ"; then
-            echo "Found potential hardcoded Google API keys"
+            echo "❌ Found potential hardcoded Google API keys"
             exit 1
           fi
-          echo "No hardcoded secrets found"
+          echo "✅ No hardcoded secrets found"
       
       - name: Validate configuration structure
         run: |
@@ -205,5 +196,5 @@ jobs:
           assert 'embedding' in config['retrieval_pipeline']['retriever']
           assert 'google' == config['retrieval_pipeline']['retriever']['embedding']['dense']['provider']
           assert 'GOOGLE_API_KEY' == config['retrieval_pipeline']['retriever']['embedding']['dense']['api_key_env']
-          print('Configuration structure is valid')
+          print('✅ Configuration structure is valid')
           "
