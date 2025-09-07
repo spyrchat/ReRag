@@ -148,7 +148,7 @@ class QdrantVectorDB(BaseVectorDB):
                     metadata={**doc.metadata, "external_id": generated_id}
                 )
                 processed_documents.append(doc_copy)
-        
+
         vectorstore.add_documents(documents=processed_documents, ids=ids)
 
         logger.info(
