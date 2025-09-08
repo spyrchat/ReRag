@@ -8,17 +8,6 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: tableDB
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   app:
     build:
       context: .
@@ -26,16 +15,10 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=tableDB
     volumes:
       - .:/app
     depends_on:
       - qdrant
-      - postgres
     ports:
       - "8000:8000"  # optional, if you add an API later
     working_dir: /app
@@ -43,4 +26,4 @@ services:
 
 volumes:
   qdrant_data:
-  postgres_data:
+
