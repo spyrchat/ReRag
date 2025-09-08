@@ -145,14 +145,10 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           QDRANT_HOST: 127.0.0.1
           QDRANT_PORT: 6333
+          GENAI_TRANSPORT: rest
         run: |
-          if [ -z "$GOOGLE_API_KEY" ]; then
-            echo "GOOGLE_API_KEY not set - skipping end-to-end tests"
-            exit 0
-          fi
-          echo "API key available - running full end-to-end tests"
           python -m pytest tests/pipeline/test_end_to_end.py -v --tb=short -m "requires_api"
-      
+
       - name: Run comprehensive test suite
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}

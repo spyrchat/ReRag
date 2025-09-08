@@ -323,27 +323,39 @@ class TestEndToEndPipeline:
         except Exception as e:
             print(f"Long query failed (acceptable): {e}")
 
-    def _update_config_for_test(self, collection_name: str):
-        """Create a test config file with the test collection name."""
-        import yaml
 
-        # Load base CI config
-        with open("pipelines/configs/retrieval/ci_google_gemini.yml", 'r') as f:
-            config = yaml.safe_load(f)
+def _update_config_for_test(self, collection_name: str):
+    """Create a test config file with the test collection name."""
+    import yaml
 
-        # Update collection name for test
-        config["retrieval_pipeline"]["retriever"]["qdrant"]["collection_name"] = collection_name
-        config["qdrant"]["collection"] = collection_name
+    with open("pipelines/configs/retrieval/ci_google_gemini.yml", 'r') as f:
+        config = yaml.safe_load(f)
 
-        # Add force recreate to avoid conflicts
-        config["retrieval_pipeline"]["retriever"]["qdrant"]["force_recreate"] = False
+    # Ensure Qdrant points to the test collection
+    config.setdefault("qdrant", {})
+    config["qdrant"]["collection"] = collection_name
+    config.setdefault("retrieval_pipeline", {}).setdefault("retriever", {})
+    config["retrieval_pipeline"]["retriever"].setdefault("qdrant", {})
+    config["retrieval_pipeline"]["retriever"]["qdrant"]["collection_name"] = collection_name
+    config["retrieval_pipeline"]["retriever"]["qdrant"]["force_recreate"] = False
 
-        # Save test config
-        test_config_path = "pipelines/configs/retrieval/ci_google_gemini_test.yml"
-        with open(test_config_path, 'w') as f:
-            yaml.dump(config, f, default_flow_style=False)
+    # >>> Ensure Gemini embeddings are used at query time <<<
+    # This block is what your agent must read to build the dense retriever.
+    config["retrieval_pipeline"]["retriever"]["embedding"] = {
+        "dense": {
+            "provider": "google",
+            "model": "models/embedding-001",
+            "api_key_env": "GOOGLE_API_KEY",
+            # Many CI keys behave better over REST than gRPC.
+            "transport": "rest"
+        }
+    }
 
-        print(f"✅ Created test config with collection: {collection_name}")
+    test_config_path = "pipelines/configs/retrieval/ci_google_gemini_test.yml"
+    with open(test_config_path, 'w') as f:
+        yaml.dump(config, f, default_flow_style=False)
+
+    print(f"✅ Created test config with collection: {collection_name}")
 
 
 if __name__ == "__main__":
