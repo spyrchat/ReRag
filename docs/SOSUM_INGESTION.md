@@ -41,12 +41,17 @@ SOSum comes in two CSV files:
 ### 1. Download the Dataset
 
 ```bash
-# Clone the SOSum repository
-git clone https://github.com/BonanKou/SOSum-A-Dataset-of-Extractive-Summaries-of-Stack-Overflow-Posts-and-labeling-tools.git sosum
+# Clone the SOSum repository into the datasets directory
+cd datasets/
+git clone https://github.com/BonanKou/SOSum-A-Dataset-of-Extractive-Summaries-of-Stack-Overflow-Posts-and-labeling-tools.git sosum_source
 
-# The CSV files are in sosum/data/ directory
-ls sosum/data/
+# The CSV files are in sosum_source/data/ directory
+ls sosum_source/data/
 # Should show: question.csv  answer.csv
+
+# Or download the CSV files directly
+mkdir -p sosum/
+# Place question.csv and answer.csv in sosum/ directory
 ```
 
 ### 2. Test the Adapter

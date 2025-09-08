@@ -20,7 +20,10 @@ agent/
 ├── graph.py                    # LangGraph agent workflow
 ├── schema.py                   # Agent state schema
 └── nodes/
-    └── retriever.py            # Configurable retriever node
+    ├── retriever.py            # Configurable retriever node
+    ├── generator.py            # Response generation node
+    ├── query_interpreter.py    # Query analysis node
+    └── memory_updater.py       # Conversation memory node
 ```
 
 ### Components (Modular Pipeline System)
@@ -54,7 +57,7 @@ embedding/
 ├── __init__.py
 ├── factory.py                 # Embedding factory
 ├── bedrock_embeddings.py      # AWS Bedrock embeddings
-├── hf_embedder.py            # HuggingFace embeddings
+├── embeddings.py              # Core embedding utilities
 ├── processor.py              # Embedding processing
 ├── recursive_splitter.py     # Document splitting
 ├── sparse_embedder.py        # Sparse embeddings
@@ -65,28 +68,81 @@ embedding/
 ### Pipeline Configurations
 ```
 pipelines/
+├── README.md                  # Pipeline documentation
+├── __init__.py
+├── contracts.py              # Core pipeline contracts
 ├── configs/
 │   └── retrieval/             # YAML retrieval configurations
-│       ├── stackoverflow_minilm.yml
-│       ├── hybrid_basic.yml
-│       └── advanced_ensemble.yml
+│       ├── ci_google_gemini.yml
+│       ├── fast_hybrid.yml
+│       ├── modern_dense.yml
+│       └── modern_hybrid.yml
 ├── adapters/                  # Data adapters
+├── eval/                     # Evaluation components
 └── ingest/                   # Ingestion pipelines
 ```
 
 ### CLI Tools
 ```
 bin/
+├── __init__.py
 ├── agent_retriever.py         # CLI agent retriever
-├── switch_agent_config.py     # Configuration switching utility
-└── qdrant_inspector.py        # Qdrant inspection tool
+├── ingest.py                  # Data ingestion utility
+├── qdrant_inspector.py        # Qdrant inspection tool
+├── retrieval_pipeline.py     # Direct pipeline usage
+└── switch_agent_config.py     # Configuration switching utility
 ```
 
 ### Examples
 ```
-examples/
-├── simple_qa_agent.py         # Simple Q&A agent example
-└── (other examples...)
+# Note: Examples directory not present in current structure
+# Usage examples are provided in documentation and test files
+```
+
+### Benchmarking System
+```
+benchmarks/
+├── __init__.py
+├── benchmark_contracts.py     # Benchmark interfaces
+├── benchmark_optimizer.py     # Configuration optimization
+├── benchmarks_adapters.py     # Dataset adapters for evaluation
+├── benchmarks_metrics.py      # Evaluation metrics (Precision, Recall, NDCG)
+├── benchmarks_runner.py       # Main benchmark orchestrator
+├── run_benchmark_optimization.py # Optimization scripts
+└── run_real_benchmark.py      # Real data benchmarking
+```
+
+### Benchmark Scenarios
+```
+benchmark_scenarios/
+├── dense_baseline.yml         # Simple dense retrieval
+├── dense_high_precision.yml   # High precision dense config
+├── dense_high_recall.yml      # High recall dense config
+├── hybrid_advanced.yml        # Advanced hybrid configuration
+├── hybrid_reranking.yml       # Full reranking pipeline
+├── hybrid_retrieval.yml       # Basic hybrid retrieval
+├── hybrid_weighted.yml        # Weighted hybrid approach
+├── quick_test.yml             # Quick performance test
+└── sparse_bm25.yml           # BM25 baseline
+```
+
+### Additional Components
+```
+datasets/                      # Dataset storage
+├── sosum/                    # SOSum Stack Overflow dataset
+
+extraction_output/             # Table extraction results
+├── *.csv                     # Extracted tables from documents
+
+logs/                         # Application logs
+├── agent.log                 # Agent workflow logs
+├── query_interpreter.log    # Query processing logs
+└── (other log files...)
+
+playground/                   # Development and testing scripts
+processors/                   # Legacy processing components
+retrievers/                   # Base retriever implementations
+scripts/                      # Utility scripts
 ```
 
 ## 🧪 Test Organization
@@ -96,9 +152,20 @@ All tests are now organized under the `tests/` directory with clear categorizati
 ### Test Structure
 ```
 tests/
-├── run_all_tests.py           # Main test runner
-├── test_agent_retrieval.py    # Agent integration tests
-├── agent/                     # Agent-specific tests
+├── __init__.py
+├── requirements-minimal.txt   # Minimal test dependencies
+└── pipeline/                  # Pipeline component tests
+    ├── __init__.py
+    ├── run_tests.py           # Test runner
+    ├── test_components.py     # Component integration tests
+    ├── test_config.py         # Configuration validation tests
+    ├── test_end_to_end.py     # End-to-end pipeline tests
+    ├── test_minimal.py        # Minimal functionality tests
+    ├── test_minimal_pipeline.py # CI-friendly minimal tests
+    ├── test_qdrant.py         # Qdrant database tests
+    ├── test_qdrant_connectivity.py # Database connectivity tests
+    └── test_runner.py         # Test execution utilities
+```
 │   └── test_retriever_node.py
 ├── components/                # Component unit tests
 │   ├── test_retrieval_pipeline.py
