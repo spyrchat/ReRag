@@ -1,0 +1,95 @@
+# Template for Dataset Pipeline Configuration
+# Copy this file and modify for your specific dataset
+
+dataset:
+  name: "your_dataset_name"
+  version: "1.0.0"
+  description: "Description of your dataset"
+  adapter: "adapter_name"  # Required: specify which adapter to use
+
+# Chunking strategy for document processing
+chunking:
+  strategy: "recursive"  # Options: recursive, fixed, semantic
+  chunk_size: 512       # Size of each chunk in tokens/characters
+  chunk_overlap: 50     # Overlap between chunks
+  separators: ["\n\n", "\n", " ", ""]  # For recursive chunking
+
+# Embedding configuration
+embedding:
+  strategy: "hybrid"    # Options: dense, sparse, hybrid
+  
+  # Dense embeddings (semantic similarity)
+  dense:
+    provider: "google"              # Options: google, hf, openai
+    model: "models/embedding-001"   # Model identifier
+    dimensions: 768                 # Embedding dimensions
+    batch_size: 32                  # Batch size for processing
+    vector_name: "dense"            # Vector field name in database
+    
+  # Sparse embeddings (keyword matching)  
+  sparse:
+    provider: "sparse"              # Usually "sparse" or "fastembed"
+    model: "Qdrant/bm25"           # Sparse model identifier
+    vector_name: "sparse"           # Vector field name in database
+
+# Database configuration
+qdrant:
+  collection_name: "your_collection_name"
+  host: "localhost"
+  port: 6333
+  
+  # Vector configuration
+  dense_vector_name: "dense"
+  sparse_vector_name: "sparse"
+  
+  # Performance settings
+  shard_number: 1
+  replication_factor: 1
+  
+# Processing pipeline stages
+pipeline:
+  # Document loading and parsing
+  loader:
+    type: "custom"              # Depends on your data format
+    
+  # Text processing and cleaning
+  processor:
+    clean_text: true
+    remove_special_chars: false
+    normalize_whitespace: true
+    
+  # Chunking and splitting
+  chunker:
+    use_overlap: true
+    preserve_context: true
+    
+  # Embedding generation
+  embedder:
+    parallel_processing: true
+    cache_embeddings: true
+    
+  # Database insertion
+  indexer:
+    batch_size: 100
+    create_if_not_exists: true
+
+# Performance and optimization
+performance:
+  lazy_initialization: true
+  enable_caching: true
+  cache_ttl: 3600              # Cache time-to-live in seconds
+  parallel_workers: 4          # Number of parallel workers
+  memory_limit: "2GB"          # Memory limit for processing
+
+# Logging and monitoring
+logging:
+  level: "INFO"                # DEBUG, INFO, WARNING, ERROR
+  log_embeddings: false        # Log embedding generation details
+  log_performance: true        # Log performance metrics
+  
+# Validation and quality checks
+validation:
+  check_duplicates: true
+  min_chunk_size: 10          # Minimum chunk size in characters
+  max_chunk_size: 2048        # Maximum chunk size in characters
+  validate_embeddings: true   # Validate embedding generation

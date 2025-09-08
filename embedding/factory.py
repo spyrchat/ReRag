@@ -1,27 +1,52 @@
-import os
-from embedding.hf_embedder import HuggingFaceEmbedder
+from embedding.embeddings import HuggingFaceEmbedder
 from embedding.bedrock_embeddings import TitanEmbedder
-import dotenv
+from embedding.sparse_embedder import SparseEmbedder
+from langchain_qdrant import FastEmbedSparse
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import os
 
 
-def get_embedder(name: str = None, **kwargs):
+def get_embedder(cfg: dict):
     """
-    Returns a LangChain-compatible embedder.
-    The embedder name is read from the .env if not passed explicitly.
+    Factory to return a LangChain-compatible embedder instance, based on YAML config.
+
+    Args:
+        cfg (dict): Embedder configuration dictionary.
+
+    Returns:
+        A LangChain-compatible embedder object.
     """
+    provider = cfg.get("provider", "hf").strip().lower()
 
-    if name == "hf":
-        model_name = kwargs.get("model_name") or os.getenv(
-            "HF_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
-        )
-        return HuggingFaceEmbedder(model_name=model_name)
+    if provider == "hf":
+        model_name = cfg.get(
+            "model_name", "sentence-transformers/all-MiniLM-L6-v2")
+        device = cfg.get("device", "cpu")
+        return HuggingFaceEmbedder(model_name=model_name, device=device)
 
-    elif name == "titan":
-        model = kwargs.get("model") or os.getenv(
-            "TITAN_MODEL", "amazon.titan-embed-text-v2:0"
-        )
-        region = kwargs.get("region") or os.getenv("TITAN_REGION", "us-east-1")
+    elif provider == "titan":
+        model = cfg.get("model_name", "amazon.titan-embed-text-v2:0")
+        region = cfg.get("region", "us-east-1")
         return TitanEmbedder(model=model, region=region)
 
+    elif provider == "fastembed":
+        model_name = cfg.get("model_name", "BAAI/bge-small-en-v1.5")
+        return FastEmbedSparse(model_name=model_name)
+
+    elif provider == "google":
+        model_name = cfg.get("model", "models/embedding-001")
+        return GoogleGenerativeAIEmbeddings(
+            model=model_name,
+            google_api_key=os.getenv("GOOGLE_API_KEY")
+        )
+
+    elif provider == "sparse":
+        # Support both 'model' and 'model_name' for consistency with other providers
+        model_name = cfg.get("model") or cfg.get("model_name") or "Qdrant/bm25"
+        device = cfg.get("device", "cpu")
+        return SparseEmbedder(model_name=model_name, device=device)
+
     else:
-        raise ValueError(f"Unsupported embedder: {name}")
+        raise ValueError(
+            f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed, sparse, google"
+        )

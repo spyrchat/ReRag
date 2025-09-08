@@ -1,0 +1,34 @@
+# Dense Retrieval with High Precision (stricter threshold)
+description: "Dense retrieval with higher score threshold for precision"
+
+# Dataset configuration
+dataset:
+  path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+  use_ground_truth: true
+  
+# Retrieval configuration
+retrieval:
+  type: "dense"
+  top_k: 10
+  score_threshold: 0.3  # Higher threshold for precision
+
+# Embedding configuration
+embedding:
+  dense:
+    provider: google
+    model: models/embedding-001
+    dimensions: 768
+    api_key_env: GOOGLE_API_KEY
+    batch_size: 32
+    vector_name: dense
+  strategy: dense
+
+# Evaluation configuration
+evaluation:
+  k_values: [1, 5, 10]
+  metrics:
+    retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k"]
+
+# Experiment parameters
+max_queries: 50
+experiment_name: "dense_high_precision"

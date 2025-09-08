@@ -1,0 +1,21 @@
+# Configuration for BGE Large
+dataset:
+  name: "stackoverflow_sosum"
+  version: "1.0.0"
+
+embedding_strategy: hybrid
+
+embedding:
+  dense:
+    provider: hf
+    model_name: BAAI/bge-large-en-v1.5
+    batch_size: 16  # Smaller batch for larger model
+
+qdrant:
+  collection: sosum_stackoverflow_bge_large_v1  # Different collection
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+output_dir: "output/sosum_bge_large"
+embedding_cache:
+  dir: "cache/embeddings/sosum_bge_large"

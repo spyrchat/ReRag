@@ -1,115 +1,220 @@
 import os
 import uuid
 import logging
-from typing import List
-from dotenv import load_dotenv
+from typing import List, Optional, Dict, Any
 
+from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_qdrant import QdrantVectorStore
+from langchain_qdrant import QdrantVectorStore, RetrievalMode
+from qdrant_client import QdrantClient, models as qmodels
+from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
+from logs.utils.logger import get_logger
+from .base import BaseVectorDB
 
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
-class QdrantVectorDB:
-    def __init__(self, vector_name: str = "dense"):
+class QdrantVectorDB(BaseVectorDB):
+    def __init__(self, strategy: str = "dense", config: Optional[Dict[str, Any]] = None):
+        # Only load .env if it exists, don't fail if it doesn't
+        try:
+            load_dotenv(override=True)
+        except Exception:
+            logger.debug(
+                "No .env file found, using environment variables and defaults")
+
+        self.strategy = strategy.lower()
+
+        # Use config if provided, otherwise fall back to environment variables with defaults
+        if config and "qdrant" in config:
+            qdrant_config = config["qdrant"]
+            self.host = qdrant_config.get(
+                "host", os.getenv("QDRANT_HOST", "localhost"))
+            self.port = int(qdrant_config.get(
+                "port", os.getenv("QDRANT_PORT", "6333")))
+            self.api_key = qdrant_config.get(
+                "api_key", os.getenv("QDRANT_API_KEY"))
+            self.collection_name = qdrant_config.get("collection", qdrant_config.get(
+                "collection_name", os.getenv("QDRANT_COLLECTION", "default_collection")))
+            self.dense_vector_name = qdrant_config.get(
+                "dense_vector_name", os.getenv("DENSE_VECTOR_NAME", "dense"))
+            self.sparse_vector_name = qdrant_config.get(
+                "sparse_vector_name", os.getenv("SPARSE_VECTOR_NAME", "sparse"))
+        else:
+            # Fall back to environment variables with sensible defaults
+            self.host = os.getenv("QDRANT_HOST", "localhost")
+            self.port = int(os.getenv("QDRANT_PORT", "6333"))
+            # Can be None for local instances
+            self.api_key = os.getenv("QDRANT_API_KEY")
+            self.collection_name = os.getenv(
+                "QDRANT_COLLECTION", "default_collection")
+            self.dense_vector_name = os.getenv("DENSE_VECTOR_NAME", "dense")
+            self.sparse_vector_name = os.getenv("SPARSE_VECTOR_NAME", "sparse")
+
+        logger.info(f"Qdrant collection: {self.collection_name}")
+        logger.info(f"Dense vector: {self.dense_vector_name}")
+        logger.info(f"Sparse vector: {self.sparse_vector_name}")
+        logger.info(f"Connecting to Qdrant at {self.host}:{self.port}")
+
+        # Validate required configuration
+        if not self.host:
+            raise ValueError("QDRANT_HOST is required but not provided")
+        if not self.collection_name:
+            raise ValueError("QDRANT_COLLECTION is required but not provided")
+
+        try:
+            self.client = QdrantClient(
+                host=self.host,
+                port=self.port,
+                api_key=self.api_key or None,
+            )
+            logger.info("Successfully connected to Qdrant")
+        except Exception as e:
+            logger.error(f"Failed to connect to Qdrant: {e}")
+            raise
+
+    def init_collection(self, dense_vector_size: int) -> None:
         """
-        Initialize the QdrantVectorDB using environment variables for connection
-        and collection parameters.
-
+        Initialize (or re-create) a Qdrant collection for dense and sparse vectors.
+        Deletes existing collection if already present.
         Args:
-            vector_name (str): The name of the vector field to use in Qdrant. Default is "dense".
+            dense_vector_size (int): The dimensionality of the dense vector.
         """
-        load_dotenv(override=True)
-        self.host: str = os.getenv("QDRANT_HOST")
-        self.port: int = int(os.getenv("QDRANT_PORT"))
-        self.api_key: str | None = os.getenv("QDRANT_API_KEY", None)
-        self.collection_name: str = os.getenv("QDRANT_COLLECTION")
-        self.vector_name: str = vector_name
-        print(f"Qdrant collection: {self.collection_name}")
+        if self.client.collection_exists(self.collection_name):
+            logger.info(
+                f"Collection '{self.collection_name}' already exists. Recreating..."
+            )
+            self.client.delete_collection(self.collection_name)
 
-        self.client: QdrantClient = QdrantClient(
-            host=self.host,
-            port=self.port,
-            api_key=self.api_key or None,
+        self.client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config={
+                self.dense_vector_name: VectorParams(
+                    size=dense_vector_size,
+                    distance=Distance.COSINE,
+                )
+            },
+            sparse_vectors_config={
+                self.sparse_vector_name: SparseVectorParams(
+                    index=qmodels.SparseIndexParams(on_disk=False)
+                )
+            },
         )
 
-    def init_collection(self, vector_size: int) -> None:
-        """
-        Initialize a Qdrant collection with the specified vector size.
-        If the collection already exists, it is not modified.
-
-        Args:
-            vector_size (int): Dimensionality of the vectors to store.
-        """
-        if not self.client.collection_exists(self.collection_name):
-            self.client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config={
-                    self.vector_name: VectorParams(
-                        size=vector_size,
-                        distance=Distance.COSINE
-                    )
-                }
-            )
-            logger.info(
-                f"Collection '{self.collection_name}' created with vector '{self.vector_name}'.")
-        else:
-            logger.info(f"Collection '{self.collection_name}' already exists.")
+        logger.info(
+            f"Collection '{self.collection_name}' created with "
+            f"dense vector '{self.dense_vector_name}' and sparse vector "
+            f"'{self.sparse_vector_name}'."
+        )
 
     def get_client(self) -> QdrantClient:
         """
-        Get the Qdrant client instance.
-
-        Returns:
-            QdrantClient: The initialized Qdrant client.
+        Return the initialized Qdrant client instance.
         """
         return self.client
 
     def get_collection_name(self) -> str:
         """
-        Get the name of the current Qdrant collection.
-
-        Returns:
-            str: The collection name.
+        Return the name of the current Qdrant collection.
         """
         return self.collection_name
 
     def insert_documents(
         self,
         documents: List[Document],
-        embedding: Embeddings
+        dense_embedder: Optional[Embeddings] = None,
+        sparse_embedder: Optional[Embeddings] = None,
     ) -> None:
         """
-        Insert documents into the Qdrant collection after embedding them using the provided LangChain embedder.
-
+        Insert a list of LangChain Documents into the configured Qdrant collection,
+        initializing the collection if needed (using dense_embedder for dimension).
         Args:
-            documents (List[Document]): List of LangChain documents to embed and insert.
-            embedding (Embeddings): LangChain-compatible embedding model.
+            documents (List[Document]): The documents to insert.
+            dense_embedder (Optional[Embeddings]): Embedder for dense vectors.
+            sparse_embedder (Optional[Embeddings]): Embedder for sparse vectors.
         """
-        vectorstore = self.as_langchain_vectorstore(embedding)
-        ids = [str(uuid.uuid4()) for _ in documents]
-        vectorstore.add_documents(documents=documents, ids=ids)
-        logger.info(
-            f"Inserted {len(documents)} documents into '{self.collection_name}'.")
+        # Initialize collection only if needed and if dense_embedder is provided
+        if not self.client.collection_exists(self.collection_name) and dense_embedder:
+            sample_embedding = dense_embedder.embed_query("test")
+            dense_dim = len(sample_embedding)
+            self.init_collection(dense_vector_size=dense_dim)
 
-    def as_langchain_vectorstore(self, embedding: Embeddings) -> QdrantVectorStore:
-        """
-        Return a LangChain-compatible Qdrant vector store instance.
-
-        Args:
-            embedding (Embeddings): A LangChain embedding model to use with the vector store.
-
-        Returns:
-            QdrantVectorStore: A LangChain-wrapped Qdrant vector store object.
-        """
-        return QdrantVectorStore(
-            client=self.client,
-            collection_name=self.collection_name,
-            embedding=embedding,
-            vector_name=self.vector_name,
+        vectorstore = self.as_langchain_vectorstore(
+            dense_embedding=dense_embedder,
+            sparse_embedding=sparse_embedder,
         )
+
+        # Use external_id from metadata if available, otherwise generate UUID
+        ids = []
+        processed_documents = []
+        for doc in documents:
+            external_id = doc.metadata.get("external_id")
+            if external_id:
+                ids.append(str(external_id))
+                # Ensure external_id is preserved in the document metadata
+                # Create a copy of the document with external_id explicitly in metadata
+                doc_copy = Document(
+                    page_content=doc.page_content,
+                    metadata={**doc.metadata, "external_id": str(external_id)}
+                )
+                processed_documents.append(doc_copy)
+            else:
+                generated_id = str(uuid.uuid4())
+                ids.append(generated_id)
+                # Add the generated ID to metadata as well
+                doc_copy = Document(
+                    page_content=doc.page_content,
+                    metadata={**doc.metadata, "external_id": generated_id}
+                )
+                processed_documents.append(doc_copy)
+
+        vectorstore.add_documents(documents=processed_documents, ids=ids)
+
+        logger.info(
+            f"Inserted {len(documents)} documents into '{self.collection_name}' "
+            f"({'dense' if dense_embedder else ''}{' + sparse' if sparse_embedder else ''})."
+        )
+
+    def as_langchain_vectorstore(
+        self,
+        dense_embedding: Optional[Embeddings] = None,
+        sparse_embedding: Optional[Embeddings] = None,
+        strategy: Optional[str] = None
+    ) -> QdrantVectorStore:
+        """
+        Returns a LangChain-compatible QdrantVectorStore based on the selected retrieval strategy.
+        """
+        strategy = (strategy or self.strategy or "dense").lower()
+
+        if strategy == "dense":
+            return QdrantVectorStore(
+                client=self.client,
+                collection_name=self.collection_name,
+                embedding=dense_embedding,
+                vector_name=self.dense_vector_name,
+                sparse_embedding=None,
+                sparse_vector_name=self.sparse_vector_name,
+                retrieval_mode=RetrievalMode.DENSE,
+            )
+        elif strategy == "sparse":
+            return QdrantVectorStore(
+                client=self.client,
+                collection_name=self.collection_name,
+                sparse_embedding=sparse_embedding,
+                sparse_vector_name=self.sparse_vector_name,
+                retrieval_mode=RetrievalMode.SPARSE,
+            )
+        elif strategy == "hybrid":
+            return QdrantVectorStore(
+                client=self.client,
+                collection_name=self.collection_name,
+                embedding=dense_embedding,
+                vector_name=self.dense_vector_name,
+                sparse_embedding=sparse_embedding,
+                sparse_vector_name=self.sparse_vector_name,
+                retrieval_mode=RetrievalMode.HYBRID,
+            )
+        else:
+            logger.error(f"Invalid EMBEDDING_STRATEGY: {strategy}")
+            raise ValueError(f"Invalid EMBEDDING_STRATEGY: {strategy}")
