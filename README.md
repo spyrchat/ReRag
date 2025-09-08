@@ -23,11 +23,11 @@ A production-ready, modular RAG (Retrieval-Augmented Generation) system with con
                        ┌────────────────────────────────┼────────────────────────────────┐
                        │                                │                                │
                  ┌─────▼─────┐                 ┌───────▼────────┐                ┌─────▼─────┐
-                 │ Retrievers │                 │   Rerankers    │                │  Filters  │
-                 │           │                 │               │                │           │
-                 │• Dense    │                 │• CrossEncoder │                │• Score    │
-                 │• Sparse   │                 │• BGE Reranker │                │• Content  │
-                 │• Hybrid   │                 │• Multi-stage  │                │• Custom   │
+                 │ Retrievers│                 │   Rerankers    │                │  Filters  │
+                 │           │                 │                │                │           │
+                 │• Dense    │                 │• CrossEncoder  │                │• Score    │
+                 │• Sparse   │                 │• BGE Reranker  │                │• Content  │
+                 │• Hybrid   │                 │• Multi-stage   │                │• Custom   │
                  └───────────┘                 └────────────────┘                └───────────┘
 ```
 
