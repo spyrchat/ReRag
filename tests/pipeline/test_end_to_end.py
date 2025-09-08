@@ -61,10 +61,12 @@ class TestEndToEndPipeline:
     @pytest.fixture(scope="class")
     def qdrant_config(self):
         """Qdrant configuration for tests."""
+        host = os.getenv("QDRANT_HOST", "127.0.0.1")
+        port = int(os.getenv("QDRANT_PORT", "6333"))
         return {
-            "host": os.getenv("QDRANT_HOST", "localhost"),
-            "port": int(os.getenv("QDRANT_PORT", "6333")),
-            "url": f"http://{os.getenv('QDRANT_HOST', 'localhost')}:{os.getenv('QDRANT_PORT', '6333')}",
+            "host": host,
+            "port": port,
+            "url": f"http://{host}:{port}",
             "collection_name": "test_e2e_collection"
         }
 
@@ -78,8 +80,12 @@ class TestEndToEndPipeline:
         base_url = qdrant_config["url"]
 
         # Clean up any existing collection
-        requests.delete(f"{base_url}/collections/{collection_name}")
-        time.sleep(1)
+        try:
+            requests.delete(
+                f"{base_url}/collections/{collection_name}", timeout=10)
+        except requests.RequestException:
+            pass
+        time.sleep(0.5)
 
         # Create collection with Google embedding dimensions
         create_payload = {
@@ -92,10 +98,10 @@ class TestEndToEndPipeline:
         response = requests.put(
             f"{base_url}/collections/{collection_name}",
             json=create_payload,
-            timeout=10
+            timeout=15
         )
-        assert response.status_code in [
-            200, 201], f"Failed to create collection: {response.text}"
+        assert response.status_code in (
+            200, 201), f"Failed to create collection: {response.text}"
 
         # Insert sample documents with embeddings
         self._insert_sample_documents(qdrant_config)
@@ -103,18 +109,23 @@ class TestEndToEndPipeline:
         yield qdrant_config
 
         # Cleanup after tests
-        requests.delete(f"{base_url}/collections/{collection_name}")
+        try:
+            requests.delete(
+                f"{base_url}/collections/{collection_name}", timeout=10)
+        except requests.RequestException:
+            pass
 
     def _insert_sample_documents(self, qdrant_config):
         """Insert sample documents into Qdrant collection."""
-        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
         from qdrant_client import QdrantClient
         from qdrant_client.models import PointStruct
 
-        # Initialize Google embeddings
+        # Initialize Google embeddings (force REST in CI if provided)
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
-            google_api_key=os.getenv("GOOGLE_API_KEY")
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            transport=os.getenv("GENAI_TRANSPORT", "rest")
         )
 
         # Initialize Qdrant client
@@ -126,13 +137,10 @@ class TestEndToEndPipeline:
         # Generate embeddings and create points
         points = []
         for i, doc in enumerate(SAMPLE_DOCUMENTS):
-            # Generate embedding for content
-            embedding = embeddings.embed_query(doc["content"])
-
-            # Create point
+            vector = embeddings.embed_query(doc["content"])
             point = PointStruct(
                 id=i + 1,
-                vector=embedding,
+                vector=vector,
                 payload={
                     "content": doc["content"],
                     "labels": {
@@ -151,9 +159,46 @@ class TestEndToEndPipeline:
         )
 
         # Wait for indexing
-        time.sleep(2)
+        time.sleep(1.5)
         print(
             f"✅ Inserted {len(points)} sample documents into {qdrant_config['collection_name']}")
+
+    def _update_config_for_test(self, collection_name: str):
+        """Create a test config file with the test collection name and Gemini embeddings."""
+        import yaml
+
+        # Load base CI config
+        with open("pipelines/configs/retrieval/ci_google_gemini.yml", 'r') as f:
+            config = yaml.safe_load(f)
+
+        # Ensure the dict structure exists
+        config.setdefault("qdrant", {})
+        config.setdefault("retrieval_pipeline", {})
+        config["retrieval_pipeline"].setdefault("retriever", {})
+        config["retrieval_pipeline"]["retriever"].setdefault("qdrant", {})
+
+        # Point to the test collection
+        config["qdrant"]["collection"] = collection_name
+        config["retrieval_pipeline"]["retriever"]["qdrant"]["collection_name"] = collection_name
+        config["retrieval_pipeline"]["retriever"]["qdrant"]["force_recreate"] = False
+
+        # Force Gemini embeddings for query-time embedding
+        # Adjust path if your agent expects a different key
+        config["retrieval_pipeline"]["retriever"]["embedding"] = {
+            "dense": {
+                "provider": "google",
+                "model": "models/embedding-001",
+                "api_key_env": "GOOGLE_API_KEY",
+                "transport": "rest"
+            }
+        }
+
+        # Save test config
+        test_config_path = "pipelines/configs/retrieval/ci_google_gemini_test.yml"
+        with open(test_config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+        print(f"✅ Created test config with collection: {collection_name}")
 
     @pytest.mark.integration
     @pytest.mark.requires_api
@@ -163,7 +208,7 @@ class TestEndToEndPipeline:
 
         qdrant_config = setup_test_collection
 
-        # Update CI config to use test collection
+        # Update CI config to use test collection and Gemini embeddings
         self._update_config_for_test(qdrant_config["collection_name"])
 
         # Create agent with test config
@@ -201,30 +246,23 @@ class TestEndToEndPipeline:
 
             # Validate result structure
             result = results[0]
-            assert "score" in result, "Result should have score"
-            assert "content" in result, "Result should have content"
-            assert "retrieval_method" in result, "Result should have retrieval_method"
-            assert "question_title" in result, "Result should have title"
-            assert "tags" in result, "Result should have tags"
+            assert "score" in result
+            assert "content" in result
+            assert "retrieval_method" in result
+            assert "question_title" in result
+            assert "tags" in result
 
             # Validate score and content quality
-            assert isinstance(result["score"], (int, float)
-                              ), "Score should be numeric"
+            assert isinstance(result["score"], (int, float))
             assert result["score"] >= test_case[
                 "min_score"], f"Score too low: {result['score']}"
-            assert len(result["content"]) > 20, "Content should be substantial"
+            assert len(result["content"]) > 20
 
-            # Check if result content contains expected keywords
+            # Check for at least one expected keyword
             content_lower = result["content"].lower()
             title_lower = result["question_title"].lower()
-
-            keyword_found = False
-            for keyword in test_case["expected_keywords"]:
-                if keyword.lower() in content_lower or keyword.lower() in title_lower:
-                    keyword_found = True
-                    break
-
-            assert keyword_found, f"No expected keywords found in top result for: {test_case['query']}"
+            assert any(k.lower() in content_lower or k.lower()
+                       in title_lower for k in test_case["expected_keywords"])
 
             print(
                 f"✅ Query: '{test_case['query']}' -> Score: {result['score']:.3f}, Title: '{result['question_title']}'")
@@ -308,11 +346,9 @@ class TestEndToEndPipeline:
         # Test empty query (should handle gracefully)
         try:
             results = agent.retrieve("", top_k=1)
-            # Should either return empty results or handle gracefully
             assert isinstance(
                 results, list), "Should return list even for empty query"
         except Exception as e:
-            # Should be a meaningful error, not a crash
             assert len(str(e)) > 0, "Error message should be informative"
 
         # Test very long query (should not crash)
@@ -322,40 +358,6 @@ class TestEndToEndPipeline:
             assert isinstance(results, list), "Should handle long queries"
         except Exception as e:
             print(f"Long query failed (acceptable): {e}")
-
-
-def _update_config_for_test(self, collection_name: str):
-    """Create a test config file with the test collection name."""
-    import yaml
-
-    with open("pipelines/configs/retrieval/ci_google_gemini.yml", 'r') as f:
-        config = yaml.safe_load(f)
-
-    # Ensure Qdrant points to the test collection
-    config.setdefault("qdrant", {})
-    config["qdrant"]["collection"] = collection_name
-    config.setdefault("retrieval_pipeline", {}).setdefault("retriever", {})
-    config["retrieval_pipeline"]["retriever"].setdefault("qdrant", {})
-    config["retrieval_pipeline"]["retriever"]["qdrant"]["collection_name"] = collection_name
-    config["retrieval_pipeline"]["retriever"]["qdrant"]["force_recreate"] = False
-
-    # >>> Ensure Gemini embeddings are used at query time <<<
-    # This block is what your agent must read to build the dense retriever.
-    config["retrieval_pipeline"]["retriever"]["embedding"] = {
-        "dense": {
-            "provider": "google",
-            "model": "models/embedding-001",
-            "api_key_env": "GOOGLE_API_KEY",
-            # Many CI keys behave better over REST than gRPC.
-            "transport": "rest"
-        }
-    }
-
-    test_config_path = "pipelines/configs/retrieval/ci_google_gemini_test.yml"
-    with open(test_config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False)
-
-    print(f"✅ Created test config with collection: {collection_name}")
 
 
 if __name__ == "__main__":
