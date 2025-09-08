@@ -1,6 +1,14 @@
-# Quick Start Guide: Implementing MLOps Pipeline for RAG
+# Quick Start Guide: Understanding the MLOps Pipeline for RAG
 
-This guide provides a step-by-step walkthrough for implementing the MLOps pipeline architecture in your own projects.
+**⚠️ Important Note**: This guide provides a simplified tutorial for understanding the MLOps concepts. The actual project has a much more sophisticated implementation with advanced features like hybrid embeddings, multiple chunking strategies, agent workflows, and comprehensive benchmarking.
+
+**To use the actual project:**
+- See `README.md` for setup instructions
+- Use the CLI: `python bin/ingest.py --help`
+- Check `docs/SOSUM_INGESTION.md` for real dataset examples
+- Review `docs/MLOPS_PIPELINE_ARCHITECTURE.md` for detailed architecture
+
+This guide provides a step-by-step walkthrough for implementing a simplified version of the MLOps pipeline architecture.
 
 ## Prerequisites
 
@@ -371,6 +379,13 @@ class DocumentChunker:
         return chunked_docs
 ```
 
+**Note**: The actual implementation (`pipelines/ingest/chunker.py`) has multiple advanced chunking strategies:
+- `RecursiveChunkingStrategy`: Basic recursive character splitting
+- `SemanticChunkingStrategy`: Sentence-boundary aware chunking  
+- `CodeAwareChunkingStrategy`: Preserves code blocks and functions
+- `TableAwareChunkingStrategy`: Preserves table structure
+- `ChunkingStrategyFactory`: Factory for strategy selection
+
 ### Simple Embedder (`pipelines/ingest/embedder.py`)
 ```python
 """Embedding generation."""
@@ -451,160 +466,99 @@ class EmbeddingPipeline:
         )
 ```
 
-## 6. Create Simple CLI Interface (30 minutes)
+**Note**: The actual implementation (`pipelines/ingest/embedder.py`) is more sophisticated with:
+- Support for dense, sparse, and hybrid embedding strategies
+- Caching and error handling
+- Batch processing with progress bars
+- Integration with multiple embedding providers (HuggingFace, Google, AWS Bedrock)
 
-### CLI Script (`bin/ingest.py`)
-```python
-#!/usr/bin/env python3
-"""Simple ingestion CLI."""
-import argparse
-import yaml
-import logging
-from pathlib import Path
-import sys
-import importlib
+## 6. Use the Actual CLI Interface (15 minutes)
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+The actual project has a sophisticated CLI with subcommands. Here's how to use it:
 
-from pipelines.ingest.chunker import DocumentChunker
-from pipelines.ingest.embedder import EmbeddingPipeline
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-def load_adapter(adapter_name: str, data_path: str):
-    """Dynamically load dataset adapter."""
-    module_name = f"pipelines.adapters.{adapter_name}"
-    module = importlib.import_module(module_name)
-    
-    # Find adapter class (assumes pattern: XxxDatasetAdapter)
-    adapter_class = None
-    for attr_name in dir(module):
-        attr = getattr(module, attr_name)
-        if (isinstance(attr, type) and 
-            hasattr(attr, 'source_name') and 
-            attr_name.endswith('Adapter')):
-            adapter_class = attr
-            break
-    
-    if not adapter_class:
-        raise ValueError(f"No adapter class found in {module_name}")
-    
-    return adapter_class(data_path)
-
-def main():
-    parser = argparse.ArgumentParser(description="Simple RAG Ingestion Pipeline")
-    parser.add_argument("config", help="Configuration file path")
-    parser.add_argument("--dry-run", action="store_true", help="Run without uploading")
-    parser.add_argument("--max-docs", type=int, help="Limit number of documents")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
-    
-    args = parser.parse_args()
-    
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-    
-    # Load configuration
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    logger.info(f"Starting ingestion with config: {args.config}")
-    
-    try:
-        # Load dataset adapter
-        adapter = load_adapter(
-            config["dataset"]["adapter"],
-            config["dataset"]["path"]
-        )
-        logger.info(f"Loaded adapter: {adapter.source_name}")
-        
-        # Read data
-        rows = list(adapter.read_rows())
-        if args.max_docs:
-            rows = rows[:args.max_docs]
-        logger.info(f"Read {len(rows)} rows")
-        
-        # Convert to documents
-        documents = adapter.to_documents(rows, split="all")
-        logger.info(f"Created {len(documents)} documents")
-        
-        # Chunk documents
-        chunker = DocumentChunker(config["chunking"])
-        chunked_docs = chunker.chunk_documents(documents)
-        logger.info(f"Created {len(chunked_docs)} chunks")
-        
-        # Generate embeddings
-        embedder = EmbeddingPipeline(config["embedding"])
-        chunk_metas = embedder.process_documents(chunked_docs)
-        logger.info(f"Generated embeddings for {len(chunk_metas)} chunks")
-        
-        if args.dry_run:
-            logger.info("DRY RUN - Would upload to vector store")
-            logger.info(f"Sample chunk: {chunk_metas[0].chunk_id}")
-        else:
-            # TODO: Implement vector store upload
-            logger.info("Vector store upload not implemented yet")
-        
-        logger.info("Ingestion completed successfully!")
-        
-    except Exception as e:
-        logger.error(f"Ingestion failed: {e}")
-        return 1
-    
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
-```
-
-## 7. Test Your Implementation (15 minutes)
-
-### Create Test Data (`test_data.csv`)
-```csv
-id,title,content,category
-1,"Introduction to Python","Python is a programming language that lets you work quickly and integrate systems more effectively.","programming"
-2,"Machine Learning Basics","Machine learning is a method of data analysis that automates analytical model building.","ai"
-3,"Data Science Overview","Data science is an interdisciplinary field that uses scientific methods to extract knowledge from data.","data"
-```
-
-### Test Configuration (`test_config.yml`)
-```yaml
-dataset:
-  name: "test_dataset"
-  version: "1.0.0"
-  adapter: "csv_dataset"
-  path: "test_data.csv"
-
-chunking:
-  strategy: "recursive_character"
-  chunk_size: 500
-  chunk_overlap: 50
-
-embedding:
-  strategy: "dense"
-  provider: "hf"
-  model: "sentence-transformers/all-MiniLM-L6-v2"
-  batch_size: 2
-
-vector_store:
-  provider: "qdrant"
-  collection_name: "test_v1"
-```
-
-### Run Test
+### CLI Usage Examples
 ```bash
-# Create test data
-echo 'id,title,content,category
-1,"Introduction to Python","Python is a programming language that lets you work quickly and integrate systems more effectively.","programming"
-2,"Machine Learning Basics","Machine learning is a method of data analysis that automates analytical model building.","ai"' > test_data.csv
+# View available commands
+python bin/ingest.py --help
 
-# Test the pipeline
-python bin/ingest.py test_config.yml --dry-run --max-docs 2 --verbose
+# Ingest a dataset (dry run)
+python bin/ingest.py ingest natural_questions /path/to/data --config config.yml --dry-run --max-docs 100
+
+# Ingest Stack Overflow dataset
+python bin/ingest.py ingest stackoverflow /path/to/sosum --config config.yml
+
+# Run in canary mode for testing
+python bin/ingest.py ingest energy_papers /path/to/papers --canary --max-docs 50
+
+# Check collection status
+python bin/ingest.py status --config config.yml
+
+# Evaluate retrieval performance
+python bin/ingest.py evaluate natural_questions /path/to/data --output-dir results/
+
+# Batch ingestion
+python bin/ingest.py batch-ingest batch_config.json
+```
+
+### Batch Configuration Example (`batch_config.json`)
+```json
+{
+  "datasets": [
+    {"type": "natural_questions", "path": "/path/to/nq", "version": "1.0.0"},
+    {"type": "stackoverflow", "path": "/path/to/sosum", "version": "1.0.0"}
+  ]
+}
+```
+
+### Available Adapter Types
+- `natural_questions`: Natural Questions dataset
+- `stackoverflow`: Stack Overflow (SOSum format) dataset  
+- `energy_papers`: Energy research papers dataset
+
+## 7. Test with Actual Implementation (15 minutes)
+
+### Use Real Configuration Files
+The actual project has several pre-configured YAML files you can use:
+
+```bash
+# List available configurations
+ls pipelines/configs/retrieval/
+
+# Available configs:
+# - modern_dense.yml: Dense embeddings with neural reranking
+# - modern_hybrid.yml: Hybrid dense+sparse with reranking  
+# - fast_hybrid.yml: Fast hybrid retrieval
+# - ci_google_gemini.yml: CI configuration with Google embeddings
+```
+
+### Test with Stack Overflow Dataset
+```bash
+# Download SOSum dataset
+mkdir -p datasets/sosum
+cd datasets/sosum
+# Download from https://github.com/BonanKou/SOSum-A-Dataset-of-Extractive-Summaries-of-Stack-Overflow-Posts-and-labeling-tools
+
+# Test the adapter (dry run)
+python bin/ingest.py ingest stackoverflow datasets/sosum/data --config config.yml --dry-run --max-docs 10 --verbose
+
+# Check what was ingested
+python bin/ingest.py status --config config.yml
+```
+
+### Actual Configuration Structure
+The real `config.yml` looks like this:
+```yaml
+# Main configuration file
+agent:
+  retrieval_pipeline_config: "pipelines/configs/retrieval/modern_dense.yml"
+
+database:
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection_name: "sosum_stackoverflow_hybrid_v1"
+
+# The retrieval configs contain detailed chunking and embedding settings
 ```
 
 ## 8. Next Steps and Extensions
