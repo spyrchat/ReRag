@@ -1,0 +1,44 @@
+# Configuration for Hybrid Dense + Sparse Embeddings
+
+dataset:
+  name: "stackoverflow_sosum"
+  version: "v1.0.0"
+  adapter: "stackoverflow"  # REQUIRED: This was missing!
+
+chunking:
+  strategy: "recursive"  # FIXED: Strategy name
+  chunk_size: 512
+  chunk_overlap: 50
+  separators: ["\n\n", "\n", " ", ""]  # REQUIRED for recursive chunking
+
+embedding:
+  strategy: "hybrid"  # FIXED: Moved from top level
+  dense:
+    provider: "google"
+    model: "models/embedding-001"  # FIXED: changed from model_name to model
+    batch_size: 32
+  sparse:
+    provider: "sparse"
+    model: "Qdrant/bm25"  # FIXED: changed from model_name to model
+    batch_size: 32
+
+qdrant:
+  collection: "sosum_stackoverflow_hybrid_v1"
+  dense_vector_name: "dense"
+  sparse_vector_name: "sparse"
+  distance_metric: "cosine"  # REQUIRED: Added missing field
+
+upload:
+  batch_size: 50
+  wait: true
+  versioning: true  # ADDED: For proper versioning
+
+validation:
+  enabled: true  # REQUIRED: Added missing field
+  max_text_length: 10000  # FIXED: changed from max_char_length
+  min_text_length: 10     # FIXED: changed from min_char_length
+
+smoke_tests:
+  enabled: true
+  sample_size: 5  # REQUIRED: Added missing field
+  min_success_rate: 0.7

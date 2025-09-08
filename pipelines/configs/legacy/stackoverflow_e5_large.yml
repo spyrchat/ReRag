@@ -1,0 +1,20 @@
+# Configuration for E5 Large
+dataset:
+  name: "stackoverflow_sosum"
+  version: "1.0.0"
+
+embedding_strategy: dense  # Dense only for comparison
+
+embedding:
+  dense:
+    provider: hf
+    model_name: intfloat/e5-large-v2
+    batch_size: 8  # Even smaller batch
+
+qdrant:
+  collection: sosum_stackoverflow_e5_large_v1  # Another collection
+  dense_vector_name: dense
+
+output_dir: "output/sosum_e5_large"
+embedding_cache:
+  dir: "cache/embeddings/sosum_e5_large"
