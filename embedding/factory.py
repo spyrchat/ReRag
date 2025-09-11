@@ -1,10 +1,3 @@
-from embedding.embeddings import HuggingFaceEmbedder
-from embedding.bedrock_embeddings import TitanEmbedder
-from embedding.sparse_embedder import SparseEmbedder
-from langchain_qdrant import FastEmbedSparse
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_voyageai import VoyageAIEmbeddings
-
 import os
 
 
@@ -21,21 +14,29 @@ def get_embedder(cfg: dict):
     provider = cfg.get("provider", "hf").strip().lower()
 
     if provider == "hf":
+        from embedding.embeddings import HuggingFaceEmbedder
+
         model_name = cfg.get(
             "model_name", "sentence-transformers/all-MiniLM-L6-v2")
         device = cfg.get("device", "cpu")
         return HuggingFaceEmbedder(model_name=model_name, device=device)
 
     elif provider == "titan":
+        from embedding.bedrock_embeddings import TitanEmbedder
+
         model = cfg.get("model_name", "amazon.titan-embed-text-v2:0")
         region = cfg.get("region", "us-east-1")
         return TitanEmbedder(model=model, region=region)
 
     elif provider == "fastembed":
+        from langchain_qdrant import FastEmbedSparse
+
         model_name = cfg.get("model_name", "BAAI/bge-small-en-v1.5")
         return FastEmbedSparse(model_name=model_name)
 
     elif provider == "google":
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
         model_name = cfg.get("model", "models/embedding-001")
         dimensions = cfg.get("dimensions") or cfg.get("output_dimensionality")
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -58,6 +59,8 @@ def get_embedder(cfg: dict):
             )
 
     elif provider == "voyage":
+        from langchain_voyageai import VoyageAIEmbeddings
+
         model_name = cfg.get("model", "voyage-3.5-lite")
         api_key = os.getenv("VOYAGE_API_KEY")
 
@@ -73,6 +76,8 @@ def get_embedder(cfg: dict):
         )
 
     elif provider == "sparse":
+        from embedding.sparse_embedder import SparseEmbedder
+
         # Support both 'model' and 'model_name' for consistency with other providers
         model_name = cfg.get("model") or cfg.get("model_name") or "Qdrant/bm25"
         device = cfg.get("device", "cpu")
