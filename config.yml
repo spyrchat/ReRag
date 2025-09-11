@@ -21,11 +21,11 @@ benchmark:
     top_k: 20
 embedding:
   dense:
-    api_key_env: GOOGLE_API_KEY
+    api_key_env: VOYAGE_API_KEY
     batch_size: 32
-    dimensions: 768
-    model: models/embedding-001
-    provider: google
+    dimensions: 1024
+    model: voyage-3.5-lite
+    provider: voyage
     vector_name: dense
   sparse:
     model: Qdrant/bm25

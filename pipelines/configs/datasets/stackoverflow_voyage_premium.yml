@@ -1,0 +1,68 @@
+# SOSum Stack Overflow Dataset Configuration with Voyage AI Premium Embeddings
+# Dataset: https://github.com/BonanKou/SOSum-A-Dataset-of-Extractive-Summaries-of-Stack-Overflow-Posts-and-labeling-tools
+dataset:
+  name: "stackoverflow_sosum"
+  version: "v1.0.0"
+  adapter: "stackoverflow"
+
+chunking:
+  strategy: "recursive"
+  chunk_size: 512
+  chunk_overlap: 50
+  separators: ["\n\n", "\n", " ", ""]
+
+embedding:
+  strategy: "hybrid"
+  dense:
+    provider: "voyage"
+    model: "voyage-3.5"           # Premium option: $0.06/1M tokens (better quality)
+    dimensions: 1024              # Full dimension for maximum quality
+    batch_size: 32
+  sparse:
+    provider: "sparse"
+    model: "Qdrant/bm25"
+    batch_size: 32
+
+qdrant:
+  collection: "sosum_stackoverflow_voyage_premium_v1"
+  dense_vector_name: "dense"
+  sparse_vector_name: "sparse"
+
+upload:
+  batch_size: 50
+  wait: true
+  versioning: true
+
+validation:
+  min_char_length: 30
+  max_char_length: 50000
+  remove_duplicates: true
+  clean_html: true
+  preserve_code_blocks: true
+  allowed_languages: ["en"]
+
+# Evaluation settings
+evaluation:
+  k_values: [1, 3, 5, 10, 15]
+  similarity_threshold: 0.7
+
+# Smoke tests
+smoke_tests:
+  min_success_rate: 0.8
+  golden_queries:
+    - query: "Python list comprehension example"
+      min_recall: 0.1
+    - query: "JavaScript async function"
+      min_recall: 0.1
+    - query: "How to solve error in code"
+      min_recall: 0.1
+    - query: "Best practice programming"
+      min_recall: 0.1
+
+# Output configuration
+output_dir: "output/sosum_stackoverflow_voyage_premium"
+
+# Embedding cache
+embedding_cache:
+  enabled: true
+  dir: "cache/embeddings/sosum_stackoverflow_voyage_premium"

@@ -6,24 +6,21 @@ dataset:
   description: "SOSum: Extractive summaries of Stack Overflow posts (506 questions, 2278 posts)"
 
 # Embedding strategy
-embedding_strategy: hybrid
-
 embedding:
+  strategy: "hybrid"
   dense:
-    provider: hf
-    model_name: sentence-transformers/all-MiniLM-L6-v2
+    provider: "google"
+    model: "models/embedding-001"
     batch_size: 32
-    device: cuda
-    vector_name: dense
   sparse:
-    provider: fastembed
-    model_name: Qdrant/bm25
-    vector_name: sparse
+    provider: "sparse"
+    model: "Qdrant/bm25"
+    batch_size: 32
 
 # Chunking configuration
 chunking:
-  strategy: code_aware  # Best for code-heavy content
-  chunk_size: 800       # Larger chunks for code context
+  strategy: "code_aware"  # Best for code-heavy content
+  chunk_size: 800         # Larger chunks for code context
   chunk_overlap: 100
   preserve_functions: true
   preserve_code_blocks: true
@@ -39,14 +36,14 @@ validation:
 
 # Retriever configuration
 retriever:
-  type: qdrant
+  type: "qdrant"
   top_k: 15
 
 # Qdrant settings
 qdrant:
-  collection: sosum_stackoverflow_v1
-  dense_vector_name: dense
-  sparse_vector_name: sparse
+  collection: "sosum_stackoverflow_v1"
+  dense_vector_name: "dense"
+  sparse_vector_name: "sparse"
 
 # Upload settings
 upload:
