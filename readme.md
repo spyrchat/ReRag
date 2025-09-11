@@ -2,7 +2,7 @@
 
 **Version**: 1.0.0  
 **Date**: September 11, 2025  
-**Author**: Comprehensive Analysis of Advanced RAG MLOps Pipeline
+**Author**: Spiros Chatzigeorgiou
 
 ---
 
