@@ -46,17 +46,15 @@ def get_embedder(cfg: dict):
                 "GOOGLE_API_KEY environment variable is required for Google embeddings")
 
         # Initialize with or without dimensions parameter
+        embedding_kwargs = {
+            "model": model_name,
+            "google_api_key": api_key
+        }
+
         if dimensions:
-            return GoogleGenerativeAIEmbeddings(
-                model=model_name,
-                google_api_key=api_key,
-                output_dimensionality=dimensions
-            )
-        else:
-            return GoogleGenerativeAIEmbeddings(
-                model=model_name,
-                google_api_key=api_key
-            )
+            embedding_kwargs["output_dimensionality"] = dimensions
+
+        return GoogleGenerativeAIEmbeddings(**embedding_kwargs)
 
     elif provider == "voyage":
         from langchain_voyageai import VoyageAIEmbeddings
