@@ -1,5 +1,5 @@
 # Hybrid Retrieval Optimization Scenario
-description: "Hybrid dense+sparse retrieval for best of both worlds"
+description: "Hybrid dense+sparse retrieval with Voyage Lite for best of both worlds"
 
 # Dataset configuration
 dataset:
@@ -15,10 +15,10 @@ retrieval:
 # Embedding configuration
 embedding:
   dense:
-    provider: google
-    model: models/embedding-001
-    dimensions: 768
-    api_key_env: GOOGLE_API_KEY
+    provider: voyage
+    model: voyage-3.5-lite
+    dimensions: 1024
+    api_key_env: VOYAGE_API_KEY
     batch_size: 32
     vector_name: dense
   sparse:
@@ -26,6 +26,39 @@ embedding:
     model: Qdrant/bm25
     vector_name: sparse
   strategy: hybrid
+
+# Qdrant collection
+qdrant:
+  collection: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+# Retrievers configuration (required by RetrievalPipelineFactory)
+retrievers:
+  hybrid:
+    type: hybrid
+    top_k: 15
+    score_threshold: 0.1
+    dense_weight: 0.6
+    sparse_weight: 0.4
+    fusion_method: rrf
+    fusion:
+      method: rrf
+      rrf_k: 60
+      dense_weight: 0.6
+      sparse_weight: 0.4
+    performance:
+      batch_size: 32
+      enable_caching: true
+      lazy_initialization: true
+      parallel_search: false
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      dense_vector_name: dense
+      sparse_vector_name: sparse
+      hybrid_config:
+        alpha: 0.5
+        reciprocal_rank_constant: 60
 
 # Evaluation configuration
 evaluation:
@@ -35,4 +68,4 @@ evaluation:
 
 # Experiment parameters
 max_queries: 50
-experiment_name: "hybrid_dense_sparse"
+experiment_name: "hybrid_voyage_lite"

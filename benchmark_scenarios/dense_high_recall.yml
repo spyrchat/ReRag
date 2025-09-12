@@ -1,5 +1,5 @@
-# Dense Retrieval with Higher Recall (more results)
-description: "Dense retrieval with higher top_k=20 for better recall"
+# Dense Retrieval with Higher Recall (Voyage Lite)
+description: "Dense retrieval with Voyage Lite, top_k=20 for better recall"
 
 # Dataset configuration
 dataset:
@@ -15,13 +15,33 @@ retrieval:
 # Embedding configuration
 embedding:
   dense:
-    provider: google
-    model: models/embedding-001
-    dimensions: 768
-    api_key_env: GOOGLE_API_KEY
+    provider: voyage
+    model: voyage-3.5-lite
+    dimensions: 1024
+    api_key_env: VOYAGE_API_KEY
     batch_size: 32
     vector_name: dense
   strategy: dense
+
+# Qdrant collection
+qdrant:
+  collection: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+# Retrievers configuration (required by RetrievalPipelineFactory)
+retrievers:
+  dense:
+    type: dense
+    top_k: 20
+    score_threshold: 0.05
+    performance:
+      batch_size: 32
+      enable_caching: true
+      lazy_initialization: true
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      vector_name: dense
 
 # Evaluation configuration
 evaluation:
@@ -31,4 +51,4 @@ evaluation:
 
 # Experiment parameters
 max_queries: 50
-experiment_name: "dense_high_recall"
+experiment_name: "dense_high_recall_voyage_lite"

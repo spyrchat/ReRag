@@ -1,5 +1,5 @@
 # Weighted Sum Hybrid Retrieval Optimization
-description: "Hybrid retrieval using weighted sum fusion with optimized weights"
+description: "Hybrid retrieval with Voyage Lite using weighted sum fusion"
 
 # Dataset configuration
 dataset:
@@ -18,10 +18,10 @@ retrieval:
 # Embedding configuration
 embedding:
   dense:
-    provider: google
-    model: models/embedding-001
-    dimensions: 768
-    api_key_env: GOOGLE_API_KEY
+    provider: voyage
+    model: voyage-3.5-lite
+    dimensions: 1024
+    api_key_env: VOYAGE_API_KEY
     batch_size: 32
     vector_name: dense
   sparse:
@@ -30,11 +30,43 @@ embedding:
     vector_name: sparse
   strategy: hybrid
 
+# Qdrant collection
+qdrant:
+  collection: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
 # Fusion method configuration
 fusion:
   method: weighted_sum
   dense_weight: 0.8  # Emphasize dense retrieval more
   sparse_weight: 0.2
+
+# Retrievers configuration (required by RetrievalPipelineFactory)
+retrievers:
+  hybrid:
+    type: hybrid
+    top_k: 15
+    score_threshold: 0.05
+    dense_weight: 0.65
+    sparse_weight: 0.35
+    fusion_method: weighted_sum
+    fusion:
+      method: weighted_sum
+      dense_weight: 0.65
+      sparse_weight: 0.35
+    performance:
+      batch_size: 32
+      enable_caching: true
+      lazy_initialization: true
+      parallel_search: false
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      dense_vector_name: dense
+      sparse_vector_name: sparse
+      hybrid_config:
+        alpha: 0.5
+        reciprocal_rank_constant: 60
 
 # Evaluation configuration
 evaluation:
@@ -44,4 +76,4 @@ evaluation:
 
 # Experiment parameters
 max_queries: 100
-experiment_name: "hybrid_weighted_sum"
+experiment_name: "hybrid_weighted_voyage_lite"

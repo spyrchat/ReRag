@@ -1,5 +1,5 @@
 # Advanced Hybrid Retrieval Optimization
-description: "Advanced hybrid retrieval with optimized fusion parameters"
+description: "Advanced hybrid retrieval with Voyage Premium and optimized fusion"
 
 # Dataset configuration
 dataset:
@@ -18,10 +18,10 @@ retrieval:
 # Embedding configuration
 embedding:
   dense:
-    provider: google
-    model: models/embedding-001
-    dimensions: 768
-    api_key_env: GOOGLE_API_KEY
+    provider: voyage
+    model: voyage-3.5
+    dimensions: 1024
+    api_key_env: VOYAGE_API_KEY
     batch_size: 32
     vector_name: dense
   sparse:
@@ -30,12 +30,45 @@ embedding:
     vector_name: sparse
   strategy: hybrid
 
+# Qdrant collection
+qdrant:
+  collection: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
 # Fusion method configuration
 fusion:
   method: rrf  # rrf or weighted_sum
   rrf_k: 50    # Smaller k gives more emphasis to top results 
   dense_weight: 0.7  # For weighted_sum
   sparse_weight: 0.3
+
+# Retrievers configuration (required by RetrievalPipelineFactory)
+retrievers:
+  hybrid:
+    type: hybrid
+    top_k: 20
+    score_threshold: 0.01
+    dense_weight: 0.7
+    sparse_weight: 0.3
+    fusion_method: rrf
+    fusion:
+      method: rrf
+      rrf_k: 50
+      dense_weight: 0.7
+      sparse_weight: 0.3
+    performance:
+      batch_size: 32
+      enable_caching: true
+      lazy_initialization: true
+      parallel_search: false
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      dense_vector_name: dense
+      sparse_vector_name: sparse
+      hybrid_config:
+        alpha: 0.5
+        reciprocal_rank_constant: 50
 
 # Evaluation configuration
 evaluation:
@@ -45,4 +78,4 @@ evaluation:
 
 # Experiment parameters
 max_queries: 100  # Larger sample size
-experiment_name: "hybrid_advanced_rrf"
+experiment_name: "hybrid_advanced_voyage_premium"

@@ -11,15 +11,15 @@ embedding:
     batch_size: 8
 
 qdrant:
-  collection: "stackoverflow_voyage_lite"
+  collection: "stackoverflow_voyage_lite_code_aware_chunking"
   host: "localhost"
   port: 6333
   timeout: 300
   distance: "Cosine"
   
 chunking:
-  method: "recursive"
-  chunk_size: 500
+  strategy: "code_aware"
+  chunk_size: 800
   chunk_overlap: 100
   separators: ["\n\n", "\n", " ", ""]
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Standalone SOSum ingestion script.
 This script works without the full pipeline dependencies.

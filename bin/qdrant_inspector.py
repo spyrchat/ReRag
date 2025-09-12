@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Qdrant Inspection Tool - Explore and query your vector database
 """

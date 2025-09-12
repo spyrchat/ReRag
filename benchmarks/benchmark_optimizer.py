@@ -4,9 +4,9 @@ Supports multiple benchmark scenarios for hyperparameter optimization.
 """
 
 from config.config_loader import load_config
-from benchmarks.benchmark_contracts import BenchmarkQuery
-from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter, FullDatasetAdapter
-from benchmarks.benchmarks_runner import BenchmarkRunner
+from benchmark_contracts import BenchmarkQuery
+from benchmarks_adapters import StackOverflowBenchmarkAdapter, FullDatasetAdapter
+from benchmarks_runner import BenchmarkRunner
 import sys
 import os
 import yaml
@@ -14,7 +14,6 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, List
-sys.path.append('/home/spiros/Desktop/Thesis/Thesis')
 
 
 class BenchmarkOptimizer:
@@ -26,15 +25,12 @@ class BenchmarkOptimizer:
         self.results_history = []
 
     def load_benchmark_config(self, benchmark_config_path: str) -> Dict[str, Any]:
-        """Load benchmark-specific configuration."""
+        """Load benchmark-specific configuration only (no merging with base config)."""
         with open(benchmark_config_path, 'r') as f:
             benchmark_config = yaml.safe_load(f)
 
-        # Merge with base config
-        config = self.base_config.copy()
-        config.update(benchmark_config)
-
-        return config
+        # Return only the scenario config - no merging with base config
+        return benchmark_config
 
     def run_optimization_scenario(self, scenario_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run a single optimization scenario."""

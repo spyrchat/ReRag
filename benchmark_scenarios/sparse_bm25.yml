@@ -1,33 +1,48 @@
-# DISABLED: Sparse Retrieval Optimization Scenario
-# Note: Sparse retriever currently has configuration issues
-description: "DISABLED - Sparse retrieval with BM25 (needs fixing)"
+# Sparse Retrieval Optimization Scenario
+description: "Sparse retrieval with BM25 for keyword-based search"
 
-# This scenario is disabled because sparse retrieval is not working
-disabled: true
-disabled_reason: "Sparse retriever has configuration/implementation issues"
-
-# Original configuration (for reference):
 # Dataset configuration
 dataset:
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
   use_ground_truth: true
   
-# Retrieval configuration - DISABLED
+# Retrieval configuration
 retrieval:
-  type: "dense"  # Fallback to dense since sparse doesn't work
+  type: "sparse"
   top_k: 15
   score_threshold: 0.1
 
 # Embedding configuration
 embedding:
-  dense:
-    provider: google
-    model: models/embedding-001
-    dimensions: 768
-    api_key_env: GOOGLE_API_KEY
+  sparse:
+    provider: sparse
+    model: Qdrant/bm25
     batch_size: 32
-    vector_name: dense
-  strategy: dense  # Changed from sparse to dense
+    vector_name: sparse
+  strategy: sparse
+
+# Qdrant collection (using lite collection for sparse-only tests)
+qdrant:
+  collection: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+# Retrievers configuration (required by RetrievalPipelineFactory)
+retrievers:
+  sparse:
+    type: sparse
+    top_k: 15
+    score_threshold: 0.1
+    embedding:
+      model: Qdrant/bm25
+      provider: sparse
+    performance:
+      batch_size: 32
+      enable_caching: true
+      lazy_initialization: true
+    qdrant:
+      collection_name: sosum_stackoverflow_hybrid_v1
+      vector_name: sparse
 
 # Evaluation configuration
 evaluation:
@@ -37,4 +52,4 @@ evaluation:
 
 # Experiment parameters
 max_queries: 50
-experiment_name: "sparse_bm25_disabled"
+experiment_name: "sparse_bm25"

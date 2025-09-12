@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Ingestion pipeline CLI - single entrypoint for all ingestion operations.
 Implements canary -> verify -> promote workflow with comprehensive logging.
