@@ -3,6 +3,7 @@
 Simple benchmark runner for easy optimization experiments.
 """
 
+from benchmark_optimizer import BenchmarkOptimizer
 import sys
 import os
 from pathlib import Path
@@ -10,8 +11,6 @@ from pathlib import Path
 # Add project root to Python path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-from benchmark_optimizer import BenchmarkOptimizer
 
 
 def main():
@@ -55,7 +54,7 @@ def main():
             # Add descriptions for the new Voyage scenarios
             descriptions = {
                 "dense_baseline.yml": "Dense baseline (Voyage Lite)",
-                "dense_high_recall.yml": "Dense high recall (Voyage Lite)", 
+                "dense_high_recall.yml": "Dense high recall (Voyage Lite)",
                 "dense_high_precision.yml": "Dense high precision (Voyage Premium)",
                 "sparse_bm25.yml": "Sparse BM25 retrieval",
                 "hybrid_retrieval.yml": "Hybrid retrieval (Voyage Lite)",

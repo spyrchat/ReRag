@@ -5,8 +5,8 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 
-from benchmarks.benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
-from benchmarks.benchmarks_metrics import BenchmarkMetrics
+from .benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from .benchmarks_metrics import BenchmarkMetrics
 from components.retrieval_pipeline import RetrievalPipelineFactory
 from config.config_loader import get_benchmark_config, get_retriever_config
 
@@ -15,16 +15,46 @@ class BenchmarkRunner:
     """Execute benchmarks against configurable RAG systems."""
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize with complete, self-contained configuration."""
         self.config = config
-        # Use config directly instead of get_benchmark_config
-        self.benchmark_config = config
+        self.benchmark_config = config  # No separate benchmark config
         self.metrics = BenchmarkMetrics()
 
-        # Initialize retrieval engine based on unified config
+        print(f"🔧 Initializing BenchmarkRunner with isolated config")
+        
+        # Validate config completeness
+        self._validate_config_completeness()
+
+        # Initialize retrieval engine based on provided config only
         self.retrieval_pipeline = self._init_retrieval_pipeline()
 
         # Initialize generation engine (optional)
         self.generation_engine = self._init_generation_engine()
+
+    def _validate_config_completeness(self):
+        """Validate that the provided config is complete."""
+        required_sections = ['retrieval', 'embedding', 'qdrant', 'retrievers', 'evaluation']
+        missing = []
+        
+        for section in required_sections:
+            if section not in self.config:
+                missing.append(section)
+        
+        # Additional validation for critical subsections
+        retrieval_config = self.config.get('retrieval', {})
+        if 'type' not in retrieval_config:
+            missing.append('retrieval.type')
+            
+        embedding_config = self.config.get('embedding', {})
+        if 'strategy' not in embedding_config:
+            missing.append('embedding.strategy')
+        
+        if missing:
+            raise ValueError(f"Incomplete configuration. Missing required sections: {missing}. "
+                           f"Configuration must be completely self-contained. "
+                           f"See benchmark_scenarios/TEMPLATE_self_contained.yml for a complete example.")
+        
+        print(f"✅ Configuration validation passed: all required sections present")
 
     def _init_retrieval_pipeline(self):
         """Initialize retrieval pipeline from unified configuration."""

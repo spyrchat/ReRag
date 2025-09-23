@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 from typing import List, Union, Dict, Any
-from benchmarks.benchmark_contracts import BenchmarkAdapter, BenchmarkTask, BenchmarkQuery
+from .benchmark_contracts import BenchmarkAdapter, BenchmarkTask, BenchmarkQuery
 
 
 class StackOverflowBenchmarkAdapter(BenchmarkAdapter):

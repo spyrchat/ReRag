@@ -1,0 +1,28 @@
+algorithm: UCB-2.0
+best_configuration:
+  arm_id: arm_865303
+  avg_reward: 0.0
+  confidence_bound: 0.0
+  config:
+    benchmark.retrieval.search_params.score_threshold: 0.0
+    benchmark.retrieval.strategy: dense
+    benchmark.retrieval.top_k: 10
+    embedding.chunk_overlap: 50
+    embedding.chunk_size: 256
+    reranker.enabled: true
+    reranker.model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
+    reranker.top_k: 5
+  last_updated: 1758591473.2348819
+  num_pulls: 1
+  total_reward: 0.0
+convergence_history:
+- best_arm: arm_865303
+  best_reward: 0.0
+  exploration_rate: 1.0
+  iteration: 1
+  reward: 0.0
+  selected_arm: arm_865303
+optimization_summary:
+  final_performance: {}
+  total_evaluation_time: 0.0006411075592041016
+  total_iterations: 1

@@ -4,9 +4,9 @@ Supports multiple benchmark scenarios for hyperparameter optimization.
 """
 
 from config.config_loader import load_config
-from benchmark_contracts import BenchmarkQuery
-from benchmarks_adapters import StackOverflowBenchmarkAdapter, FullDatasetAdapter
-from benchmarks_runner import BenchmarkRunner
+from .benchmark_contracts import BenchmarkQuery
+from .benchmarks_adapters import StackOverflowBenchmarkAdapter, FullDatasetAdapter
+from .benchmarks_runner import BenchmarkRunner
 import sys
 import os
 import yaml
@@ -19,18 +19,49 @@ from typing import Dict, Any, List
 class BenchmarkOptimizer:
     """Flexible benchmark runner for optimization experiments."""
 
-    def __init__(self, base_config_path: str = "config.yml"):
-        """Initialize with base configuration."""
-        self.base_config = load_config(base_config_path)
+    def __init__(self, fallback_config_path: str = "config.yml"):
+        """Initialize with fallback configuration (only used if no scenario config provided)."""
+        self.fallback_config_path = fallback_config_path
         self.results_history = []
 
     def load_benchmark_config(self, benchmark_config_path: str) -> Dict[str, Any]:
-        """Load benchmark-specific configuration only (no merging with base config)."""
+        """Load standalone benchmark configuration (no merging, completely self-contained)."""
         with open(benchmark_config_path, 'r') as f:
             benchmark_config = yaml.safe_load(f)
-
-        # Return only the scenario config - no merging with base config
+        
+        # Validate that config is self-contained
+        self._validate_complete_config(benchmark_config, benchmark_config_path)
+        
+        print(f"✅ Using isolated config: {benchmark_config_path}")
         return benchmark_config
+
+    def _validate_complete_config(self, config: Dict[str, Any], config_path: str) -> None:
+        """Validate that configuration is complete and self-contained."""
+        required_sections = ['retrieval', 'dataset', 'embedding', 'qdrant', 'retrievers', 'evaluation']
+        missing = []
+        
+        for section in required_sections:
+            if section not in config:
+                missing.append(section)
+        
+        if missing:
+            raise ValueError(f"Incomplete config {config_path}. Missing required sections: {missing}. "
+                           f"Each experiment config must be completely self-contained. "
+                           f"See benchmark_scenarios/TEMPLATE_self_contained.yml for a complete example.")
+        
+        # Additional validation for critical subsections
+        retrieval_config = config.get('retrieval', {})
+        if 'type' not in retrieval_config:
+            missing.append('retrieval.type')
+            
+        embedding_config = config.get('embedding', {})
+        if 'strategy' not in embedding_config:
+            missing.append('embedding.strategy')
+            
+        if missing:
+            raise ValueError(f"Incomplete config {config_path}. Missing required keys: {missing}")
+        
+        print(f"🔍 Config validation passed: {config_path} is self-contained")
 
     def run_optimization_scenario(self, scenario_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run a single optimization scenario."""
