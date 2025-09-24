@@ -13,13 +13,43 @@ def get_embedder(cfg: dict):
     """
     provider = cfg.get("provider", "hf").strip().lower()
 
-    if provider == "hf":
-        from embedding.embeddings import HuggingFaceEmbedder
-
-        model_name = cfg.get(
-            "model_name", "sentence-transformers/all-MiniLM-L6-v2")
+    if provider == "hf" or provider == "huggingface":  # Support both 'hf' and 'huggingface'
+        # Support both 'model' and 'model_name' for consistency with your YAML configs
+        model_name = cfg.get("model") or cfg.get(
+            "model_name") or "sentence-transformers/all-MiniLM-L6-v2"
         device = cfg.get("device", "cpu")
-        return HuggingFaceEmbedder(model_name=model_name, device=device)
+        batch_size = cfg.get("batch_size", 32)
+
+        # Pass additional parameters if available
+        model_kwargs = cfg.get("model_kwargs", {})
+        encode_kwargs = cfg.get("encode_kwargs", {})
+
+        # Add device to model_kwargs if not already present
+        if "device" not in model_kwargs:
+            model_kwargs["device"] = device
+
+        # Check if it's a BGE model
+        is_bge_model = any(indicator in model_name.lower() for indicator in [
+            "bge", "baai/bge", "bge-large", "bge-base", "bge-small", "bge-m3"
+        ])
+
+        if is_bge_model:
+            from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+            # Use HuggingFaceBgeEmbeddings for BGE models
+            return HuggingFaceBgeEmbeddings(
+                model_name=model_name,
+                model_kwargs=model_kwargs,
+                encode_kwargs=encode_kwargs
+            )
+        else:
+            from embedding.embeddings import HuggingFaceEmbedder
+            return HuggingFaceEmbedder(
+                model_name=model_name,
+                device=device,
+                batch_size=batch_size,
+                model_kwargs=model_kwargs,
+                encode_kwargs=encode_kwargs
+            )
 
     elif provider == "titan":
         from embedding.bedrock_embeddings import TitanEmbedder
