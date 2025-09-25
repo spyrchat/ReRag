@@ -7,10 +7,11 @@ from .benchmark_contracts import BenchmarkAdapter, BenchmarkTask, BenchmarkQuery
 
 
 class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
-    """Benchmark adapter for StackOverflow datasets."""
+    """Benchmark adapter that loads questions with ground truth mappings."""
 
     def __init__(self, dataset_path: str):
         self.dataset_path = Path(dataset_path)
+        self._queries_cache = None  # Cache loaded queries
 
     @property
     def name(self) -> str:
@@ -21,254 +22,138 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
         return [BenchmarkTask.RETRIEVAL, BenchmarkTask.END_TO_END]
 
     def load_queries(self, split: str = "test") -> List[BenchmarkQuery]:
-        """Convert SO questions into benchmark queries."""
-        queries = []
+        """Load questions with their corresponding answer document IDs."""
+        if self._queries_cache is None:
+            # Look for the questions file with ground truth
+            question_file = self.dataset_path / "question.csv"
 
-        # Try to find CSV or JSON files in the dataset directory
-        csv_files = list(self.dataset_path.glob("*.csv"))
-        json_files = list(self.dataset_path.glob("*.json"))
-
-        if csv_files:
-            queries = self._load_from_csv(csv_files[0])
-        elif json_files:
-            queries = self._load_from_json(json_files[0])
-        else:
-            print(f"⚠️  No CSV or JSON files found in {self.dataset_path}")
-            # Return dummy queries for testing
-            return self._create_dummy_queries()
-
-        print(f"✅ Loaded {len(queries)} queries from {split} split")
-        return queries[:100]  # Limit for testing
-
-    def _load_from_csv(self, csv_file: Path) -> List[BenchmarkQuery]:
-        """Load queries from CSV file."""
-        import pandas as pd
-
-        try:
-            df = pd.read_csv(csv_file)
-            queries = []
-
-            # Try different column name combinations
-            title_col = None
-            body_col = None
-            id_col = None
-
-            for col in df.columns:
-                if 'title' in col.lower() or 'question' in col.lower():
-                    title_col = col
-                elif 'body' in col.lower() or 'text' in col.lower():
-                    body_col = col
-                elif 'id' in col.lower():
-                    id_col = col
-
-            if not title_col:
+            if not question_file.exists():
+                print(f"Question file not found: {question_file}")
                 print(
-                    f"❌ No title column found. Available columns: {list(df.columns)}")
-                return self._create_dummy_queries()
-
-            for idx, row in df.iterrows():
-                if idx >= 100:  # Limit for testing
-                    break
-
-                query_id = str(row[id_col]) if id_col else f"csv_{idx}"
-                title = str(row[title_col])
-                body = str(row[body_col]) if body_col else ""
-
-                if not title or title == 'nan':
-                    continue
-
-                query = BenchmarkQuery(
-                    query_id=f"so_{query_id}",
-                    query_text=title,
-                    expected_answer=body[:500] if body and body != 'nan' else None,
-                    relevant_doc_ids=None,
-                    difficulty="medium",
-                    category="programming",
-                    metadata={
-                        "source": "stackoverflow_csv",
-                        "row_index": idx
-                    }
-                )
-                queries.append(query)
-
-            return queries
-
-        except Exception as e:
-            print(f"❌ Error loading CSV {csv_file}: {e}")
-            return self._create_dummy_queries()
-
-    def _load_from_json(self, json_file: Path) -> List[BenchmarkQuery]:
-        """Load queries from JSON file."""
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-
-            queries = []
-
-            # Handle different JSON structures
-            if isinstance(data, list):
-                questions = data
-            elif isinstance(data, dict) and 'questions' in data:
-                questions = data['questions']
+                    f"   Available files: {list(self.dataset_path.glob('*.csv'))}")
+                self._queries_cache = self._create_dummy_queries()
             else:
-                questions = [data]  # Single question
+                self._queries_cache = self._load_questions_with_ground_truth(
+                    question_file)
 
-            for i, question in enumerate(questions[:100]):  # Limit for testing
-                query = self._create_query_from_question(question, i)
-                if query:
-                    queries.append(query)
+        return self._queries_cache
 
-            return queries
+    def get_ground_truth(self, query_id: str) -> List[str]:
+        """Get ground truth document IDs for a specific query."""
+        queries = self.load_queries()  # This will use cache if already loaded
 
-        except Exception as e:
-            print(f"❌ Error loading JSON {json_file}: {e}")
-            return self._create_dummy_queries()
+        for query in queries:
+            if query.query_id == query_id:
+                return query.relevant_doc_ids or []
 
-    def _create_query_from_question(self, question: Dict[str, Any], index: int) -> BenchmarkQuery:
-        """Create a benchmark query from a question."""
+        print(f"No ground truth found for query_id: {query_id}")
+        return []
 
-        # Try different possible field names
-        title = question.get('title') or question.get(
-            'question_title') or question.get('Title')
-        body = question.get('body') or question.get(
-            'question_body') or question.get('Body') or ""
-        qid = question.get('id') or question.get(
-            'question_id') or question.get('Id') or f"q_{index}"
-
-        if not title:
-            return None
-
-        return BenchmarkQuery(
-            query_id=f"so_{qid}",
-            query_text=title,
-            expected_answer=body[:500] if body else None,
-            relevant_doc_ids=None,
-            difficulty="medium",
-            category="programming",
-            metadata={
-                "original_question": question,
-                "source": "stackoverflow_json"
-            }
-        )
-
-    def _create_dummy_queries(self) -> List[BenchmarkQuery]:
-        """Create dummy queries for testing."""
-        dummy_questions = [
-            "How to show error message box in .NET?",
-            "What is the difference between StringBuilder and String in C#?",
-            "How to convert string to int in Java?",
-            "How to handle null values in Python?",
-            "What is the best way to iterate over a dictionary in Python?",
-            "How to reverse a string in Python?",
-            "What is object-oriented programming?",
-            "How to use lambda functions in Python?",
-            "What is the difference between list and tuple?",
-            "How to handle exceptions in Python?"
-        ]
-
-        queries = []
-        for i, question in enumerate(dummy_questions):
-            query = BenchmarkQuery(
-                query_id=f"dummy_{i}",
-                query_text=question,
-                expected_answer=f"Programming answer for: {question}",
-                relevant_doc_ids=None,
-                difficulty="easy",
-                category="programming",
-                metadata={"source": "dummy"}
-            )
-            queries.append(query)
-
-        return queries
-
-    def get_ground_truth(self, query_id: str) -> Dict[str, Any]:
-        """Get ground truth for evaluation."""
-        return {"relevant_docs": [], "expected_answer": None}
-
-
-class FullDatasetAdapter(StackOverflowBenchmarkAdapter):
-    """Adapter that uses the full dataset with ground truth for proper evaluation."""
-
-    def __init__(self, dataset_path: str):
-        super().__init__(dataset_path)
-
-    @property
-    def name(self) -> str:
-        return "stackoverflow_full_dataset"
-
-    def load_queries(self, split: str = "test") -> List[BenchmarkQuery]:
-        """Load queries with ground truth from the full dataset."""
+    def _load_questions_with_ground_truth(self, question_file: Path) -> List[BenchmarkQuery]:
+        """Load questions and map them to their relevant answer document IDs."""
         import pandas as pd
         import ast
 
-        question_file = self.dataset_path / "question.csv"
-
-        if not question_file.exists():
-            print(f"❌ Question file not found: {question_file}")
-            return self._create_dummy_queries()
-
         try:
-            print(f"📂 Loading questions from {question_file}")
             df = pd.read_csv(question_file)
-            print(f"📊 Total questions in dataset: {len(df)}")
+            print(f"📊 Loaded {len(df)} questions from dataset")
+            print(f"📊 Columns: {list(df.columns)}")
 
-            # Filter for questions with ground truth (answer_posts)
-            df_with_gt = df[df['answer_posts'].notna()]
-            print(f"📊 Questions with ground truth: {len(df_with_gt)}")
+            # Filter for questions that have ground truth answers
+            df_with_answers = df[df['answer_posts'].notna()]
+            print(
+                f"📊 Questions with ground truth answers: {len(df_with_answers)}")
 
             queries = []
-            for idx, row in df_with_gt.iterrows():
-                if pd.isna(row['question_title']) or not row['question_title'].strip():
+
+            for idx, row in df_with_answers.iterrows():
+                # Skip if no question title
+                if pd.isna(row['question_title']) or not str(row['question_title']).strip():
                     continue
 
-                # Parse answer IDs from the answer_posts field
+                # Parse the answer IDs from answer_posts column
                 try:
-                    if isinstance(row['answer_posts'], str):
-                        # Try to parse as literal (list format)
-                        answer_ids = ast.literal_eval(row['answer_posts'])
-                    else:
-                        # Could be a single ID or other format
-                        answer_ids = [int(row['answer_posts'])]
+                    answer_posts = row['answer_posts']
 
-                    # Convert to document IDs with 'a_' prefix
-                    relevant_doc_ids = [f"a_{aid}" for aid in answer_ids]
+                    if isinstance(answer_posts, str):
+                        # Handle list format: "[123, 456, 789]"
+                        if answer_posts.startswith('[') and answer_posts.endswith(']'):
+                            answer_ids = ast.literal_eval(answer_posts)
+                        else:
+                            # Single ID as string
+                            answer_ids = [int(answer_posts)]
+                    else:
+                        # Single numeric ID
+                        answer_ids = [int(answer_posts)]
+
+                    # Convert to string IDs (without 'a_' prefix for ground truth)
+                    # The benchmark runner will compare these against extracted IDs
+                    relevant_doc_ids = [str(aid) for aid in answer_ids]
 
                     if not relevant_doc_ids:
-                        continue  # Skip if no valid answer IDs
+                        continue
 
                 except (ValueError, SyntaxError, TypeError) as e:
                     print(
-                        f"⚠️  Failed to parse answer_posts for question {row['question_id']}: {e}")
+                        f"Failed to parse answer_posts for question {row['question_id']}: {e}")
                     continue
 
+                # Create the benchmark query
                 query = BenchmarkQuery(
-                    query_id=f"full_so_{row['question_id']}",
+                    query_id=str(row['question_id']),
                     query_text=str(row['question_title']).strip(),
-                    expected_answer=None,  # We don't need the answer text for retrieval eval
+                    expected_answer=None,  # Not needed for retrieval evaluation
+                    # Ground truth: which answers should be retrieved
                     relevant_doc_ids=relevant_doc_ids,
                     difficulty="medium",
                     category="programming",
                     metadata={
-                        "source": "full_dataset_with_ground_truth",
-                        "original_question_id": row['question_id'],
+                        "source": "stackoverflow_sosum",
                         "question_type": row.get('question_type', 'unknown'),
                         "tags": row.get('tags', ''),
-                        "num_ground_truth_docs": len(relevant_doc_ids)
+                        "num_answers": len(relevant_doc_ids)
                     }
                 )
                 queries.append(query)
 
             print(
-                f"✅ Successfully loaded {len(queries)} queries with ground truth")
+                f"Successfully loaded {len(queries)} queries with ground truth")
+
+            # Show sample for debugging
+            if queries:
+                sample = queries[0]
+                print(f"📝 Sample query:")
+                print(f"   ID: {sample.query_id}")
+                print(f"   Text: {sample.query_text}")
+                print(f"   Ground truth docs: {sample.relevant_doc_ids}")
+
             return queries
 
         except Exception as e:
-            print(f"❌ Error loading full dataset: {e}")
+            print(f"Error loading questions: {e}")
             import traceback
             traceback.print_exc()
             return self._create_dummy_queries()
 
-    def get_ground_truth(self, query_id: str) -> Dict[str, Any]:
-        """Get ground truth for evaluation (override parent method)."""
-        # For this adapter, ground truth is already in the query's relevant_doc_ids
-        return {"relevant_docs": [], "expected_answer": None}
+    def _create_dummy_queries(self) -> List[BenchmarkQuery]:
+        """Fallback dummy queries for testing."""
+        return [
+            BenchmarkQuery(
+                query_id="dummy_1",
+                query_text="How to implement binary search tree?",
+                expected_answer=None,
+                relevant_doc_ids=None,  # No ground truth for dummies
+                difficulty="medium",
+                category="programming",
+                metadata={"source": "dummy"}
+            ),
+            BenchmarkQuery(
+                query_id="dummy_2",
+                query_text="How to optimize database queries?",
+                expected_answer=None,
+                relevant_doc_ids=None,
+                difficulty="medium",
+                category="programming",
+                metadata={"source": "dummy"}
+            )
+        ]

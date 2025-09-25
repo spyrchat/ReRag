@@ -72,6 +72,17 @@ class BenchmarkMetrics:
             else:
                 metrics[f"ndcg@{k}"] = 0.0
 
+        # F1@K
+        for k in k_values:
+            precision_k = metrics[f"precision@{k}"]
+            recall_k = metrics[f"recall@{k}"]
+
+            # Handle division by zero in F1 calculation
+            if precision_k + recall_k > 0:
+                metrics[f"f1@{k}"] = 2 * \
+                    (precision_k * recall_k) / (precision_k + recall_k)
+            else:
+                metrics[f"f1@{k}"] = 0.0
         return metrics
 
     @staticmethod

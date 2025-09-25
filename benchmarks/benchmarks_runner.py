@@ -21,7 +21,7 @@ class BenchmarkRunner:
         self.metrics = BenchmarkMetrics()
 
         print(f"🔧 Initializing BenchmarkRunner with isolated config")
-        
+
         # Validate config completeness
         self._validate_config_completeness()
 
@@ -32,29 +32,92 @@ class BenchmarkRunner:
         self.generation_engine = self._init_generation_engine()
 
     def _validate_config_completeness(self):
-        """Validate that the provided config is complete."""
-        required_sections = ['retrieval', 'embedding', 'qdrant', 'retrievers', 'evaluation']
+        """Validate config completeness based on simplified scenario structure."""
+        print(f"🔍 Validating scenario configuration...")
+
+        # Core required sections for benchmark scenarios
+        required_sections = ['retrieval', 'evaluation']
         missing = []
-        
+
+        # Check core sections exist
         for section in required_sections:
             if section not in self.config:
                 missing.append(section)
-        
-        # Additional validation for critical subsections
+
+        # Validate retrieval section
         retrieval_config = self.config.get('retrieval', {})
-        if 'type' not in retrieval_config:
-            missing.append('retrieval.type')
-            
-        embedding_config = self.config.get('embedding', {})
-        if 'strategy' not in embedding_config:
-            missing.append('embedding.strategy')
-        
+        if retrieval_config:
+            if 'type' not in retrieval_config:
+                missing.append('retrieval.type')
+
+            # Check embedding config is present (flexible location)
+            has_embedding = (
+                'embedding' in retrieval_config or  # Simplified: embedding in retrieval section
+                'embedding' in self.config           # Legacy: embedding at root
+            )
+            if not has_embedding:
+                missing.append('embedding configuration')
+
+            # Check Qdrant config is present (flexible location)
+            has_qdrant = (
+                'qdrant' in retrieval_config or     # Simplified: qdrant in retrieval section
+                'qdrant' in self.config             # Legacy: qdrant at root
+            )
+            if not has_qdrant:
+                missing.append('qdrant configuration')
+        else:
+            missing.append('retrieval section')
+
+        # Validate evaluation section
+        evaluation_config = self.config.get('evaluation', {})
+        if evaluation_config:
+            if 'k_values' not in evaluation_config:
+                missing.append('evaluation.k_values')
+            if 'metrics' not in evaluation_config:
+                missing.append('evaluation.metrics')
+        else:
+            missing.append('evaluation section')
+
+        # Validate dataset section (required for benchmarking)
+        if 'dataset' not in self.config:
+            missing.append('dataset configuration')
+        else:
+            dataset_config = self.config['dataset']
+            if 'path' not in dataset_config:
+                missing.append('dataset.path')
+
+        # Check for experiment metadata (helpful but not critical)
+        optional_missing = []
+        if 'name' not in self.config:
+            optional_missing.append('name')
+        if 'description' not in self.config:
+            optional_missing.append('description')
+        if 'experiment_name' not in self.config:
+            optional_missing.append('experiment_name')
+
+        # Report results
         if missing:
-            raise ValueError(f"Incomplete configuration. Missing required sections: {missing}. "
-                           f"Configuration must be completely self-contained. "
-                           f"See benchmark_scenarios/TEMPLATE_self_contained.yml for a complete example.")
-        
-        print(f"✅ Configuration validation passed: all required sections present")
+            raise ValueError(f"Scenario configuration incomplete. Missing required: {missing}. "
+                             f"Each benchmark scenario must have: retrieval (with type, embedding, qdrant), "
+                             f"evaluation (with k_values, metrics), and dataset (with path) sections.")
+
+        if optional_missing:
+            print(f"⚠️  Optional metadata missing: {optional_missing}")
+
+        print(f"✅ Scenario configuration validation passed")
+
+        # Show what we found for debugging
+        retrieval_type = retrieval_config.get('type', 'unknown')
+        embedding_location = 'retrieval section' if 'embedding' in retrieval_config else 'root level'
+        qdrant_location = 'retrieval section' if 'qdrant' in retrieval_config else 'root level'
+
+        print(f"📋 Scenario summary:")
+        print(f"   Name: {self.config.get('name', 'Unnamed')}")
+        print(f"   Retrieval type: {retrieval_type}")
+        print(f"   Embedding config: {embedding_location}")
+        print(f"   Qdrant config: {qdrant_location}")
+        print(f"   K-values: {evaluation_config.get('k_values', [])}")
+        print(f"   Max queries: {self.config.get('max_queries', 'all')}")
 
     def _init_retrieval_pipeline(self):
         """Initialize retrieval pipeline from unified configuration."""
@@ -119,9 +182,52 @@ class BenchmarkRunner:
         # Aggregate results
         return self._aggregate_results(results, adapter.name)
 
+    def run_benchmark_with_individual_results(
+        self,
+        adapter: BenchmarkAdapter,
+        tasks: List[str] = None,
+        max_queries: int = None
+    ) -> Dict[str, Any]:
+        """Run benchmark and return both aggregated and individual results."""
+
+        print(f"🚀 Running benchmark: {adapter.name}")
+
+        # Load queries
+        queries = adapter.load_queries()
+        if max_queries:
+            queries = queries[:max_queries]
+
+        print(f"📊 Evaluating {len(queries)} queries")
+
+        results = []
+        individual_scores = {}  # Store individual scores per metric
+
+        # Process each query
+        for query in tqdm(queries, desc="Processing queries"):
+            result = self._evaluate_query(query, adapter)
+            results.append(result)
+
+            # Collect individual scores
+            for metric, score in result.scores.items():
+                if metric not in individual_scores:
+                    individual_scores[metric] = []
+                individual_scores[metric].append(score)
+
+        # Aggregate results with individual scores
+        aggregated = self._aggregate_results(results, adapter.name)
+
+        # Add individual scores to metrics for CI calculation
+        for metric, scores in individual_scores.items():
+            if metric in aggregated['metrics']:
+                aggregated['metrics'][metric]['scores'] = scores
+
+        return aggregated
+
     def _evaluate_query(self, query: BenchmarkQuery, adapter: BenchmarkAdapter) -> BenchmarkResult:
         """Evaluate a single query with configurable components."""
-
+        print(f"\n🔍 DEBUG QUERY: {query.query_id}")
+        print(f"   Query text: {query.query_text}")
+        print(f"   Ground truth: {query.relevant_doc_ids}")
         # Retrieval evaluation using the pipeline
         start_time = time.time()
 
@@ -257,58 +363,27 @@ class BenchmarkRunner:
         """
         Extract document ID from retrieval result.
 
-        For Qdrant, we need to get the external_id from the payload since
-        LangChain doesn't expose it in the document metadata.
+        The external_id format is "a_123456" and we need "123456" for evaluation.
         """
-        # First try: check if external_id is in document metadata
+        # Try to get external_id from metadata
+        external_id = None
+
+        # Check result metadata
         if hasattr(result, 'metadata') and result.metadata:
-            doc_id = result.metadata.get("external_id")
-            if doc_id:
-                return str(doc_id)
+            external_id = result.metadata.get("external_id")
 
-        # Second try: check document's metadata directly
-        if hasattr(result, 'page_content'):
-            # This is a Document object, check its metadata
-            if hasattr(result, 'metadata') and result.metadata:
-                doc_id = result.metadata.get("external_id")
-                if doc_id:
-                    return str(doc_id)
+        # Check document metadata if result has document attribute
+        elif hasattr(result, 'document') and hasattr(result.document, 'metadata'):
+            external_id = result.document.metadata.get("external_id")
 
-        # Third try: if result has document attribute
-        if hasattr(result, 'document'):
-            if hasattr(result.document, 'metadata') and result.document.metadata:
-                doc_id = result.document.metadata.get("external_id")
-                if doc_id:
-                    return str(doc_id)
+        # If we found an external_id, extract the numeric part
+        if external_id and isinstance(external_id, str):
+            if external_id.startswith('a_'):
+                # Remove the "a_" prefix to get just the number
+                return external_id[2:]  # "a_123456" -> "123456"
+            else:
+                # Return as-is if it doesn't have the "a_" prefix
+                return external_id
 
-        # Fourth try: For complex document IDs, try to extract the external_id part
-        # Look for patterns like "stackoverflow_sosum:a_123456:hash" -> "a_123456"
-        try:
-            # Check all possible metadata locations for any ID-like fields
-            metadata_sources = []
-
-            if hasattr(result, 'metadata') and result.metadata:
-                metadata_sources.append(result.metadata)
-            if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
-                metadata_sources.append(result.document.metadata)
-
-            for metadata in metadata_sources:
-                for key, value in metadata.items():
-                    if isinstance(value, str):
-                        # Try to extract answer ID from complex document IDs
-                        if ':a_' in value:
-                            # Pattern: "stackoverflow_sosum:a_123456:hash"
-                            parts = value.split(':')
-                            for part in parts:
-                                if part.startswith('a_'):
-                                    return part
-
-                        # Direct match for answer IDs
-                        if value.startswith('a_') and value.replace('a_', '').replace('_', '').isdigit():
-                            return value
-
-        except Exception as e:
-            pass
-
-        # Fallback to unknown if no ID found
+        # Fallback if no external_id found
         return "unknown"

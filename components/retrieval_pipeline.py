@@ -576,55 +576,46 @@ class RetrievalPipelineFactory:
             return []
 
     @staticmethod
-    def create_from_unified_config(config: Dict[str, Any], retriever_type: str = None) -> 'RetrievalPipeline':
-        """
-        Create a retrieval pipeline from unified configuration structure.
+    def create_from_unified_config(config: Dict[str, Any], retrieval_type: str = None) -> 'RetrievalPipeline':
+        """Create pipeline from simplified config structure."""
 
-        Args:
-            config: Complete configuration dictionary with retriever configs embedded
-            retriever_type: Type of retriever to use (if not specified, uses pipeline default)
+        # Auto-detect retrieval type if not specified
+        if not retrieval_type:
+            # Try multiple detection methods
+            retrieval_type = (
+                # explicit type
+                config.get('retrieval', {}).get('type') or
+                # from embedding strategy
+                config.get('embedding', {}).get('strategy') or
+                ('hybrid' if 'dense' in config.get('embedding', {}) and 'sparse' in config.get('embedding', {}) else None) or
+                'dense'  # default
+            )
 
-        Returns:
-            Configured RetrievalPipeline
+        # Use retrieval config directly instead of retrievers.[type]
+        if 'retrieval' in config:
+            retriever_config = config['retrieval'].copy()
+        elif f'retrievers.{retrieval_type}' in config:
+            retriever_config = config['retrievers'][retrieval_type].copy()
+        else:
+            # Fallback: build config from scattered sections
+            retriever_config = {
+                'type': retrieval_type,
+                'embedding': config.get('embedding', {}),
+                'qdrant': config.get('qdrant', {}),
+                'top_k': config.get('retrieval', {}).get('top_k', 10)
+            }
 
-        Example usage:
-            config = load_config("config.yml")
-            pipeline = RetrievalPipelineFactory.create_from_unified_config(config, "hybrid")
-        """
-        from config.config_loader import get_retriever_config, get_pipeline_config
+        # Merge global sections if needed
+        if 'embedding' not in retriever_config and 'embedding' in config:
+            retriever_config['embedding'] = config['embedding']
+        if 'qdrant' not in retriever_config and 'qdrant' in config:
+            retriever_config['qdrant'] = config['qdrant']
 
-        # Get pipeline configuration
-        pipeline_config = get_pipeline_config(config)
-
-        # Determine retriever type
-        if retriever_type is None:
-            retriever_type = pipeline_config.get("default_retriever", "hybrid")
-
-        # Get retriever-specific configuration
-        retriever_config = get_retriever_config(config, retriever_type)
-
-        # Create retriever using unified config
+        # Create retriever
         retriever = RetrievalPipelineFactory._create_retriever_from_unified_config(
             retriever_config, config)
 
-        # Initialize pipeline with retriever
-        pipeline = RetrievalPipeline([retriever], config)
-
-        # Add components from pipeline config
-        components = pipeline_config.get("components", [])
-        for component_config in components:
-            if component_config.get("type") == "retriever":
-                # Skip retriever component as it's already added
-                continue
-
-            component = RetrievalPipelineFactory._create_stage_component(
-                component_config, config)
-            if component:
-                pipeline.add_component(component)
-
-        logger.info(
-            f"Created {retriever_type} pipeline from unified config with {len(pipeline.components)} components")
-        return pipeline
+        return RetrievalPipeline([retriever], config)
 
     @staticmethod
     def _create_retriever_from_unified_config(retriever_config: Dict[str, Any],

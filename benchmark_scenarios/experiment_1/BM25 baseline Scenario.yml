@@ -1,0 +1,26 @@
+name: "BM25 Baseline - Experiment 1"
+description: "BM25 sparse retrieval baseline"
+
+dataset:
+  path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+  use_ground_truth: true
+
+retrieval:
+  type: "sparse"
+  top_k: 10
+  qdrant:
+    collection_name: "sosum_stackoverflow_bge_large_code_aware_v1"
+    sparse_vector_name: "sparse"
+  embedding:
+    provider: "sparse"
+    model: "Qdrant/bm25"
+
+evaluation:
+  k_values: [10]
+  metrics:
+    retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map"]
+
+max_queries: 506
+experiment_name: "bm25_baseline_exp1"
+generation:
+  enabled: false

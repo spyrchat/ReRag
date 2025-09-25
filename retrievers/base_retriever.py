@@ -18,19 +18,25 @@ class ModernBaseRetriever(BaseRetriever):
     """
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the retriever with configuration.
+        """Initialize with ONLY the provided configuration - no defaults merged."""
+        # Store the exact configuration provided - NO MERGING WITH DEFAULTS
+        self.config = config.copy()  # Use exact copy of provided config
 
-        Args:
-            config: Configuration dictionary containing retrieval parameters
-        """
-        self.config = config
-        self.top_k = config.get("top_k", 5)
-        self.score_threshold = config.get("score_threshold", 0.0)
+        # Only extract essential parameters that must exist
+        self.top_k = config.get('top_k')
+        self.score_threshold = config.get('score_threshold', 0.0)
+
+        if self.top_k is None:
+            raise ValueError(
+                "top_k parameter is required in retriever configuration")
+
+        # Performance settings - only if explicitly provided
+        self.performance_config = config.get('performance', {})
+        self.enable_caching = self.performance_config.get(s
+                                                          'enable_caching', False)
+        self.batch_size = self.performance_config.get('batch_size', 1)
+
         self._initialized = False  # Track initialization state
-
-        # Initialize any common components here
-        self._initialize_components()
 
     def _initialize_components(self):
         """Initialize common components. Override in subclasses."""

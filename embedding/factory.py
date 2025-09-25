@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_embedder(cfg: dict):
@@ -15,6 +18,7 @@ def get_embedder(cfg: dict):
 
     if provider == "hf" or provider == "huggingface":  # Support both 'hf' and 'huggingface'
         # Support both 'model' and 'model_name' for consistency with your YAML configs
+        from langchain_huggingface import HuggingFaceEmbeddings
         model_name = cfg.get("model") or cfg.get(
             "model_name") or "sentence-transformers/all-MiniLM-L6-v2"
         device = cfg.get("device", "cpu")
@@ -28,28 +32,26 @@ def get_embedder(cfg: dict):
         if "device" not in model_kwargs:
             model_kwargs["device"] = device
 
-        # Check if it's a BGE model
-        is_bge_model = any(indicator in model_name.lower() for indicator in [
-            "bge", "baai/bge", "bge-large", "bge-base", "bge-small", "bge-m3"
-        ])
-
-        if is_bge_model:
-            from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-            # Use HuggingFaceBgeEmbeddings for BGE models
-            return HuggingFaceBgeEmbeddings(
+        # Try the new way first (without device/batch_size as direct params)
+        try:
+            return HuggingFaceEmbeddings(
                 model_name=model_name,
                 model_kwargs=model_kwargs,
                 encode_kwargs=encode_kwargs
             )
-        else:
-            from embedding.embeddings import HuggingFaceEmbedder
-            return HuggingFaceEmbedder(
-                model_name=model_name,
-                device=device,
-                batch_size=batch_size,
-                model_kwargs=model_kwargs,
-                encode_kwargs=encode_kwargs
-            )
+        except Exception:
+            # Fallback to old way for backward compatibility
+            try:
+                return HuggingFaceEmbeddings(
+                    model_name=model_name,
+                    device=device,
+                    batch_size=batch_size,
+                    model_kwargs=model_kwargs,
+                    encode_kwargs=encode_kwargs
+                )
+            except Exception as e:
+                logger.error(f"Failed to create HuggingFaceEmbeddings: {e}")
+                raise
 
     elif provider == "titan":
         from embedding.bedrock_embeddings import TitanEmbedder
