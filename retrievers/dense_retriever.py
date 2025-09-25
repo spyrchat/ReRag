@@ -21,6 +21,7 @@ class QdrantDenseRetriever(ModernBaseRetriever):
 
     def __init__(self, config: Dict[str, Any]):
         """Initialize dense retriever with ONLY explicit configuration."""
+        super().__init__(config)
 
         # Require explicit embedding configuration - NO DEFAULTS
         if 'embedding' not in config:

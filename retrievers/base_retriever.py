@@ -32,8 +32,8 @@ class ModernBaseRetriever(BaseRetriever):
 
         # Performance settings - only if explicitly provided
         self.performance_config = config.get('performance', {})
-        self.enable_caching = self.performance_config.get(s
-                                                          'enable_caching', False)
+        self.enable_caching = self.performance_config.get(
+            'enable_caching', False)
         self.batch_size = self.performance_config.get('batch_size', 1)
 
         self._initialized = False  # Track initialization state

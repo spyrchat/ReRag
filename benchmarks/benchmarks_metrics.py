@@ -83,6 +83,39 @@ class BenchmarkMetrics:
                     (precision_k * recall_k) / (precision_k + recall_k)
             else:
                 metrics[f"f1@{k}"] = 0.0
+
+        def calculate_map(retrieved_docs, relevant_docs):
+            if not relevant_docs:
+                return 0.0
+
+            average_precision = 0.0
+            relevant_found = 0
+
+            for i, doc in enumerate(retrieved_docs):
+                if doc in relevant_docs:
+                    relevant_found += 1
+                    precision_at_i = relevant_found / (i + 1)
+                    average_precision += precision_at_i
+
+            return average_precision / len(relevant_docs)
+
+        metrics["map"] = calculate_map(retrieved_docs, relevant_docs)
+
+        # R-Precision (precision at R, where R = number of relevant docs)
+        r = len(relevant_docs)
+        if r > 0 and len(retrieved_docs) >= r:
+            retrieved_r = retrieved_docs[:r]
+            relevant_retrieved_r = len(set(retrieved_r) & set(relevant_docs))
+            metrics["r_precision"] = relevant_retrieved_r / r
+        else:
+            metrics["r_precision"] = 0.0
+
+        # Success@K (binary: found at least one relevant doc in top-k)
+        for k in k_values:
+            retrieved_k = retrieved_docs[:k]
+            has_relevant = any(doc in relevant_docs for doc in retrieved_k)
+            metrics[f"success@{k}"] = 1.0 if has_relevant else 0.0
+
         return metrics
 
     @staticmethod

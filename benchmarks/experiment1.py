@@ -312,20 +312,49 @@ class Experiment1Runner:
         summary_filename = f"experiment_1_summary_{mode_suffix}_{timestamp}.csv"
         self._export_summary_comparison(summary_filename)
 
-        # 3. Full JSON results
+        # 3. Per-query results CSV
+        per_query_filename = f"experiment_1_per_query_{mode_suffix}_{timestamp}.csv"
+        self.export_per_query_results(self.results, per_query_filename)
+
+        # 4. Full JSON results
         json_filename = f"experiment_1_full_results_{mode_suffix}_{timestamp}.json"
         json_path = self.output_dir / json_filename
         with open(json_path, 'w') as f:
             json.dump(self.results, f, indent=2, default=str)
         print(f"💾 Full results saved to: {json_path}")
 
+    def export_per_query_results(self, results: Dict[str, Any], filename: str):
+        """Export per-query metrics for all scenarios to a CSV file."""
+        rows = []
+        for scenario_name, scenario_results in results.items():
+            per_query = scenario_results.get('per_query', [])
+            config = scenario_results.get('scenario_config', {})
+            for query_result in per_query:
+                row = {
+                    'scenario': scenario_name,
+                    'retrieval_type': config.get('retrieval', {}).get('type', 'unknown'),
+                    'embedding_model': self._get_embedding_model(config),
+                    'query_id': query_result.get('query_id', ''),
+                    'query': query_result.get('query', ''),
+                    'relevant_docs': '|'.join(query_result.get('relevant_docs', [])),
+                    'retrieved_docs': '|'.join(query_result.get('retrieved_docs', [])),
+                }
+                metrics = query_result.get('metrics', {})
+                for metric_name, value in metrics.items():
+                    row[metric_name] = value
+                rows.append(row)
+        df = pd.DataFrame(rows)
+        output_path = self.output_dir / filename
+        df.to_csv(output_path, index=False)
+        print(f"💾 Per-query results exported to: {output_path}")
+
     def _export_summary_comparison(self, filename: str):
         """Export summary comparison table."""
         summary_data = []
 
-        key_metrics = ['precision@1', 'precision@3', 'precision@5', 'precision@10',
-                       'recall@1', 'recall@3', 'recall@5', 'recall@10',
-                       'mrr', 'ndcg@5', 'ndcg@10', 'f1@5', 'f1@10' 'map']
+        key_metrics = ['precision@1', 'precision@3', 'precision@5',
+                       'recall@1', 'recall@3', 'recall@5', 
+                       'mrr', 'ndcg@1', 'ndcg@3', 'ndcg@5', 'f1@3', 'f1@5', 'map']
 
         for scenario_name, result in self.results.items():
             metrics = result.get('metrics', {})
@@ -371,7 +400,7 @@ class Experiment1Runner:
                 metrics_1 = self.results[scenario_1]['metrics']
                 metrics_2 = self.results[scenario_2]['metrics']
 
-                key_metrics = ['precision@5', 'recall@5', 'mrr', 'ndcg@5']
+                key_metrics = ['precision@1', 'precision@3', 'precision@5', 'recall@1', 'recall@3', 'recall@5', 'mrr', 'ndcg@3', 'ndcg@5', 'map']
 
                 for metric in key_metrics:
                     if metric in metrics_1 and metric in metrics_2:
