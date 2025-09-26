@@ -24,11 +24,13 @@ try:
     # Try relative imports first (when run as module)
     from .benchmarks_runner import BenchmarkRunner
     from .benchmarks_adapters import StackOverflowBenchmarkAdapter
+    from .utils import calculate_confidence_intervals, export_detailed_metrics, export_per_query_results, get_embedding_model
 except ImportError:
     try:
         # Try absolute imports (when run as script)
         from benchmarks.benchmarks_runner import BenchmarkRunner
         from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter
+        from benchmarks.utils import calculate_confidence_intervals, export_detailed_metrics, export_per_query_results, get_embedding_model
     except ImportError as e:
         print(f"Import error: {e}")
         print("Make sure you're running this from the project root directory")
@@ -93,97 +95,6 @@ class Experiment1Runner:
         results['test_mode'] = self.test_mode
 
         return results
-
-    def calculate_confidence_intervals(self, values: List[float], confidence: float = 0.95) -> Dict[str, float]:
-        """Calculate confidence intervals for a list of values."""
-        if not values or len(values) < 2:
-            return {
-                'mean': 0.0, 'std': 0.0, 'ci_lower': 0.0, 'ci_upper': 0.0,
-                'median': 0.0, 'count': 0
-            }
-
-        values = [v for v in values if not np.isnan(v)]
-        if not values:
-            return {
-                'mean': 0.0, 'std': 0.0, 'ci_lower': 0.0, 'ci_upper': 0.0,
-                'median': 0.0, 'count': 0
-            }
-
-        mean = np.mean(values)
-        std = np.std(values, ddof=1)
-        n = len(values)
-
-        # Calculate 95% confidence interval
-        alpha = 1 - confidence
-        degrees_freedom = n - 1
-        t_critical = stats.t.ppf(1 - alpha/2, degrees_freedom) if n > 1 else 0
-
-        margin_error = t_critical * (std / np.sqrt(n))
-        ci_lower = mean - margin_error
-        ci_upper = mean + margin_error
-
-        return {
-            'mean': float(mean),
-            'std': float(std),
-            'ci_lower': float(ci_lower),
-            'ci_upper': float(ci_upper),
-            'median': float(np.median(values)),
-            'count': n,
-            'margin_error': float(margin_error)
-        }
-
-    def export_detailed_metrics(self, results: Dict[str, Any], filename: str):
-        """Export detailed metrics with confidence intervals to CSV."""
-        metrics_data = []
-
-        for scenario_name, scenario_results in results.items():
-            metrics = scenario_results.get('metrics', {})
-            config = scenario_results.get('scenario_config', {})
-
-            # Base information
-            base_info = {
-                'scenario': scenario_name,
-                'retrieval_type': config.get('retrieval', {}).get('type', 'unknown'),
-                'embedding_model': self._get_embedding_model(config),
-                'total_queries': scenario_results.get('config', {}).get('total_queries', 0),
-                'test_mode': scenario_results.get('test_mode', False),
-                'timestamp': scenario_results.get('timestamp', ''),
-            }
-
-            # Process each metric
-            for metric_name, metric_stats in metrics.items():
-                if isinstance(metric_stats, dict) and 'mean' in metric_stats:
-                    row = base_info.copy()
-                    row.update({
-                        'metric': metric_name,
-                        'mean': metric_stats.get('mean', 0),
-                        'std': metric_stats.get('std', 0),
-                        'ci_lower': metric_stats.get('ci_lower', 0),
-                        'ci_upper': metric_stats.get('ci_upper', 0),
-                        'median': metric_stats.get('median', 0),
-                        'min': metric_stats.get('min', 0),
-                        'max': metric_stats.get('max', 0),
-                        'count': metric_stats.get('count', 0),
-                        'margin_error': metric_stats.get('margin_error', 0)
-                    })
-                    metrics_data.append(row)
-
-        # Create DataFrame and save
-        df = pd.DataFrame(metrics_data)
-        output_path = self.output_dir / filename
-        df.to_csv(output_path, index=False)
-
-        print(f"💾 Detailed metrics exported to: {output_path}")
-        return output_path
-
-    def _get_embedding_model(self, config: Dict[str, Any]) -> str:
-        """Extract embedding model from config."""
-        embedding = config.get('embedding', {})
-        if 'dense' in embedding:
-            return embedding['dense'].get('model', 'unknown')
-        elif 'sparse' in embedding:
-            return embedding['sparse'].get('model', 'unknown')
-        return embedding.get('model', 'unknown')
 
     def run_experiment(self):
         """Run the complete experiment comparing BM25 vs Dense vs Hybrid BGE-M3."""
@@ -277,8 +188,7 @@ class Experiment1Runner:
                     # If we have individual scores, calculate CI
                     if 'scores' in metric_data:
                         scores = metric_data['scores']
-                        enhanced_stats = self.calculate_confidence_intervals(
-                            scores)
+                        enhanced_stats = calculate_confidence_intervals(scores)
                         enhanced_metrics[metric_name] = enhanced_stats
                     else:
                         # Use existing stats and add CI if possible
@@ -317,7 +227,7 @@ class Experiment1Runner:
 
         # 1. Detailed CSV with confidence intervals
         csv_filename = f"experiment_1_detailed_metrics_{mode_suffix}_{timestamp}.csv"
-        self.export_detailed_metrics(self.results, csv_filename)
+        export_detailed_metrics(self.results, csv_filename, self.output_dir)
 
         # 2. Summary comparison CSV
         summary_filename = f"experiment_1_summary_{mode_suffix}_{timestamp}.csv"
@@ -325,7 +235,8 @@ class Experiment1Runner:
 
         # 3. Per-query results CSV
         per_query_filename = f"experiment_1_per_query_{mode_suffix}_{timestamp}.csv"
-        self.export_per_query_results(self.results, per_query_filename)
+        export_per_query_results(
+            self.results, per_query_filename, self.output_dir)
 
         # 4. Full JSON results
         json_filename = f"experiment_1_full_results_{mode_suffix}_{timestamp}.json"
@@ -333,31 +244,6 @@ class Experiment1Runner:
         with open(json_path, 'w') as f:
             json.dump(self.results, f, indent=2, default=str)
         print(f"💾 Full results saved to: {json_path}")
-
-    def export_per_query_results(self, results: Dict[str, Any], filename: str):
-        """Export per-query metrics for all scenarios to a CSV file."""
-        rows = []
-        for scenario_name, scenario_results in results.items():
-            per_query = scenario_results.get('per_query', [])
-            config = scenario_results.get('scenario_config', {})
-            for query_result in per_query:
-                row = {
-                    'scenario': scenario_name,
-                    'retrieval_type': config.get('retrieval', {}).get('type', 'unknown'),
-                    'embedding_model': self._get_embedding_model(config),
-                    'query_id': query_result.get('query_id', ''),
-                    'query': query_result.get('query', ''),
-                    'relevant_docs': '|'.join(query_result.get('relevant_docs', [])),
-                    'retrieved_docs': '|'.join(query_result.get('retrieved_docs', [])),
-                }
-                metrics = query_result.get('metrics', {})
-                for metric_name, value in metrics.items():
-                    row[metric_name] = value
-                rows.append(row)
-        df = pd.DataFrame(rows)
-        output_path = self.output_dir / filename
-        df.to_csv(output_path, index=False)
-        print(f"💾 Per-query results exported to: {output_path}")
 
     def _export_summary_comparison(self, filename: str):
         """Export summary comparison table."""
@@ -374,7 +260,7 @@ class Experiment1Runner:
             row = {
                 'scenario': scenario_name,
                 'retrieval_type': config.get('retrieval', {}).get('type'),
-                'model': self._get_embedding_model(config),
+                'model': get_embedding_model(config),
                 'total_queries': result.get('config', {}).get('total_queries', 0),
                 'test_mode': result.get('test_mode', False)
             }

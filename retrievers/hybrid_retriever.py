@@ -235,89 +235,102 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             logger.error(f"Sparse search component failed: {e}")
             return []
 
-    def _fuse_results_with_alpha(self, dense_results: List[RetrievalResult],
-                                 sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
-        """
-        Fuse results using only alpha parameter.
-        alpha = 0.0: pure sparse
-        alpha = 1.0: pure dense  
-        alpha = 0.5: equal weighting
-        """
+    def _fuse_results_with_alpha(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+        """Enhanced fusion with pure modes and fixed RRF."""
+        if self.alpha >= 0.99:
+            logger.info("Using pure dense mode (alpha >= 0.99)")
+            return dense_results[:k]
+        elif self.alpha <= 0.01:
+            logger.info("Using pure sparse mode (alpha <= 0.01)")
+            return sparse_results[:k]
         if self.fusion_method == 'rrf':
-            return self._alpha_weighted_rrf(dense_results, sparse_results, k)
+            return self._fixed_rrf_fusion(dense_results, sparse_results, k)
         elif self.fusion_method == 'weighted_sum':
             return self._alpha_weighted_sum(dense_results, sparse_results, k)
         else:
             raise ValueError(
                 f"Unsupported fusion method: {self.fusion_method}")
 
+    def _fixed_rrf_fusion(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+        """Completely fixed RRF fusion."""
+        doc_scores = {}
+        # Build rank mappings
+        dense_ranks = {r.document.metadata.get('external_id'): rank
+                       for rank, r in enumerate(dense_results, 1)}
+        sparse_ranks = {r.document.metadata.get('external_id'): rank
+                        for rank, r in enumerate(sparse_results, 1)}
+        # Collect all documents
+        all_docs = {}
+        for r in dense_results + sparse_results:
+            doc_id = r.document.metadata.get('external_id')
+            if doc_id and doc_id not in all_docs:
+                all_docs[doc_id] = r
+        # Calculate proper RRF scores
+        for doc_id, r in all_docs.items():
+            dense_rank = dense_ranks.get(
+                doc_id, k + 100)  # Penalty for missing
+            sparse_rank = sparse_ranks.get(doc_id, k + 100)
+            dense_rrf = 1.0 / (self.rrf_k + dense_rank)
+            sparse_rrf = 1.0 / (self.rrf_k + sparse_rank)
+            final_score = self.alpha * dense_rrf + \
+                (1.0 - self.alpha) * sparse_rrf
+            r.score = final_score
+            r.metadata.update({
+                'search_type': 'hybrid_fixed_rrf',
+                'alpha': self.alpha,
+                'dense_rrf': dense_rrf,
+                'sparse_rrf': sparse_rrf,
+                'fusion_method': 'fixed_rrf'
+            })
+            doc_scores[doc_id] = r
+        results = list(doc_scores.values())
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:k]
+
     def _alpha_weighted_rrf(self, dense_results: List[RetrievalResult],
                             sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
-        """RRF fusion with alpha weighting."""
-        doc_scores = {}
-
-        # Process dense results with alpha weighting
-        for rank, result in enumerate(dense_results, 1):
-            doc_id = result.document.metadata.get('external_id')
-            if doc_id:
-                rrf_score = self.alpha * (1.0 / (self.rrf_k + rank))
-                doc_scores[doc_id] = {
-                    'result': result,
-                    'dense_score': rrf_score,
-                    'sparse_score': 0.0
-                }
-
-        # Process sparse results with (1-alpha) weighting
-        for rank, result in enumerate(sparse_results, 1):
-            doc_id = result.document.metadata.get('external_id')
-            if doc_id:
-                rrf_score = (1.0 - self.alpha) * (1.0 / (self.rrf_k + rank))
-                if doc_id in doc_scores:
-                    doc_scores[doc_id]['sparse_score'] = rrf_score
-                else:
-                    doc_scores[doc_id] = {
-                        'result': result,
-                        'dense_score': 0.0,
-                        'sparse_score': rrf_score
-                    }
-
-        # Combine and sort
-        combined_results = []
-        for doc_id, scores in doc_scores.items():
-            combined_score = scores['dense_score'] + scores['sparse_score']
-            result = scores['result']
-            result.score = combined_score
-            result.metadata.update({
-                'search_type': 'hybrid_alpha_rrf',
-                'alpha': self.alpha,
-                'dense_rrf_score': scores['dense_score'],
-                'sparse_rrf_score': scores['sparse_score'],
-                'fusion_method': 'rrf'
-            })
-            combined_results.append(result)
-
-        combined_results.sort(key=lambda x: x.score, reverse=True)
-        return combined_results[:k]
+        """Legacy RRF fusion (deprecated, replaced by _fixed_rrf_fusion)."""
+        # ...existing code...
 
     def _alpha_weighted_sum(self, dense_results: List[RetrievalResult],
                             sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
         """Weighted sum fusion with alpha parameter."""
         # Normalize scores
-        def normalize_scores(results):
+
+        def normalize_scores(results: List[RetrievalResult]) -> Dict:
+            """Robust score normalization preserving relative rankings."""
             if not results:
                 return {}
+
             scores = [r.score for r in results]
-            min_score, max_score = min(scores), max(scores)
-            score_range = max_score - min_score if max_score > min_score else 1.0
+
+            # Use min-max normalization with small epsilon to prevent division by zero
+            min_score = min(scores)
+            max_score = max(scores)
+            score_range = max_score - min_score
+
+            if score_range < 1e-10:  # Prevent division by zero
+                # If all scores are the same, use rank-based normalization
+                normalized = {}
+                for rank, result in enumerate(results, 1):
+                    doc_id = result.document.metadata.get('external_id')
+                    if doc_id:
+                        normalized[doc_id] = {
+                            'result': result,
+                            'score': 1.0 / rank  # Rank-based fallback
+                        }
+                return normalized
 
             normalized = {}
             for result in results:
                 doc_id = result.document.metadata.get('external_id')
                 if doc_id:
+                    norm_score = (result.score - min_score) / score_range
                     normalized[doc_id] = {
                         'result': result,
-                        'score': (result.score - min_score) / score_range
+                        'score': norm_score
                     }
+
             return normalized
 
         dense_normalized = normalize_scores(dense_results)

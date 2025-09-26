@@ -23,7 +23,6 @@ class QdrantSparseRetriever(ModernBaseRetriever):
         """Initialize sparse retriever with ONLY explicit configuration."""
         super().__init__(config)
 
-        # Require explicit configuration - NO DEFAULTS
         if 'embedding' not in config:
             raise ValueError(
                 "Embedding configuration is required for sparse retriever")
