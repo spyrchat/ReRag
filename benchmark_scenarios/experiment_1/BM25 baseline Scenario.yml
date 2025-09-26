@@ -7,9 +7,9 @@ dataset:
 
 retrieval:
   type: "sparse"
-  top_k: 10
+  top_k: 20
   qdrant:
-    collection_name: "sosum_stackoverflow_bge_large_code_aware_v1"
+    collection_name: "sosum_stackoverflow_bge_large_code_aware_v2"
     sparse_vector_name: "sparse"
   embedding:
     provider: "sparse"

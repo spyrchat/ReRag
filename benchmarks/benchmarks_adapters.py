@@ -124,7 +124,8 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                 # Create the benchmark query
                 query = BenchmarkQuery(
                     query_id=str(row['question_id']),
-                    query_text=str(row['question_title']).strip(),
+                    query_text=f"{row['question_title']} {row.get('question_body', '')}".strip(
+                    ),
                     expected_answer=None,  # Not needed for retrieval evaluation
                     # Ground truth: which answers should be retrieved
                     relevant_doc_ids=relevant_chunk_ids,

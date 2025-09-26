@@ -7,13 +7,13 @@ dataset:
 
 retrieval:
   type: "hybrid"
-  top_k: 10
+  top_k: 20
   fusion:
     method: "rrf"
     alpha: 0.5
     rrf_k: 60
   qdrant:
-    collection_name: "sosum_stackoverflow_bge_large_code_aware_v1"
+    collection_name: "sosum_stackoverflow_bge_large_code_aware_v2"
     dense_vector_name: "dense"
     sparse_vector_name: "sparse"
   embedding:

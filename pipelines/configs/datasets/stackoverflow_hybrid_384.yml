@@ -6,8 +6,8 @@ dataset:
   adapter: "stackoverflow"
 
 chunking:
-  strategy: "code_aware"      # Changed from "recursive" to "code_aware"
-  chunk_size: 800            # Larger chunks for 1024-dim embeddings
+  strategy: "recursive"      # Changed from "recursive" to "code_aware"
+  chunk_size: 400            # Larger chunks for 1024-dim embeddings
   chunk_overlap: 100
   separators: ["\n\n", "\n", " ", ""]
 
@@ -24,7 +24,7 @@ embedding:
     batch_size: 32
 
 qdrant:
-  collection: "sosum_stackoverflow_bge_large_code_aware_v1"
+  collection: "sosum_stackoverflow_bge_large_code_aware_v2"
   dense_vector_name: "dense"
   sparse_vector_name: "sparse"
 
@@ -34,7 +34,7 @@ upload:
   versioning: true
 
 validation:
-  min_char_length: 30
+  min_char_length: 10
   max_char_length: 50000
   remove_duplicates: true
   clean_html: true
