@@ -2,6 +2,8 @@
 Modern base retriever that integrates with the retrieval pipeline architecture.
 """
 
+from typing import Any, Dict
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from components.retrieval_pipeline import BaseRetriever, RetrievalResult
@@ -9,6 +11,14 @@ from langchain_core.documents import Document
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RetrievalResult:
+    document: Any
+    score: float
+    retrieval_method: str
+    metadata: Dict[str, Any]
 
 
 class ModernBaseRetriever(BaseRetriever):
@@ -106,20 +116,30 @@ class ModernBaseRetriever(BaseRetriever):
         additional_metadata: Dict[str, Any] = None
     ) -> RetrievalResult:
         """
-        Create a RetrievalResult object with proper metadata.
+        Construct a RetrievalResult dataclass instance for a retrieved document.
+
+        This method extracts the chunk_id from the document's metadata (if present)
+        and adds it to the result metadata. It also merges any additional metadata provided.
 
         Args:
-            document: The retrieved document
-            score: Relevance score
-            additional_metadata: Additional metadata to include
+            document (Document): The retrieved document object, typically with metadata.
+            score (float): The relevance score for the retrieved document.
+            additional_metadata (Dict[str, Any], optional): Any extra metadata to include in the result.
 
         Returns:
-            RetrievalResult object
+            RetrievalResult: A dataclass instance containing the document, score, retrieval method, and metadata.
         """
         metadata = {
             "retriever_config": self.config,
             "retrieval_timestamp": None,  # Can add timestamp if needed
         }
+
+        # Extract chunk_id from document metadata if present
+        chunk_id = None
+        if hasattr(document, "metadata") and document.metadata:
+            chunk_id = document.metadata.get("chunk_id")
+            if chunk_id:
+                metadata["chunk_id"] = chunk_id
 
         if additional_metadata:
             metadata.update(additional_metadata)

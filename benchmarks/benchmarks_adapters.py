@@ -4,14 +4,17 @@ import os
 from pathlib import Path
 from typing import List, Union, Dict, Any
 from .benchmark_contracts import BenchmarkAdapter, BenchmarkTask, BenchmarkQuery
+from utils import preload_chunk_id_mapping
 
 
 class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
     """Benchmark adapter that loads questions with ground truth mappings."""
 
-    def __init__(self, dataset_path: str):
+    def __init__(self, dataset_path: str, qdrant_client=None, collection_name=None):
         self.dataset_path = Path(dataset_path)
         self._queries_cache = None  # Cache loaded queries
+        self.qdrant_client = qdrant_client
+        self.collection_name = collection_name
 
     @property
     def name(self) -> str:
@@ -50,23 +53,43 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
         return []
 
     def _load_questions_with_ground_truth(self, question_file: Path) -> List[BenchmarkQuery]:
-        """Load questions and map them to their relevant answer document IDs."""
         import pandas as pd
         import ast
 
-        try:
-            df = pd.read_csv(question_file)
-            print(f"📊 Loaded {len(df)} questions from dataset")
-            print(f"📊 Columns: {list(df.columns)}")
+        # Preload all chunk IDs for the collection
+        chunk_id_mapping = preload_chunk_id_mapping(
+            self.qdrant_client, self.collection_name)
 
-            # Filter for questions that have ground truth answers
-            df_with_answers = df[df['answer_posts'].notna()]
-            print(
-                f"📊 Questions with ground truth answers: {len(df_with_answers)}")
+        df = pd.read_csv(question_file)
+        df_with_answers = df[df['answer_posts'].notna()]
+        queries = []
 
-            queries = []
+        for idx, row in df_with_answers.iterrows():
+            if pd.isna(row['question_title']) or not str(row['question_title']).strip():
+                continue
 
-            for idx, row in df_with_answers.iterrows():
+            try:
+                answer_posts = row['answer_posts']
+                if isinstance(answer_posts, str):
+                    if answer_posts.startswith('[') and answer_posts.endswith(']'):
+                        answer_ids = ast.literal_eval(answer_posts)
+                    else:
+                        answer_ids = [int(answer_posts)]
+                else:
+                    answer_ids = [int(answer_posts)]
+                if not answer_ids:
+                    continue
+            except (ValueError, SyntaxError, TypeError) as e:
+                print(
+                    f"Failed to parse answer_posts for question {row['question_id']}: {e}")
+                continue
+
+            relevant_chunk_ids = []
+            for aid in answer_ids:
+                external_id = f"a_{aid}"
+                chunk_ids = chunk_id_mapping.get(external_id, [])
+                relevant_chunk_ids.extend(chunk_ids)
+
                 # Skip if no question title
                 if pd.isna(row['question_title']) or not str(row['question_title']).strip():
                     continue
@@ -104,7 +127,7 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                     query_text=str(row['question_title']).strip(),
                     expected_answer=None,  # Not needed for retrieval evaluation
                     # Ground truth: which answers should be retrieved
-                    relevant_doc_ids=relevant_doc_ids,
+                    relevant_doc_ids=relevant_chunk_ids,
                     difficulty="medium",
                     category="programming",
                     metadata={
@@ -115,25 +138,19 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                     }
                 )
                 queries.append(query)
-
+            print("Sample ground truth chunk IDs:", relevant_chunk_ids[:5])
             print(
                 f"Successfully loaded {len(queries)} queries with ground truth")
 
-            # Show sample for debugging
-            if queries:
-                sample = queries[0]
-                print(f"📝 Sample query:")
-                print(f"   ID: {sample.query_id}")
-                print(f"   Text: {sample.query_text}")
-                print(f"   Ground truth docs: {sample.relevant_doc_ids}")
+            # # Show sample for debugging
+            # if queries:
+            #     sample = queries[0]
+            #     print(f"📝 Sample query:")
+            #     print(f"   ID: {sample.query_id}")
+            #     print(f"   Text: {sample.query_text}")
+            #     print(f"   Ground truth docs: {sample.relevant_doc_ids}")
 
-            return queries
-
-        except Exception as e:
-            print(f"Error loading questions: {e}")
-            import traceback
-            traceback.print_exc()
-            return self._create_dummy_queries()
+        return queries
 
     def _create_dummy_queries(self) -> List[BenchmarkQuery]:
         """Fallback dummy queries for testing."""

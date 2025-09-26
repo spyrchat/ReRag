@@ -2,6 +2,7 @@
 
 import time
 import numpy as np
+import logging
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 
@@ -9,6 +10,8 @@ from .benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResu
 from .benchmarks_metrics import BenchmarkMetrics
 from components.retrieval_pipeline import RetrievalPipelineFactory
 from config.config_loader import get_benchmark_config, get_retriever_config
+
+logger = logging.getLogger("benchmark_runner")
 
 
 class BenchmarkRunner:
@@ -153,19 +156,11 @@ class BenchmarkRunner:
         tasks: List[str] = None,
         max_queries: int = None
     ) -> Dict[str, Any]:
-        """Run comprehensive benchmark with configurable components."""
-
         print(f"🚀 Running benchmark: {adapter.name}")
-
         retrieval_type = self.config.get(
             "retrieval", {}).get("type", "unknown")
         print(f"🔍 Retrieval strategy: {retrieval_type}")
 
-        if self.generation_engine:
-            print(
-                f"🤖 Generation provider: {self.generation_engine.provider_name}")
-
-        # Load queries
         queries = adapter.load_queries()
         if max_queries:
             queries = queries[:max_queries]
@@ -173,13 +168,17 @@ class BenchmarkRunner:
         print(f"📊 Evaluating {len(queries)} queries")
 
         results = []
-
-        # Process each query with progress bar
-        for query in tqdm(queries, desc="Processing queries"):
+        start_total = time.time()
+        for i, query in enumerate(tqdm(queries, desc="Processing queries")):
+            start_query = time.time()
             result = self._evaluate_query(query, adapter)
+            end_query = time.time()
+            logger.info(
+                f"Processed query {i+1}/{len(queries)} ({query.query_id}) in {end_query - start_query:.2f}s")
             results.append(result)
+        end_total = time.time()
+        logger.info(f"Processed all queries in {end_total - start_total:.2f}s")
 
-        # Aggregate results
         return self._aggregate_results(results, adapter.name)
 
     def run_benchmark_with_individual_results(
@@ -224,32 +223,33 @@ class BenchmarkRunner:
         return aggregated
 
     def _evaluate_query(self, query: BenchmarkQuery, adapter: BenchmarkAdapter) -> BenchmarkResult:
-        """Evaluate a single query with configurable components."""
         print(f"\n🔍 DEBUG QUERY: {query.query_id}")
         print(f"   Query text: {query.query_text}")
         print(f"   Ground truth: {query.relevant_doc_ids}")
-        # Retrieval evaluation using the pipeline
-        start_time = time.time()
 
-        # Use the pipeline's run method
+        start_retrieval = time.time()
         search_results = self.retrieval_pipeline.run(
             query.query_text,
             k=self.config.get("retrieval", {}).get("top_k", 20)
         )
+        end_retrieval = time.time()
+        logger.info(
+            f"Retrieval for query {query.query_id} took {end_retrieval - start_retrieval:.2f}s")
 
-        retrieval_time = (time.time() - start_time) * 1000
+        retrieval_time = (time.time() - start_retrieval) * 1000
 
         # Extract document IDs from results
-        retrieved_doc_ids = []
+        retrieved_chunk_ids = []
         for result in search_results:
             doc_id = self._extract_document_id_from_result(result)
-            retrieved_doc_ids.append(str(doc_id))
+            retrieved_chunk_ids.append(str(doc_id))
 
+        print(f"   Retrieved chunk IDs: {retrieved_chunk_ids[:5]}")
         # Compute retrieval metrics
         retrieval_scores = {}
         if query.relevant_doc_ids:
             retrieval_scores = self.metrics.retrieval_metrics(
-                retrieved_doc_ids,
+                retrieved_chunk_ids,
                 query.relevant_doc_ids,
                 k_values=self.config.get("evaluation", {}).get(
                     "k_values", [1, 5, 10, 20])
@@ -288,7 +288,7 @@ class BenchmarkRunner:
 
         return BenchmarkResult(
             query_id=query.query_id,
-            retrieved_docs=retrieved_doc_ids,
+            retrieved_docs=retrieved_chunk_ids,
             generated_answer=generated_answer,
             retrieval_time_ms=retrieval_time,
             generation_time_ms=generation_time,
@@ -360,30 +360,30 @@ class BenchmarkRunner:
         return aggregated
 
     def _extract_document_id_from_result(self, result) -> str:
-        """
-        Extract document ID from retrieval result.
+        # Print for debugging
+        print("DEBUG result:", result)
+        print("DEBUG payload:", getattr(result, "payload", None))
 
-        The external_id format is "a_123456" and we need "123456" for evaluation.
-        """
-        # Try to get external_id from metadata
-        external_id = None
+        # Try payload
+        if hasattr(result, "payload") and result.payload:
+            if "chunk_id" in result.payload:
+                return result.payload["chunk_id"]
+            # Try doc_id if chunk_id missing
+            if "doc_id" in result.payload:
+                return result.payload["doc_id"]
 
-        # Check result metadata
+        # Try metadata
         if hasattr(result, 'metadata') and result.metadata:
-            external_id = result.metadata.get("external_id")
+            if "chunk_id" in result.metadata:
+                return result.metadata["chunk_id"]
+            if "doc_id" in result.metadata:
+                return result.metadata["doc_id"]
 
-        # Check document metadata if result has document attribute
-        elif hasattr(result, 'document') and hasattr(result.document, 'metadata'):
-            external_id = result.document.metadata.get("external_id")
+        # Try document
+        if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
+            if "chunk_id" in result.document.metadata:
+                return result.document.metadata["chunk_id"]
+            if "doc_id" in result.document.metadata:
+                return result.document.metadata["doc_id"]
 
-        # If we found an external_id, extract the numeric part
-        if external_id and isinstance(external_id, str):
-            if external_id.startswith('a_'):
-                # Remove the "a_" prefix to get just the number
-                return external_id[2:]  # "a_123456" -> "123456"
-            else:
-                # Return as-is if it doesn't have the "a_" prefix
-                return external_id
-
-        # Fallback if no external_id found
         return "unknown"

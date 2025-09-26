@@ -97,13 +97,11 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             if hasattr(self.embedding, 'embed_query'):
                 query_vector = self.embedding.embed_query(query)
             else:
-                # For BM25/sparse embeddings that might not have embed_query
                 query_vector = self.embedding.embed_documents([query])[0]
 
-            # Convert sparse dict to Qdrant sparse vector format for named sparse vectors
+            # Perform Qdrant search
             if isinstance(query_vector, dict):
                 from qdrant_client.models import NamedSparseVector
-
                 search_result = self.qdrant_db.client.search(
                     collection_name=self.qdrant_db.collection_name,
                     query_vector=NamedSparseVector(
@@ -115,9 +113,7 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                     with_payload=True
                 )
             else:
-                # Dense vector format (list) - fallback
                 from qdrant_client.models import NamedVector
-
                 search_result = self.qdrant_db.client.search(
                     collection_name=self.qdrant_db.collection_name,
                     query_vector=NamedVector(
@@ -128,39 +124,32 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                     with_payload=True
                 )
 
-            # Convert to RetrievalResult objects
-            retrieval_results = []
+            # Convert to RetrievalResult objects (for both branches)
+            results = []
             for result in search_result:
                 payload = result.payload or {}
-
-                # Create document with preserved external_id
                 document = Document(
                     page_content=payload.get('page_content', ''),
                     metadata={
                         **payload.get('metadata', {}),
-                        # Ensure external_id is in metadata
                         'external_id': payload.get('external_id'),
-                        # Also store the Qdrant UUID for reference
-                        'qdrant_id': str(result.id)
+                        'qdrant_id': str(result.id),
+                        'chunk_id': payload.get('chunk_id')
                     }
                 )
-
                 retrieval_result = self._create_retrieval_result(
                     document=document,
                     score=result.score,
                     additional_metadata={
-                        'search_type': 'sparse_similarity',
-                        'embedding_model': type(self.embedding).__name__,
-                        # Also add to retrieval metadata
+                        'search_type': 'sparse_component',
                         'external_id': payload.get('external_id')
                     }
                 )
-                retrieval_results.append(retrieval_result)
+                results.append(retrieval_result)
 
             # Normalize scores for consistency
-            retrieval_results = self._normalize_scores(retrieval_results)
-
-            return retrieval_results
+            results = self._normalize_scores(results)
+            return results
 
         except Exception as e:
             logger.error(f"Error during sparse search: {e}")

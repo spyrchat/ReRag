@@ -63,10 +63,21 @@ class Experiment1Runner:
             print(
                 f"📊 FULL MODE: Processing ALL {config['max_queries']} queries for statistical significance")
 
+        # Initialize Qdrant client from config
+        qdrant_cfg = config['retrieval']['qdrant']
+        from qdrant_client import QdrantClient
+        qdrant_client = QdrantClient(
+            host=qdrant_cfg.get('host', 'localhost'),
+            port=qdrant_cfg.get('port', 6333)
+        )
+        collection_name = qdrant_cfg['collection_name']
+
         # Initialize runner and adapter
         runner = BenchmarkRunner(config)
         adapter = StackOverflowBenchmarkAdapter(
-            dataset_path=config['dataset']['path']
+            dataset_path=config['dataset']['path'],
+            qdrant_client=qdrant_client,
+            collection_name=collection_name
         )
 
         # Run benchmark
@@ -353,7 +364,7 @@ class Experiment1Runner:
         summary_data = []
 
         key_metrics = ['precision@1', 'precision@3', 'precision@5',
-                       'recall@1', 'recall@3', 'recall@5', 
+                       'recall@1', 'recall@3', 'recall@5',
                        'mrr', 'ndcg@1', 'ndcg@3', 'ndcg@5', 'f1@3', 'f1@5', 'map']
 
         for scenario_name, result in self.results.items():
@@ -400,7 +411,8 @@ class Experiment1Runner:
                 metrics_1 = self.results[scenario_1]['metrics']
                 metrics_2 = self.results[scenario_2]['metrics']
 
-                key_metrics = ['precision@1', 'precision@3', 'precision@5', 'recall@1', 'recall@3', 'recall@5', 'mrr', 'ndcg@3', 'ndcg@5', 'map']
+                key_metrics = ['precision@1', 'precision@3', 'precision@5',
+                               'recall@1', 'recall@3', 'recall@5', 'mrr', 'ndcg@3', 'ndcg@5', 'map']
 
                 for metric in key_metrics:
                     if metric in metrics_1 and metric in metrics_2:

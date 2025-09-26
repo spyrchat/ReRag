@@ -150,7 +150,9 @@ class QdrantHybridRetriever(ModernBaseRetriever):
                     metadata={
                         **payload.get('metadata', {}),
                         'external_id': payload.get('external_id'),
-                        'qdrant_id': str(result.id)
+                        'qdrant_id': str(result.id),
+                        # <-- Always include chunk_id
+                        'chunk_id': payload.get('chunk_id')
                     }
                 )
 
@@ -211,7 +213,9 @@ class QdrantHybridRetriever(ModernBaseRetriever):
                     metadata={
                         **payload.get('metadata', {}),
                         'external_id': payload.get('external_id'),
-                        'qdrant_id': str(result.id)
+                        'qdrant_id': str(result.id),
+                        # <-- Always include chunk_id
+                        'chunk_id': payload.get('chunk_id')
                     }
                 )
 

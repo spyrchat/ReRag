@@ -9,7 +9,7 @@ from langchain_qdrant import QdrantVectorStore
 from components.retrieval_pipeline import RetrievalResult
 from .base_retriever import ModernBaseRetriever
 import logging
-
+from retrievers.base_retriever import RetrievalResult
 logger = logging.getLogger(__name__)
 
 
@@ -119,15 +119,13 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             for result in search_result:
                 payload = result.payload or {}
 
-                # Create document with preserved external_id
                 document = Document(
                     page_content=payload.get('page_content', ''),
                     metadata={
                         **payload.get('metadata', {}),
-                        # Ensure external_id is in metadata
                         'external_id': payload.get('external_id'),
-                        # Also store the Qdrant UUID for reference
-                        'qdrant_id': str(result.id)
+                        'qdrant_id': str(result.id),
+                        'chunk_id': payload.get('chunk_id')
                     }
                 )
 
@@ -137,7 +135,6 @@ class QdrantDenseRetriever(ModernBaseRetriever):
                     additional_metadata={
                         'search_type': 'dense_similarity',
                         'embedding_model': type(self.embedding).__name__,
-                        # Also add to retrieval metadata
                         'external_id': payload.get('external_id')
                     }
                 )
