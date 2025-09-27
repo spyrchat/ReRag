@@ -244,14 +244,14 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             logger.info("Using pure sparse mode (alpha <= 0.01)")
             return sparse_results[:k]
         if self.fusion_method == 'rrf':
-            return self._fixed_rrf_fusion(dense_results, sparse_results, k)
+            return self._rrf_fusion(dense_results, sparse_results, k)
         elif self.fusion_method == 'weighted_sum':
             return self._alpha_weighted_sum(dense_results, sparse_results, k)
         else:
             raise ValueError(
                 f"Unsupported fusion method: {self.fusion_method}")
 
-    def _fixed_rrf_fusion(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
+    def _rrf_fusion(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
         """Completely fixed RRF fusion."""
         doc_scores = {}
         # Build rank mappings
@@ -286,11 +286,6 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         results = list(doc_scores.values())
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:k]
-
-    def _alpha_weighted_rrf(self, dense_results: List[RetrievalResult],
-                            sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
-        """Legacy RRF fusion (deprecated, replaced by _fixed_rrf_fusion)."""
-        # ...existing code...
 
     def _alpha_weighted_sum(self, dense_results: List[RetrievalResult],
                             sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:

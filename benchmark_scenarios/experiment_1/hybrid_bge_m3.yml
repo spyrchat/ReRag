@@ -10,7 +10,7 @@ retrieval:
   top_k: 20
   fusion:
     method: "rrf"
-    alpha: 1.0
+    alpha: 0.8
     rrf_k: 60
   qdrant:
     collection_name: "sosum_stackoverflow_bge_large_code_aware_v2"

@@ -7,7 +7,7 @@ dataset:
 
 chunking:
   strategy: "recursive"      # Changed from "recursive" to "code_aware"
-  chunk_size: 400            # Larger chunks for 1024-dim embeddings
+  chunk_size: 500            # Larger chunks for 1024-dim embeddings
   chunk_overlap: 100
   separators: ["\n\n", "\n", " ", ""]
 
@@ -16,15 +16,15 @@ embedding:
   dense:
     provider: "hf"   # Changed from "voyage" to "hf"
     model: "BAAI/bge-m3"  # BGE Large model
-    dimensions: 384          # BGE Large produces 1024-dim embeddings
+    dimensions: 1024          # BGE Large produces 1024-dim embeddings
     batch_size: 32
   sparse:
-    provider: "sparse"
-    model: "Qdrant/bm25"
+    provider: "sparse-splade"
+    model: "naver/splade-cocondenser-ensembledistil"
     batch_size: 32
 
 qdrant:
-  collection: "sosum_stackoverflow_bge_large_code_aware_v2"
+  collection: "sosum_stackoverflow_bge_splade_recursive_v1"
   dense_vector_name: "dense"
   sparse_vector_name: "sparse"
 
@@ -64,9 +64,9 @@ smoke_tests:
       min_recall: 0.1
 
 # Output configuration
-output_dir: "output/sosum_stackoverflow_bge_large_code_aware"
+output_dir: "output/sosum_stackoverflow_bge_splade_recursive"
 
 # Embedding cache
 embedding_cache:
   enabled: true
-  dir: "cache/embeddings/sosum_stackoverflow_bge_large_code_aware"
+  dir: "cache/embeddings/sosum_stackoverflow_bge_splade_recursive"

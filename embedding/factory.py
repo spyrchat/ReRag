@@ -113,6 +113,16 @@ def get_embedder(cfg: dict):
         device = cfg.get("device", "cpu")
         return SparseEmbedder(model_name=model_name, device=device)
 
+    elif provider == "sparse-splade":
+        # Use HuggingFace's SparseEncoder (e.g., naver/splade-v3)
+        from sentence_transformers import SparseEncoder
+        # Allow model override via config, default to naver/splade-v3
+        model_name = cfg.get("model") or cfg.get(
+            "model_name") or "naver/splade-v3"
+        device = cfg.get("device", "cpu")
+        # Instantiate the SparseEncoder
+        return SparseEncoder(model_name, device=device)
+
     else:
         raise ValueError(
             f"Unsupported embedder provider: '{provider}'. Supported: hf, titan, fastembed, sparse, google, voyage"
