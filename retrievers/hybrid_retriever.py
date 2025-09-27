@@ -252,40 +252,72 @@ class QdrantHybridRetriever(ModernBaseRetriever):
                 f"Unsupported fusion method: {self.fusion_method}")
 
     def _rrf_fusion(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
-        """Completely fixed RRF fusion."""
-        doc_scores = {}
-        # Build rank mappings
-        dense_ranks = {r.document.metadata.get('external_id'): rank
-                       for rank, r in enumerate(dense_results, 1)}
-        sparse_ranks = {r.document.metadata.get('external_id'): rank
-                        for rank, r in enumerate(sparse_results, 1)}
-        # Collect all documents
-        all_docs = {}
-        for r in dense_results + sparse_results:
-            doc_id = r.document.metadata.get('external_id')
-            if doc_id and doc_id not in all_docs:
-                all_docs[doc_id] = r
-        # Calculate proper RRF scores
-        for doc_id, r in all_docs.items():
-            dense_rank = dense_ranks.get(
-                doc_id, k + 100)  # Penalty for missing
-            sparse_rank = sparse_ranks.get(doc_id, k + 100)
-            dense_rrf = 1.0 / (self.rrf_k + dense_rank)
-            sparse_rrf = 1.0 / (self.rrf_k + sparse_rank)
+        """Standard (optionally weighted) RRF fusion at chunk level, robust to missing keys and stable in ordering."""
+        # Use chunk_id as the stable key for all fusion
+        def get_key(r):
+            return r.document.metadata.get('chunk_id')
+
+        # Filter out results with missing chunk_id (None)
+        dense_results = [r for r in dense_results if get_key(r) is not None]
+        sparse_results = [r for r in sparse_results if get_key(r) is not None]
+
+        logger.info(
+            f"[DEBUG] Dense results: {len(dense_results)} | Sparse results: {len(sparse_results)}")
+        logger.info(
+            f"[DEBUG] Dense chunk_ids: {[r.document.metadata.get('chunk_id') for r in dense_results]}")
+        logger.info(
+            f"[DEBUG] Sparse chunk_ids: {[r.document.metadata.get('chunk_id') for r in sparse_results]}")
+
+        # Build rank mappings (1-based); missing = None
+        dense_ranks = {get_key(r): rank for rank,
+                       r in enumerate(dense_results, 1)}
+        sparse_ranks = {get_key(r): rank for rank,
+                        r in enumerate(sparse_results, 1)}
+        all_keys = set(dense_ranks) | set(sparse_ranks)
+
+        # Build a single representative map: prefer dense, then sparse
+        representative = {}
+        for r in dense_results:
+            key = get_key(r)
+            if key not in representative:
+                representative[key] = r
+        for r in sparse_results:
+            key = get_key(r)
+            if key not in representative:
+                representative[key] = r
+
+        # Compute RRF scores and min-rank for tie-breaking
+        scored = []
+        for key in all_keys:
+            dense_rank = dense_ranks.get(key)
+            sparse_rank = sparse_ranks.get(key)
+            dense_rrf = 1.0 / \
+                (self.rrf_k + dense_rank) if dense_rank is not None else 0.0
+            sparse_rrf = 1.0 / \
+                (self.rrf_k + sparse_rank) if sparse_rank is not None else 0.0
             final_score = self.alpha * dense_rrf + \
                 (1.0 - self.alpha) * sparse_rrf
-            r.score = final_score
-            r.metadata.update({
-                'search_type': 'hybrid_fixed_rrf',
+            min_rank = min([r for r in [dense_rank, sparse_rank] if r is not None]) if (
+                dense_rank is not None or sparse_rank is not None) else float('inf')
+            logger.info(
+                f"[DEBUG] chunk_id={key} | dense_rank={dense_rank} | sparse_rank={sparse_rank} | dense_rrf={dense_rrf:.4f} | sparse_rrf={sparse_rrf:.4f} | final_score={final_score:.4f}")
+            result = representative[key]
+            result.score = final_score
+            result.metadata.update({
+                'search_type': 'hybrid_rrf',
                 'alpha': self.alpha,
                 'dense_rrf': dense_rrf,
                 'sparse_rrf': sparse_rrf,
-                'fusion_method': 'fixed_rrf'
+                'fusion_method': 'rrf',
+                'min_rank': min_rank
             })
-            doc_scores[doc_id] = r
-        results = list(doc_scores.values())
-        results.sort(key=lambda x: x.score, reverse=True)
-        return results[:k]
+            # -min_rank: lower is better
+            scored.append((final_score, -min_rank, key, result))
+
+        # Sort by score desc, then by better (lower) min-rank, then by key for stability
+        scored.sort(reverse=True)
+        results = [t[-1] for t in scored[:k]]
+        return results
 
     def _alpha_weighted_sum(self, dense_results: List[RetrievalResult],
                             sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
@@ -308,7 +340,7 @@ class QdrantHybridRetriever(ModernBaseRetriever):
                 # If all scores are the same, use rank-based normalization
                 normalized = {}
                 for rank, result in enumerate(results, 1):
-                    doc_id = result.document.metadata.get('external_id')
+                    doc_id = result.document.metadata.get('chunk_id')
                     if doc_id:
                         normalized[doc_id] = {
                             'result': result,
@@ -318,7 +350,7 @@ class QdrantHybridRetriever(ModernBaseRetriever):
 
             normalized = {}
             for result in results:
-                doc_id = result.document.metadata.get('external_id')
+                doc_id = result.document.metadata.get('chunk_id')
                 if doc_id:
                     norm_score = (result.score - min_score) / score_range
                     normalized[doc_id] = {

@@ -1,5 +1,5 @@
-name: "Hybrid BGE-M3 - Experiment 1"
-description: "Hybrid BM25 + BGE-M3 retrieval"
+name: "Hybrid Splade + BGE-M3 - Experiment 1"
+description: "Hybrid Splade + BGE-M3 retrieval"
 
 dataset:
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
@@ -10,7 +10,7 @@ retrieval:
   top_k: 20
   fusion:
     method: "rrf"
-    alpha: 0.8
+    alpha: 0.5
     rrf_k: 60
   qdrant:
     collection_name: "sosum_stackoverflow_bge_large_code_aware_v2"
@@ -25,8 +25,8 @@ retrieval:
       encode_kwargs:
         normalize_embeddings: true
     sparse:
-      provider: "sparse"
-      model: "Qdrant/bm25"
+      provider: "sparse-splade"
+      model: "prithivida/Splade_PP_en_v1"
     strategy: "hybrid"
 
 evaluation:
