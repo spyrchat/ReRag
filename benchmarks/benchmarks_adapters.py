@@ -3,8 +3,37 @@ import json
 import os
 from pathlib import Path
 from typing import List, Union, Dict, Any
-from .benchmark_contracts import BenchmarkAdapter, BenchmarkTask, BenchmarkQuery
+from abc import ABC, abstractmethod
+from .benchmark_contracts import BenchmarkTask, BenchmarkQuery
 from utils import preload_chunk_id_mapping
+
+
+class BenchmarkAdapter(ABC):
+    """
+    Abstract base class for all benchmark adapters.
+    Defines the required interface for dataset adapters.
+    """
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Name of the dataset/adapter."""
+        pass
+
+    @property
+    @abstractmethod
+    def tasks(self) -> List:
+        """List of supported benchmark tasks."""
+        pass
+
+    @abstractmethod
+    def load_queries(self, split: str = "test") -> List:
+        """Load queries for the given split (e.g., 'test', 'train')."""
+        pass
+
+    @abstractmethod
+    def get_ground_truth(self, query_id: str) -> List[str]:
+        """Get ground truth document IDs for a specific query."""
+        pass
 
 
 class StackOverflowBenchmarkAdapter(BenchmarkAdapter):

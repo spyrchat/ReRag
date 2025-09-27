@@ -20,11 +20,11 @@ embedding:
     batch_size: 32
   sparse:
     provider: "sparse-splade"
-    model: "naver/splade-cocondenser-ensembledistil"
+    model: "prithivida/Splade_PP_en_v1"
     batch_size: 32
 
 qdrant:
-  collection: "sosum_stackoverflow_bge_splade_recursive_v1"
+  collection: "sosum_stackoverflow_bge_splade_recursive_v2"
   dense_vector_name: "dense"
   sparse_vector_name: "sparse"
 
