@@ -106,22 +106,17 @@ def get_embedder(cfg: dict):
         )
 
     elif provider == "sparse":
-        from embedding.sparse_embedder import SparseEmbedder
-
-        # Support both 'model' and 'model_name' for consistency with other providers
+        from embedding.sparse_embedder import BM25Embedder
         model_name = cfg.get("model") or cfg.get("model_name") or "Qdrant/bm25"
         device = cfg.get("device", "cpu")
-        return SparseEmbedder(model_name=model_name, device=device)
+        return BM25Embedder(model_name=model_name, device=device)
 
     elif provider == "sparse-splade":
-        # Use HuggingFace's SparseEncoder (e.g., naver/splade-v3)
-        from sentence_transformers import SparseEncoder
-        # Allow model override via config, default to naver/splade-v3
+        from embedding.sparse_embedder import SpladeEmbedder
         model_name = cfg.get("model") or cfg.get(
             "model_name") or "naver/splade-v3"
         device = cfg.get("device", "cpu")
-        # Instantiate the SparseEncoder
-        return SparseEncoder(model_name, device=device)
+        return SpladeEmbedder(model_name=model_name, device=device)
 
     else:
         raise ValueError(
