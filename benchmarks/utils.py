@@ -70,11 +70,18 @@ def get_embedding_model(config: Dict[str, Any]) -> str:
 
 
 def calculate_confidence_intervals(values: List[float], confidence: float = 0.95) -> Dict[str, float]:
-    """Calculate confidence intervals for a list of values."""
-    if not values or len(values) < 2:
+    if not values or len(values) < 1:
         return {
             'mean': 0.0, 'std': 0.0, 'ci_lower': 0.0, 'ci_upper': 0.0,
             'median': 0.0, 'count': 0, 'margin_error': 0.0
+        }
+
+    # Special case for n=1
+    if len(values) == 1:
+        single_val = values[0] if not np.isnan(values[0]) else 0.0
+        return {
+            'mean': single_val, 'std': 0.0, 'ci_lower': single_val, 'ci_upper': single_val,
+            'median': single_val, 'count': 1, 'margin_error': 0.0
         }
     values = [v for v in values if not np.isnan(v)]
     if not values:
@@ -83,7 +90,7 @@ def calculate_confidence_intervals(values: List[float], confidence: float = 0.95
             'median': 0.0, 'count': 0, 'margin_error': 0.0
         }
     mean = np.mean(values)
-    std = np.std(values, ddof=1)
+    std = np.std(values, ddof=1) if len(values) > 1 else 0.0
     n = len(values)
     alpha = 1 - confidence
     degrees_freedom = n - 1

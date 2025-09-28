@@ -322,11 +322,7 @@ class BenchmarkRunner:
                 "total_queries": len(results),
                 "components": component_names
             },
-            "performance": {
-                "avg_retrieval_time_ms": np.mean([r.retrieval_time_ms for r in results]),
-                "avg_generation_time_ms": np.mean([r.generation_time_ms for r in results]),
-                "total_time_ms": sum(r.retrieval_time_ms + r.generation_time_ms for r in results)
-            },
+            "performance": self.metrics.retrieval_time_stats([r.retrieval_time_ms for r in results]),
             "metrics": {}
         }
 

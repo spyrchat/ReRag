@@ -135,6 +135,52 @@ class BenchmarkMetrics:
         return metrics
 
     @staticmethod
+    def retrieval_time_stats(times: List[float]) -> Dict[str, float]:
+        import numpy as np
+        arr = np.array(times)
+
+        # Remove NaN/inf values
+        arr = arr[np.isfinite(arr)]
+
+        if len(arr) == 0:
+            return {
+                "mean": float('nan'),
+                "std": float('nan'),
+                "median": float('nan'),
+                "p95": float('nan'),
+                "p99": float('nan'),
+                "min": float('nan'),
+                "max": float('nan'),
+                "cv": float('nan')
+            }
+
+        mean_val = float(np.mean(arr))
+        std_val = float(np.std(arr, ddof=1))  # ✅ Sample std
+
+        stats = {
+            "mean": mean_val,
+            "std": std_val,
+            "median": float(np.median(arr)),
+            "p95": float(np.percentile(arr, 95)),
+            "p99": float(np.percentile(arr, 99)),
+            "min": float(np.min(arr)),
+            "max": float(np.max(arr)),
+            "cv": std_val / mean_val if mean_val != 0 else float('inf')
+        }
+        return stats
+
+    @staticmethod
+    def format_time_stats(stats: Dict[str, float]) -> str:
+        return (
+            f"{stats['mean']:.1f}±{stats['std']:.1f} | "
+            f"Median: {stats['median']:.1f} | "
+            f"P95: {stats['p95']:.1f} | "
+            f"P99: {stats['p99']:.1f} | "
+            f"CV: {stats.get('cv', 0):.3f} | "
+            f"Range: [{stats['min']:.1f}, {stats['max']:.1f}]"
+        )
+
+    @staticmethod
     def generation_metrics(
         generated_answer: str,
         reference_answer: str

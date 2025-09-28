@@ -47,6 +47,34 @@ class Experiment1Runner:
         self.results = {}
         self.test_mode = test_mode
 
+    def _print_scenario_summary(self, scenario_name: str, result: Dict[str, Any]):
+        """Print summary for a scenario."""
+        print(f"\n📊 {scenario_name} Results:")
+        print("-" * 40)
+
+        metrics = result.get('metrics', {})
+        config = result.get('config', {})
+        performance = result.get('performance', {})
+
+        print(f"   Total Queries: {config.get('total_queries', 0)}")
+        print(
+            f"   Time (ms): {performance.get('mean', 0):.1f}±{performance.get('std', 0):.1f} | "
+            f"Median: {performance.get('median', 0):.1f} | "
+            f"P95: {performance.get('p95', 0):.1f} | "
+            f"CV: {performance.get('cv', 0):.3f}")
+
+        # Key metrics
+        key_metrics = ['precision@5', 'recall@5', 'mrr', 'ndcg@5']
+        for metric in key_metrics:
+            if metric in metrics:
+                stats = metrics[metric]
+                mean_val = stats.get('mean', 0)
+                std_val = stats.get('std', 0)
+                if self.test_mode:
+                    print(f"   {metric}: {mean_val:.4f}")
+                else:
+                    print(f"   {metric}: {mean_val:.4f} ± {std_val:.4f}")
+
     def run_scenario(self, scenario_path: str, scenario_name: str) -> Dict[str, Any]:
         """Run a single benchmark scenario with detailed results."""
         mode_str = "TEST MODE (10 queries)" if self.test_mode else "FULL MODE (506 queries)"
@@ -93,6 +121,13 @@ class Experiment1Runner:
         results['scenario_config'] = config
         results['timestamp'] = datetime.now().isoformat()
         results['test_mode'] = self.test_mode
+
+        # Compute and add performance metrics if not present
+        if 'retrieval_times' in results:
+            from benchmarks.benchmarks_metrics import BenchmarkMetrics
+            perf_stats = BenchmarkMetrics.retrieval_time_stats(
+                results['retrieval_times'])
+            results['performance'] = perf_stats
 
         return results
 
@@ -196,30 +231,6 @@ class Experiment1Runner:
 
             self.results[scenario_name]['metrics'] = enhanced_metrics
 
-    def _print_scenario_summary(self, scenario_name: str, result: Dict[str, Any]):
-        """Print summary for a scenario."""
-        print(f"\n📊 {scenario_name} Results:")
-        print("-" * 40)
-
-        metrics = result.get('metrics', {})
-        config = result.get('config', {})
-
-        print(f"   Total Queries: {config.get('total_queries', 0)}")
-        print(
-            f"   Avg Time: {result.get('performance', {}).get('avg_retrieval_time_ms', 0):.2f}ms")
-
-        # Key metrics
-        key_metrics = ['precision@5', 'recall@5', 'mrr', 'ndcg@5']
-        for metric in key_metrics:
-            if metric in metrics:
-                stats = metrics[metric]
-                mean_val = stats.get('mean', 0)
-                std_val = stats.get('std', 0)
-                if self.test_mode:
-                    print(f"   {metric}: {mean_val:.4f}")
-                else:
-                    print(f"   {metric}: {mean_val:.4f} ± {std_val:.4f}")
-
     def _export_results(self):
         """Export results in appropriate formats."""
         mode_suffix = "test" if self.test_mode else "full"
@@ -256,13 +267,27 @@ class Experiment1Runner:
         for scenario_name, result in self.results.items():
             metrics = result.get('metrics', {})
             config = result.get('scenario_config', {})
+            performance = result.get('performance', {})
 
             row = {
                 'scenario': scenario_name,
                 'retrieval_type': config.get('retrieval', {}).get('type'),
                 'model': get_embedding_model(config),
                 'total_queries': result.get('config', {}).get('total_queries', 0),
-                'test_mode': result.get('test_mode', False)
+                'test_mode': result.get('test_mode', False),
+                'time_mean_ms': performance.get('mean', 0),
+                'time_std_ms': performance.get('std', 0),
+                'time_median_ms': performance.get('median', 0),
+                'time_p95_ms': performance.get('p95', 0),
+                'time_cv': performance.get('cv', 0),
+                # Add performance metrics
+                'perf_mean': performance.get('mean', 0),
+                'perf_std': performance.get('std', 0),
+                'perf_median': performance.get('median', 0),
+                'perf_p95': performance.get('p95', 0),
+                'perf_p99': performance.get('p99', 0),
+                'perf_min': performance.get('min', 0),
+                'perf_max': performance.get('max', 0),
             }
 
             for metric in key_metrics:
