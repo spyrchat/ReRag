@@ -1,5 +1,5 @@
 name: "Splade Baseline - Experiment 1"
-description: "BM25 sparse retrieval baseline"
+description: "Splade sparse retrieval baseline"
 
 dataset:
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
@@ -12,7 +12,7 @@ retrieval:
     collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
     sparse_vector_name: "sparse"
   embedding:
-    provider: "sparse-splade"
+    provider: "sparse"
     model: "prithivida/Splade_PP_en_v1"
 
 evaluation:
@@ -21,6 +21,6 @@ evaluation:
     retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map", "f1@k"]
 
 max_queries: 506
-experiment_name: "bm25_baseline_exp1"
+experiment_name: "splade_baseline_exp1"
 generation:
   enabled: false

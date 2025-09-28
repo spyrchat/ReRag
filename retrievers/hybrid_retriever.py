@@ -8,6 +8,8 @@ from langchain_core.documents import Document
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from components.retrieval_pipeline import RetrievalResult
 from .base_retriever import ModernBaseRetriever
+from .sparse_retriever import QdrantSparseRetriever
+from .dense_retriever import QdrantDenseRetriever
 import logging
 
 logger = logging.getLogger(__name__)
@@ -70,23 +72,24 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         try:
             from embedding.factory import get_embedder
 
-            # Must exist, no defaults
             embedding_section = self.config['embedding']
-
-            # Use ONLY the provided dense and sparse configs
             if 'dense' not in embedding_section:
                 raise ValueError("Dense embedding configuration is required")
             if 'sparse' not in embedding_section:
                 raise ValueError("Sparse embedding configuration is required")
 
-            # Use exact configurations provided
             dense_config = embedding_section['dense']
             sparse_config = embedding_section['sparse']
 
-            self.dense_embedding = get_embedder(dense_config)
-            self.sparse_embedding = get_embedder(sparse_config)
+            # Repackage configs for sub-retrievers to match standalone usage
+            dense_retriever_config = {**self.config, 'embedding': dense_config}
+            sparse_retriever_config = {
+                **self.config, 'embedding': sparse_config}
 
-            # Initialize Qdrant database with exact config
+            self.dense_retriever = QdrantDenseRetriever(dense_retriever_config)
+            self.sparse_retriever = QdrantSparseRetriever(
+                sparse_retriever_config)
+
             from database.qdrant_controller import QdrantVectorDB
             qdrant_db = QdrantVectorDB(config=self.config)
             self.qdrant_db = qdrant_db
@@ -94,7 +97,6 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             self._initialized = True
             logger.info(
                 f"Hybrid retriever initialized with alpha={self.alpha}")
-
         except Exception as e:
             logger.error(
                 f"Failed to initialize hybrid retriever components: {e}")
@@ -127,113 +129,36 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             raise
 
     def _perform_dense_search(self, query: str, k: int) -> List[RetrievalResult]:
-        """Perform dense search using direct Qdrant API."""
-        try:
-            query_vector = self.dense_embedding.embed_query(query)
-            from qdrant_client.models import NamedVector
+        """
+        Perform dense similarity search using direct Qdrant API to preserve external_id.
 
-            search_result = self.qdrant_db.client.search(
-                collection_name=self.qdrant_db.collection_name,
-                query_vector=NamedVector(
-                    name=self.qdrant_db.dense_vector_name,
-                    vector=query_vector
-                ),
-                limit=k,
-                with_payload=True
-            )
+        Args:
+            query: Search query
+            k: Number of results to retrieve
 
-            results = []
-            for result in search_result:
-                payload = result.payload or {}
-                document = Document(
-                    page_content=payload.get('page_content', ''),
-                    metadata={
-                        **payload.get('metadata', {}),
-                        'external_id': payload.get('external_id'),
-                        'qdrant_id': str(result.id),
-                        # <-- Always include chunk_id
-                        'chunk_id': payload.get('chunk_id')
-                    }
-                )
+        Returns:
+            List of RetrievalResult objects
+        """
+        if not self._initialized:
+            self._initialize_components()
 
-                retrieval_result = self._create_retrieval_result(
-                    document=document,
-                    score=result.score,
-                    additional_metadata={
-                        'search_type': 'dense_component',
-                        'external_id': payload.get('external_id')
-                    }
-                )
-                results.append(retrieval_result)
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Dense search component failed: {e}")
-            return []
+        return self.dense_retriever._perform_search(query, k)
 
     def _perform_sparse_search(self, query: str, k: int) -> List[RetrievalResult]:
-        """Perform sparse search using direct Qdrant API."""
-        try:
-            if hasattr(self.sparse_embedding, 'embed_query'):
-                query_vector = self.sparse_embedding.embed_query(query)
-            else:
-                query_vector = self.sparse_embedding.embed_documents([query])[
-                    0]
+        """
+        Perform sparse similarity search using direct Qdrant API to preserve external_id.
 
-            if isinstance(query_vector, dict):
-                from qdrant_client.models import NamedSparseVector
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedSparseVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector={"indices": list(query_vector.keys()),
-                                "values": list(query_vector.values())}
-                    ),
-                    limit=k,
-                    with_payload=True
-                )
-            else:
-                from qdrant_client.models import NamedVector
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector=query_vector
-                    ),
-                    limit=k,
-                    with_payload=True
-                )
+        Args:
+            query: Search query
+            k: Number of results to retrieve
 
-            results = []
-            for result in search_result:
-                payload = result.payload or {}
-                document = Document(
-                    page_content=payload.get('page_content', ''),
-                    metadata={
-                        **payload.get('metadata', {}),
-                        'external_id': payload.get('external_id'),
-                        'qdrant_id': str(result.id),
-                        # <-- Always include chunk_id
-                        'chunk_id': payload.get('chunk_id')
-                    }
-                )
-
-                retrieval_result = self._create_retrieval_result(
-                    document=document,
-                    score=result.score,
-                    additional_metadata={
-                        'search_type': 'sparse_component',
-                        'external_id': payload.get('external_id')
-                    }
-                )
-                results.append(retrieval_result)
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Sparse search component failed: {e}")
-            return []
+        Returns:
+            List of RetrievalResult objects
+        """
+        if not self._initialized:
+            self._initialize_components()
+        results = self.sparse_retriever._perform_search(query, k)
+        return results
 
     def _fuse_results_with_alpha(self, dense_results: List[RetrievalResult], sparse_results: List[RetrievalResult], k: int) -> List[RetrievalResult]:
         """Enhanced fusion with pure modes and fixed RRF."""
@@ -260,13 +185,6 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         # Filter out results with missing chunk_id (None)
         dense_results = [r for r in dense_results if get_key(r) is not None]
         sparse_results = [r for r in sparse_results if get_key(r) is not None]
-
-        logger.info(
-            f"[DEBUG] Dense results: {len(dense_results)} | Sparse results: {len(sparse_results)}")
-        logger.info(
-            f"[DEBUG] Dense chunk_ids: {[r.document.metadata.get('chunk_id') for r in dense_results]}")
-        logger.info(
-            f"[DEBUG] Sparse chunk_ids: {[r.document.metadata.get('chunk_id') for r in sparse_results]}")
 
         # Build rank mappings (1-based); missing = None
         dense_ranks = {get_key(r): rank for rank,
@@ -299,8 +217,6 @@ class QdrantHybridRetriever(ModernBaseRetriever):
                 (1.0 - self.alpha) * sparse_rrf
             min_rank = min([r for r in [dense_rank, sparse_rank] if r is not None]) if (
                 dense_rank is not None or sparse_rank is not None) else float('inf')
-            logger.info(
-                f"[DEBUG] chunk_id={key} | dense_rank={dense_rank} | sparse_rank={sparse_rank} | dense_rrf={dense_rrf:.4f} | sparse_rrf={sparse_rrf:.4f} | final_score={final_score:.4f}")
             result = representative[key]
             result.score = final_score
             result.metadata.update({

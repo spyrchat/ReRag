@@ -86,8 +86,6 @@ class ModernBaseRetriever(BaseRetriever):
         if k is None:
             k = self.top_k
 
-        logger.debug(f"Retrieving {k} results for query: {query[:50]}...")
-
         try:
             # Perform the search
             results = self._perform_search(query, k)
@@ -96,17 +94,11 @@ class ModernBaseRetriever(BaseRetriever):
             if self.score_threshold > 0:
                 results = [r for r in results if r.score >=
                            self.score_threshold]
-                logger.debug(
-                    f"Filtered to {len(results)} results above threshold {self.score_threshold}")
 
             # Ensure we don't return more than requested
             results = results[:k]
 
-            logger.debug(f"Retrieved {len(results)} results")
-            return results
-
         except Exception as e:
-            logger.error(f"Error during retrieval: {e}")
             return []
 
     def _create_retrieval_result(

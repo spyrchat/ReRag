@@ -9,7 +9,7 @@ retrieval:
   type: "dense"
   top_k: 20
   qdrant:
-    collection_name: "sosum_stackoverflow_bge_large_code_aware_v2"
+    collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
     dense_vector_name: "dense"
   embedding:
     provider: "huggingface"

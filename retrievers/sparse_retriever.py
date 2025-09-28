@@ -30,17 +30,8 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             raise ValueError(
                 "Qdrant configuration is required for sparse retriever")
 
-        # Use ONLY the provided embedding config
-        embedding_config = config['embedding']
-        if config.get('embedding', {}).get('strategy') == 'sparse':
-            # For hybrid scenarios, extract sparse config
-            if 'sparse' not in embedding_config:
-                raise ValueError("Sparse embedding configuration is required")
-            self.embedding_config = embedding_config['sparse']
-        else:
-            # For pure sparse scenarios, use the entire embedding config
-            self.embedding_config = embedding_config
-
+        # Always use the provided embedding config as a flat dict
+        self.embedding_config = config['embedding']
         self.embedding = None
         self._initialized = False
 
@@ -98,30 +89,36 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             else:
                 query_vector = self.embedding.embed_documents([query])[0]
 
+            if isinstance(query_vector, dict):
+                logger.info(
+                    f"[DEBUG][SparseRetriever] Query vector sample: {{k: query_vector[k] for k in list(query_vector.keys())[:10]}}")
+
             # Perform Qdrant search
             if isinstance(query_vector, dict):
                 from qdrant_client.models import NamedSparseVector
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedSparseVector(
+                payload = {
+                    "collection_name": self.qdrant_db.collection_name,
+                    "query_vector": NamedSparseVector(
                         name=self.qdrant_db.sparse_vector_name,
                         vector={"indices": list(query_vector.keys()), "values": list(
                             query_vector.values())}
                     ),
-                    limit=k,
-                    with_payload=True
-                )
+                    "limit": k,
+                    "with_payload": True
+                }
+                search_result = self.qdrant_db.client.search(**payload)
             else:
                 from qdrant_client.models import NamedVector
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedVector(
+                payload = {
+                    "collection_name": self.qdrant_db.collection_name,
+                    "query_vector": NamedVector(
                         name=self.qdrant_db.sparse_vector_name,
                         vector=query_vector
                     ),
-                    limit=k,
-                    with_payload=True
-                )
+                    "limit": k,
+                    "with_payload": True
+                }
+                search_result = self.qdrant_db.client.search(**payload)
 
             # Convert to RetrievalResult objects (for both branches)
             results = []

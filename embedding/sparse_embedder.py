@@ -68,4 +68,8 @@ class SpladeEmbedder(SparseEmbedder):
 
     def embed_query(self, text: str) -> Dict[int, float]:
         embeddings = self.embed_documents([text])
-        return embeddings[0]
+        sparse_vec = embeddings[0]
+        logger.info(f"[DEBUG][SPLADE] Query: {text}")
+        logger.info(
+            f"[DEBUG][SPLADE] Sparse vector length: {len(sparse_vec)} | Nonzero keys: {list(sparse_vec.keys())[:10]}")
+        return sparse_vec
