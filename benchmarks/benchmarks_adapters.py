@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Union, Dict, Any
 from abc import ABC, abstractmethod
 from .benchmark_contracts import BenchmarkTask, BenchmarkQuery
-from utils import preload_chunk_id_mapping
+from .utils import preload_chunk_id_mapping
 
 
 class BenchmarkAdapter(ABC):

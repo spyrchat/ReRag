@@ -236,7 +236,7 @@ class BenchmarkRunner:
         logger.info(
             f"Retrieval for query {query.query_id} took {end_retrieval - start_retrieval:.2f}s")
 
-        retrieval_time = (time.time() - start_retrieval) * 1000
+        retrieval_time = (end_retrieval - start_retrieval) * 1000
 
         # Extract document IDs from results
         retrieved_chunk_ids = []
@@ -352,6 +352,15 @@ class BenchmarkRunner:
                     "total_queries": len(scores),
                     "note": "No ground truth available for evaluation"
                 }
+        per_query_scores = []
+        for result in results:
+            query_scores = {
+                'query_id': result.query_id,
+                **result.scores
+            }
+            per_query_scores.append(query_scores)
+
+        aggregated["per_query_scores"] = per_query_scores
 
         return aggregated
 
