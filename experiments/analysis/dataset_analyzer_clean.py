@@ -16,12 +16,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Set up matplotlib for publication-quality plots
-# Updated matplotlib settings to use Times New Roman as main font
+# Updated matplotlib settings to use GFS Didot as main font
 plt.rcParams.update({
     'font.size': 11,
-    'font.family': 'serif',  # Use serif as primary for Times New Roman
-    # Times New Roman as primary font with fallbacks
-    'font.serif': ['Times New Roman', 'DejaVu Serif', 'Liberation Serif'],
+    'font.family': 'serif',  # Use serif as primary for GFS Didot
+    # GFS Didot as primary font with fallbacks
+    'font.serif': ['GFS Didot', 'Times New Roman', 'DejaVu Serif', 'Liberation Serif'],
     # Your exact sans-serif
     'font.sans-serif': ['DejaVu Sans', 'Arial', 'Helvetica'],
     # Your exact monospace
@@ -317,10 +317,10 @@ class SOSUMDatasetAnalyzer:
 
     def _create_main_overview(self):
         """Create thesis-style overview with proper spacing and fonts."""
-        # Use serif (Times New Roman) for plots to match thesis style
+        # Use serif (GFS Didot) for plots to match thesis style
         plt.rcParams['font.family'] = 'serif'
         plt.rcParams['font.serif'] = [
-            'Times New Roman', 'DejaVu Serif']
+            'GFS Didot', 'Times New Roman', 'DejaVu Serif']
 
         fig = plt.figure(figsize=(16, 9))  # Wider figure for better spacing
         gs = fig.add_gridspec(2, 3, hspace=0.45, wspace=0.4,
@@ -339,9 +339,9 @@ class SOSUMDatasetAnalyzer:
                               colors_thesis['secondary'], colors_thesis['accent']],
                        alpha=0.85, edgecolor='white', linewidth=1.5)
 
-        ax1.set_title('Dataset Overview', fontfamily='Times New Roman',
+        ax1.set_title('Dataset Overview', fontfamily='GFS Didot',
                       fontweight='bold', fontsize=13, pad=20)
-        ax1.set_ylabel('Count', fontfamily='Times New Roman',
+        ax1.set_ylabel('Count', fontfamily='GFS Didot',
                        fontweight='bold', fontsize=11)
         ax1.grid(True, alpha=0.3, axis='y', color=colors_thesis['grid'])
         ax1.set_axisbelow(True)
@@ -351,42 +351,42 @@ class SOSUMDatasetAnalyzer:
             height = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2., height + height*0.08,
                      f'{int(height):,}', ha='center', va='bottom',
-                     fontfamily='Times New Roman', fontweight='bold', fontsize=10,
+                     fontfamily='GFS Didot', fontweight='bold', fontsize=10,
                      bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='none'))
 
         # Better tick label spacing - ensure GFS Didot everywhere
         ax1.tick_params(axis='both', which='major', labelsize=9, pad=5)
         for label in ax1.get_xticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
         for label in ax1.get_yticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
 
-        # 2. Question Types - Clean pie chart with percentages only inside
+        # 2. Question Types - Clean pie chart with labels inside only
         ax2 = fig.add_subplot(gs[0, 1])
         type_counts = self.questions_df['question_type_label'].value_counts()
         colors_pie = [colors_thesis['primary'],
                       colors_thesis['secondary'], colors_thesis['accent']]
 
-        # Create pie chart with ONLY percentages inside (black font)
+        # Create pie chart with labels ONLY inside (no external labels)
         wedges, texts, autotexts = ax2.pie(type_counts.values,
                                            labels=None,  # Remove external labels
-                                           autopct='%1.1f%%',  # Only show percentages
+                                           autopct=lambda pct: f'{type_counts.index[int(pct/100*len(type_counts))]}\n{pct:.1f}%' if pct > 5 else '',
                                            startangle=90,
                                            colors=colors_pie,
                                            wedgeprops=dict(
                                                edgecolor='white', linewidth=2),
                                            pctdistance=0.7,  # Move text closer to center
-                                           textprops={'fontfamily': 'Times New Roman', 'fontweight': 'bold', 'fontsize': 11, 'color': 'black'})
+                                           textprops={'fontfamily': 'GFS Didot', 'fontweight': 'bold', 'fontsize': 10, 'color': 'white'})
 
-        ax2.set_title('Question Types', fontfamily='Times New Roman',
+        ax2.set_title('Question Types', fontfamily='GFS Didot',
                       fontweight='bold', fontsize=13, pad=20)
 
-        # Create manual legend with Times New Roman font positioned further on the left
+        # Create manual legend with GFS Didot font
         legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=colors_pie[i], edgecolor='white', linewidth=1)
                            for i in range(len(type_counts))]
         ax2.legend(legend_elements, type_counts.index,
-                   loc='center left', bbox_to_anchor=(-0.8, 0.5),
-                   prop={'family': 'Times New Roman', 'size': 10})
+                   loc='center left', bbox_to_anchor=(1, 0.5),
+                   prop={'family': 'GFS Didot', 'size': 10})
 
         # 3. Top Technologies - Horizontal bars with better spacing
         ax3 = fig.add_subplot(gs[0, 2])
@@ -397,26 +397,26 @@ class SOSUMDatasetAnalyzer:
                          color=colors_thesis['primary'], alpha=0.85,
                          edgecolor='white', linewidth=1, height=0.7)  # Thinner bars
 
-        ax3.set_title('Top Technologies', fontfamily='Times New Roman',
+        ax3.set_title('Top Technologies', fontfamily='GFS Didot',
                       fontweight='bold', fontsize=13, pad=20)
-        ax3.set_xlabel('Questions', fontfamily='Times New Roman',
+        ax3.set_xlabel('Questions', fontfamily='GFS Didot',
                        fontweight='bold', fontsize=11)
         ax3.grid(True, alpha=0.3, axis='x', color=colors_thesis['grid'])
         ax3.set_axisbelow(True)
 
-        # Better tick spacing - ensure Times New Roman everywhere
+        # Better tick spacing - ensure GFS Didot everywhere
         ax3.tick_params(axis='both', which='major', labelsize=9, pad=5)
         for label in ax3.get_yticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
         for label in ax3.get_xticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
 
         # Value labels with better positioning and background for visibility
         for bar in bars3:
             width = bar.get_width()
             ax3.text(width + width*0.05, bar.get_y() + bar.get_height()/2.,
                      f'{int(width)}', ha='left', va='center',
-                     fontfamily='Times New Roman', fontweight='bold', fontsize=9,
+                     fontfamily='GFS Didot', fontweight='bold', fontsize=9,
                      bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8, edgecolor='none'))
 
         # 4. Answer Distribution - Much better spacing
@@ -429,33 +429,33 @@ class SOSUMDatasetAnalyzer:
                         color=colors_thesis['secondary'], alpha=0.85,
                         edgecolor='white', linewidth=1, width=0.8)
 
-        ax4.set_title('Answer Distribution per Question', fontfamily='Times New Roman',
+        ax4.set_title('Answer Distribution per Question', fontfamily='GFS Didot',
                       fontweight='bold', fontsize=13, pad=20)
-        ax4.set_xlabel('Number of Answers', fontfamily='Times New Roman',
+        ax4.set_xlabel('Number of Answers', fontfamily='GFS Didot',
                        fontweight='bold', fontsize=11)
-        ax4.set_ylabel('Number of Questions', fontfamily='Times New Roman',
+        ax4.set_ylabel('Number of Questions', fontfamily='GFS Didot',
                        fontweight='bold', fontsize=11)
         ax4.grid(True, alpha=0.3, axis='y', color=colors_thesis['grid'])
         ax4.set_axisbelow(True)
 
-        # Better tick spacing and rotation - ensure Times New Roman everywhere
+        # Better tick spacing and rotation - ensure GFS Didot everywhere
         ax4.tick_params(axis='both', which='major', labelsize=9, pad=5)
         for label in ax4.get_xticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
         for label in ax4.get_yticklabels():
-            label.set_fontfamily('Times New Roman')
+            label.set_fontfamily('GFS Didot')
 
         # Value labels for all bars with improved visibility
         for bar in bars4:
             height = bar.get_height()
             ax4.text(bar.get_x() + bar.get_width()/2., height + height*0.05,
                      f'{int(height)}', ha='center', va='bottom',
-                     fontfamily='Times New Roman', fontweight='bold', fontsize=8,
+                     fontfamily='GFS Didot', fontweight='bold', fontsize=8,
                      bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.9, edgecolor='none'))
 
         # Main title with better positioning
         fig.suptitle('SOSum Dataset: Overview Statistics',
-                     fontfamily='Times New Roman', fontsize=16, fontweight='bold',
+                     fontfamily='GFS Didot', fontsize=16, fontweight='bold',
                      y=0.94, color=colors_thesis['text'])
 
         plt.savefig(self.plots_dir / 'dataset_overview.png', dpi=300, bbox_inches='tight',

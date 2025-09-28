@@ -116,7 +116,18 @@ class QdrantHybridRetriever(ModernBaseRetriever):
         try:
             # Perform separate dense and sparse searches
             dense_results = self._perform_dense_search(query, k)
+            if dense_results is None:
+                logger.error(
+                    "Dense retriever returned None! Replacing with [].")
+                dense_results = []
+            logger.debug(f"Dense results: {len(dense_results)}")
+
             sparse_results = self._perform_sparse_search(query, k)
+            if sparse_results is None:
+                logger.error(
+                    "Sparse retriever returned None! Replacing with [].")
+                sparse_results = []
+            logger.debug(f"Sparse results: {len(sparse_results)}")
 
             # Combine results using alpha-weighted fusion
             combined_results = self._fuse_results_with_alpha(
@@ -125,8 +136,10 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             return combined_results
 
         except Exception as e:
-            logger.error(f"Error during hybrid search: {e}")
-            raise
+            logger.error(f"Error during search: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     def _perform_dense_search(self, query: str, k: int) -> List[RetrievalResult]:
         """

@@ -101,7 +101,7 @@ class Experiment1Runner:
         scenarios = [
             {
                 'path': 'benchmark_scenarios/experiment_1/BM25 baseline Scenario.yml',
-                'name': 'Splade_Baseline'
+                'name': 'BM25_Baseline'
             },
             {
                 'path': 'benchmark_scenarios/experiment_1/dense_bge_m3.yml',

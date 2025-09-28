@@ -12,7 +12,7 @@ retrieval:
     collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
     sparse_vector_name: "sparse"
   embedding:
-    provider: "sparse"
+    provider: "sparse-splade"
     model: "prithivida/Splade_PP_en_v1"
 
 evaluation:

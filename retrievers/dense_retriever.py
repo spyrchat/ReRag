@@ -146,7 +146,9 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             return retrieval_results
 
         except Exception as e:
-            logger.error(f"Error during dense search: {e}")
+            logger.error(f"Error in dense_retriever: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
 

@@ -168,9 +168,6 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                     }
                 )
                 queries.append(query)
-            print("Sample ground truth chunk IDs:", relevant_chunk_ids[:5])
-            print(
-                f"Successfully loaded {len(queries)} queries with ground truth")
 
             # # Show sample for debugging
             # if queries:

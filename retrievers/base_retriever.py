@@ -90,6 +90,12 @@ class ModernBaseRetriever(BaseRetriever):
             # Perform the search
             results = self._perform_search(query, k)
 
+            # Defensive: ensure results is a list
+            if results is None:
+                logger.error(
+                    f"{self.component_name}._perform_search returned None! Returning [].")
+                return []
+
             # Apply score threshold filtering
             if self.score_threshold > 0:
                 results = [r for r in results if r.score >=
@@ -98,7 +104,12 @@ class ModernBaseRetriever(BaseRetriever):
             # Ensure we don't return more than requested
             results = results[:k]
 
+            return results
+
         except Exception as e:
+            logger.error(f"Exception in {self.component_name}.retrieve: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _create_retrieval_result(
