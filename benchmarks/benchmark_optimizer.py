@@ -28,39 +28,41 @@ class BenchmarkOptimizer:
         """Load standalone benchmark configuration (no merging, completely self-contained)."""
         with open(benchmark_config_path, 'r') as f:
             benchmark_config = yaml.safe_load(f)
-        
+
         # Validate that config is self-contained
         self._validate_complete_config(benchmark_config, benchmark_config_path)
-        
+
         print(f"✅ Using isolated config: {benchmark_config_path}")
         return benchmark_config
 
     def _validate_complete_config(self, config: Dict[str, Any], config_path: str) -> None:
         """Validate that configuration is complete and self-contained."""
-        required_sections = ['retrieval', 'dataset', 'embedding', 'qdrant', 'retrievers', 'evaluation']
+        required_sections = ['retrieval', 'dataset',
+                             'embedding', 'qdrant', 'retrievers', 'evaluation']
         missing = []
-        
+
         for section in required_sections:
             if section not in config:
                 missing.append(section)
-        
+
         if missing:
             raise ValueError(f"Incomplete config {config_path}. Missing required sections: {missing}. "
-                           f"Each experiment config must be completely self-contained. "
-                           f"See benchmark_scenarios/TEMPLATE_self_contained.yml for a complete example.")
-        
+                             f"Each experiment config must be completely self-contained. "
+                             f"See benchmark_scenarios/TEMPLATE_self_contained.yml for a complete example.")
+
         # Additional validation for critical subsections
         retrieval_config = config.get('retrieval', {})
         if 'type' not in retrieval_config:
             missing.append('retrieval.type')
-            
+
         embedding_config = config.get('embedding', {})
         if 'strategy' not in embedding_config:
             missing.append('embedding.strategy')
-            
+
         if missing:
-            raise ValueError(f"Incomplete config {config_path}. Missing required keys: {missing}")
-        
+            raise ValueError(
+                f"Incomplete config {config_path}. Missing required keys: {missing}")
+
         print(f"🔍 Config validation passed: {config_path} is self-contained")
 
     def run_optimization_scenario(self, scenario_name: str, config: Dict[str, Any]) -> Dict[str, Any]:

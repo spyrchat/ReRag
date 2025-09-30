@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import yaml
 from typing import Dict, List, Tuple, Optional
+import ast
 
 
 class StratifiedRAGDatasetSplitter:
@@ -22,16 +23,39 @@ class StratifiedRAGDatasetSplitter:
         self.questions_df = None
 
     def load_dataset(self):
-        """Load SOSum dataset."""
-        questions_file = self.dataset_path / "questions.jsonl"
+        """Load SOSum dataset from CSV and normalize columns for stratification."""
+        questions_file = self.dataset_path / "question.csv"
+        self.questions_df = pd.read_csv(questions_file)
+        print(f"📊 Loaded {len(self.questions_df)} questions from CSV")
 
-        questions = []
-        with open(questions_file, 'r') as f:
-            for line in f:
-                questions.append(json.loads(line))
-
-        self.questions_df = pd.DataFrame(questions)
-        print(f"📊 Loaded {len(self.questions_df)} questions")
+        # Normalize column names for downstream code
+        # Map question_id -> id
+        if 'question_id' in self.questions_df.columns:
+            self.questions_df['id'] = self.questions_df['question_id']
+        # Use question_type as label
+        if 'question_type' in self.questions_df.columns:
+            self.questions_df['question_type_label'] = self.questions_df['question_type']
+        # Compute answer_count from answer_posts (assume ';' or '|' separated, or count non-empty answers)
+        if 'answer_posts' in self.questions_df.columns:
+            def count_answers(x):
+                if pd.isna(x) or not str(x).strip():
+                    return 0
+                # If already a list
+                if isinstance(x, list):
+                    return len(x)
+                # If string representation of a list
+                try:
+                    parsed = ast.literal_eval(x)
+                    if isinstance(parsed, list):
+                        return len(parsed)
+                except Exception:
+                    pass
+                # Fallback: treat as single answer if not empty
+                return 1
+            self.questions_df['answer_count'] = self.questions_df['answer_posts'].apply(
+                count_answers)
+        else:
+            self.questions_df['answer_count'] = 0
 
     def create_answer_count_bins(self) -> pd.Series:
         """
@@ -67,10 +91,20 @@ class StratifiedRAGDatasetSplitter:
         - Primary technology category (top 6 categories)
         - Answer count bins (low/medium/high)
         """
-        # Ensure question type exists
-        if 'question_type_label' not in self.questions_df.columns:
-            # Create basic type from tags/content
-            self.questions_df['question_type_label'] = 'General'
+        # Ensure tags_parsed exists
+        if 'tags_parsed' not in self.questions_df.columns:
+            if 'tags' in self.questions_df.columns:
+                self.questions_df['tags_parsed'] = self.questions_df['tags'].apply(
+                    lambda x: [t.strip()
+                               for t in str(x).split(';') if t.strip()]
+                )
+            else:
+                self.questions_df['tags_parsed'] = [[]
+                                                    for _ in range(len(self.questions_df))]
+
+        # Ensure question_type exists (use actual column from CSV)
+        if 'question_type' not in self.questions_df.columns:
+            self.questions_df['question_type'] = 'General'
 
         # Ensure primary technology category exists
         if 'primary_tag_category' not in self.questions_df.columns:
@@ -90,7 +124,7 @@ class StratifiedRAGDatasetSplitter:
 
         # Create composite stratification key
         strat_key = (
-            self.questions_df['question_type_label'].astype(str) + "_" +
+            self.questions_df['question_type'].astype(str) + "_" +
             self.questions_df['primary_tag_category_grouped'].astype(str) + "_" +
             answer_bins.astype(str)
         )
@@ -134,6 +168,9 @@ class StratifiedRAGDatasetSplitter:
             f"✅ Valid groups (≥{n_folds * min_samples_per_fold} samples): {len(valid_strats)}")
         print(f"📊 Samples after filtering: {len(filtered_df)}")
 
+        # Use question_id for splits
+        id_col = 'question_id' if 'question_id' in filtered_df.columns else 'id'
+
         # Create stratified folds
         skf = StratifiedKFold(n_splits=n_folds, shuffle=True,
                               random_state=self.random_state)
@@ -150,7 +187,7 @@ class StratifiedRAGDatasetSplitter:
                 splits[f'fold_{fold_idx}'] = {
                     'train': [],  # No training on final test fold
                     'dev': [],    # No dev on final test fold
-                    'test': fold_test['id'].tolist(),
+                    'test': fold_test[id_col].tolist(),
                     'role': 'final_test'
                 }
 
@@ -160,12 +197,11 @@ class StratifiedRAGDatasetSplitter:
                     'train_size': 0,
                     'dev_size': 0,
                     'test_size': len(fold_test),
-                    'test_question_types': fold_test['question_type_label'].value_counts().to_dict(),
+                    'test_question_types': fold_test['question_type'].value_counts().to_dict(),
                     'test_answer_bins': self.create_answer_count_bins().loc[fold_test.index].value_counts().to_dict()
                 })
             else:
                 # Optimization folds: split train_val into train (75%) and dev (25%)
-                # At least 20 samples for dev
                 dev_size = max(20, len(fold_train_val) // 4)
                 np.random.seed(self.random_state + fold_idx)
                 dev_indices = np.random.choice(
@@ -178,9 +214,9 @@ class StratifiedRAGDatasetSplitter:
                 fold_train = fold_train_val[~dev_mask]
 
                 splits[f'fold_{fold_idx}'] = {
-                    'train': fold_train['id'].tolist(),
-                    'dev': fold_dev['id'].tolist(),
-                    'test': fold_test['id'].tolist(),
+                    'train': fold_train[id_col].tolist(),
+                    'dev': fold_dev[id_col].tolist(),
+                    'test': fold_test[id_col].tolist(),
                     'role': 'optimization'
                 }
 
@@ -190,9 +226,9 @@ class StratifiedRAGDatasetSplitter:
                     'train_size': len(fold_train),
                     'dev_size': len(fold_dev),
                     'test_size': len(fold_test),
-                    'train_question_types': fold_train['question_type_label'].value_counts().to_dict(),
-                    'dev_question_types': fold_dev['question_type_label'].value_counts().to_dict(),
-                    'test_question_types': fold_test['question_type_label'].value_counts().to_dict(),
+                    'train_question_types': fold_train['question_type'].value_counts().to_dict(),
+                    'dev_question_types': fold_dev['question_type'].value_counts().to_dict(),
+                    'test_question_types': fold_test['question_type'].value_counts().to_dict(),
                     'train_answer_bins': self.create_answer_count_bins().loc[fold_train.index].value_counts().to_dict(),
                     'dev_answer_bins': self.create_answer_count_bins().loc[fold_dev.index].value_counts().to_dict(),
                     'test_answer_bins': self.create_answer_count_bins().loc[fold_test.index].value_counts().to_dict()
@@ -212,3 +248,31 @@ class StratifiedRAGDatasetSplitter:
                 'creation_timestamp': pd.Timestamp.now().isoformat()
             }
         }
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Test stratified splitting on SOSum StackOverflow dataset.")
+    parser.add_argument("--dataset-path", type=str, required=True,
+                        help="Path to SOSum dataset root (should contain questions.jsonl)")
+    parser.add_argument("--fold", type=int, default=0,
+                        help="Which fold to print (default: 0)")
+    parser.add_argument("--split", type=str, default="test", choices=[
+                        "train", "dev", "test"], help="Which split to print (default: test)")
+    args = parser.parse_args()
+
+    splitter = StratifiedRAGDatasetSplitter(args.dataset_path)
+    splitter.load_dataset()
+    cv_info = splitter.create_cv_splits()
+
+    fold_key = f"fold_{args.fold}"
+    split_ids = cv_info['splits'][fold_key][args.split]
+    print(f"\nFold {args.fold} | Split: {args.split} | #Docs: {len(split_ids)}")
+
+    # Print external IDs only (document-level stratification; chunk logic removed)
+    for ext_id in split_ids[:20]:  # Print only first 20 for brevity
+        print(f"Document ID: {ext_id}")
+
+    print("\nDone.")

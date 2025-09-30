@@ -223,10 +223,6 @@ class BenchmarkRunner:
         return aggregated
 
     def _evaluate_query(self, query: BenchmarkQuery, adapter: BenchmarkAdapter) -> BenchmarkResult:
-        print(f"\n🔍 DEBUG QUERY: {query.query_id}")
-        print(f"   Query text: {query.query_text}")
-        print(f"   Ground truth: {query.relevant_doc_ids}")
-
         start_retrieval = time.time()
         search_results = self.retrieval_pipeline.run(
             query.query_text,

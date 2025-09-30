@@ -1,17 +1,13 @@
 """
 Experiment 1: Clean experiment runner with separated concerns.
 """
-
-
-from utils import calculate_confidence_intervals
-import sys
-import yaml
-from pathlib import Path
-from datetime import datetime
 import argparse
-# Add project root to Python path first
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+from datetime import datetime
+from pathlib import Path
+import yaml
+import sys
+from utils import calculate_confidence_intervals
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class Experiment1Runner:
