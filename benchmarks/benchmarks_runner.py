@@ -1,19 +1,16 @@
-"""Configuration-driven benchmark execution engine."""
-
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import time
-import numpy as np
-import logging
-from typing import List, Dict, Any, Optional
-from tqdm import tqdm
-
-from benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
-from benchmarks_metrics import BenchmarkMetrics
 from components.retrieval_pipeline import RetrievalPipelineFactory
-from config.config_loader import get_benchmark_config, get_retriever_config
+from benchmarks_metrics import BenchmarkMetrics
+from benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from tqdm import tqdm
+from typing import List, Dict, Any
+import logging
+import numpy as np
+import time
+
 
 logger = logging.getLogger("benchmark_runner")
 
@@ -178,7 +175,7 @@ class BenchmarkRunner:
             result = self._evaluate_query(query, adapter)
             end_query = time.time()
             logger.info(
-                f"Processed query {i+1}/{len(queries)} ({query.query_id}) in {end_query - start_query:.2f}s")
+                f"Processed query {i + 1}/{len(queries)} ({query.query_id}) in {end_query - start_query:.2f}s")
             results.append(result)
         end_total = time.time()
         logger.info(f"Processed all queries in {end_total - start_total:.2f}s")

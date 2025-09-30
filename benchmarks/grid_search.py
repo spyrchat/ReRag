@@ -5,17 +5,19 @@
 - Aggregates across optimization folds to pick (alpha*, top_k*).
 - Evaluates once on the held-out final_test fold with (alpha*, top_k*).
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import argparse
-import importlib
-import json
-import copy
-from typing import Any, Dict, List, Optional, Tuple
-import numpy as np
-import yaml
-
-from benchmarks_runner import BenchmarkRunner
 from stratification import StratifiedRAGDatasetSplitter
+from benchmarks_runner import BenchmarkRunner
+import yaml
+import numpy as np
+from typing import Any, Dict, List, Optional, Tuple
+import copy
+import json
+import importlib
+import argparse
 
 
 def load_yaml(path: str) -> Dict[str, Any]:
@@ -58,16 +60,27 @@ def set_alpha_topk(cfg: Dict[str, Any], alpha: float, top_k: int) -> Dict[str, A
     return c
 
 
-def build_adapter(module_path: str, class_name: str, kwargs_json: Optional[str]) -> Any:
+def build_adapter(module_path: str, class_name: str, kwargs_json: Optional[str], qdrant_client=None, collection_name=None) -> Any:
     mod = importlib.import_module(module_path)
     cls = getattr(mod, class_name)
     kwargs = json.loads(kwargs_json) if kwargs_json else {}
-    return cls(**kwargs)
+    if qdrant_client is not None:
+        kwargs["qdrant_client"] = qdrant_client
+    if collection_name is not None:
+        kwargs["collection_name"] = collection_name
+    adapter = cls(**kwargs)
+    # Warn if qdrant_client or collection_name are missing
+    if not hasattr(adapter, "qdrant_client") or getattr(adapter, "qdrant_client", None) is None:
+        print("[WARNING] Adapter instance is missing qdrant_client. This may cause errors if required.")
+    if not hasattr(adapter, "collection_name") or getattr(adapter, "collection_name", None) is None:
+        print("[WARNING] Adapter instance is missing collection_name. This may cause errors if required.")
+    return adapter
 
 
 class SplitFilteringAdapter:
     """
     Wrap a base BenchmarkAdapter and filter queries by a given set of allowed IDs.
+    Also ensures qdrant_client and collection_name are forwarded if present.
     """
 
     def __init__(self, base_adapter: Any, allowed_query_ids: Optional[set], name_suffix: str = ""):
@@ -76,9 +89,19 @@ class SplitFilteringAdapter:
             str(x) for x in allowed_query_ids)
         self.name = getattr(base_adapter, "name", "adapter") + \
             (f"-{name_suffix}" if name_suffix else "")
+        # Forward qdrant_client and collection_name if present
+        if hasattr(base_adapter, "qdrant_client"):
+            self.qdrant_client = base_adapter.qdrant_client
+        if hasattr(base_adapter, "collection_name"):
+            self.collection_name = base_adapter.collection_name
 
-    def load_queries(self):
-        queries = self.base.load_queries()
+    def load_queries(self, *args, **kwargs):
+        # Ensure qdrant_client and collection_name are forwarded to base adapter if missing
+        if hasattr(self, "qdrant_client") and not hasattr(self.base, "qdrant_client"):
+            self.base.qdrant_client = self.qdrant_client
+        if hasattr(self, "collection_name") and not hasattr(self.base, "collection_name"):
+            self.base.collection_name = self.collection_name
+        queries = self.base.load_queries(*args, **kwargs)
         if self.allowed is None:
             return queries
         return [q for q in queries if str(q.query_id) in self.allowed]
@@ -274,8 +297,16 @@ def main():
     splitter.load_dataset()
     cv_info = splitter.create_cv_splits(n_folds=args.n_folds)
 
+    qdrant_cfg = base_cfg["retrieval"]["qdrant"]
+    from qdrant_client import QdrantClient
+    qdrant_client = QdrantClient(host=qdrant_cfg.get(
+        "host", "localhost"), port=qdrant_cfg.get("port", 6333))
+    collection_name = qdrant_cfg["collection_name"]
+
     base_adapter = build_adapter(
-        args.adapter_module, args.adapter_class, args.adapter_kwargs)
+        args.adapter_module, args.adapter_class, args.adapter_kwargs,
+        qdrant_client=qdrant_client, collection_name=collection_name
+    )
 
     # Local import to avoid circular
     from benchmarks.grid_search import AlphaTopkTunerF1At5

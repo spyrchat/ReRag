@@ -1,13 +1,13 @@
 """
 Experiment 1: Clean experiment runner with separated concerns.
 """
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 from datetime import datetime
 from pathlib import Path
 import yaml
-import sys
 from utils import calculate_confidence_intervals
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class Experiment1Runner:

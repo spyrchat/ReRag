@@ -38,6 +38,12 @@ def preload_chunk_id_mapping(qdrant_client, collection_name: str) -> dict:
     Preload all chunk_ids and their external_ids from Qdrant collection.
     Returns: dict mapping external_id -> list of chunk_ids
     """
+    if qdrant_client is None:
+        raise ValueError(
+            "qdrant_client is None! You must provide a valid QdrantClient instance to preload_chunk_id_mapping.")
+    if not collection_name:
+        raise ValueError(
+            "collection_name is not set! You must provide a valid collection name to preload_chunk_id_mapping.")
     mapping = {}
     # Scroll through all points in the collection
     next_page = None
@@ -94,7 +100,7 @@ def calculate_confidence_intervals(values: List[float], confidence: float = 0.95
     n = len(values)
     alpha = 1 - confidence
     degrees_freedom = n - 1
-    t_critical = stats.t.ppf(1 - alpha/2, degrees_freedom) if n > 1 else 0
+    t_critical = stats.t.ppf(1 - alpha / 2, degrees_freedom) if n > 1 else 0
     margin_error = t_critical * (std / np.sqrt(n))
     ci_lower = mean - margin_error
     ci_upper = mean + margin_error
