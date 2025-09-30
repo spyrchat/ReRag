@@ -1,13 +1,17 @@
 """Configuration-driven benchmark execution engine."""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import time
 import numpy as np
 import logging
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 
-from .benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
-from .benchmarks_metrics import BenchmarkMetrics
+from benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from benchmarks_metrics import BenchmarkMetrics
 from components.retrieval_pipeline import RetrievalPipelineFactory
 from config.config_loader import get_benchmark_config, get_retriever_config
 

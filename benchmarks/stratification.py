@@ -1,97 +1,40 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 from pathlib import Path
-import json
-import yaml
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List
 import ast
 
 
 class StratifiedRAGDatasetSplitter:
     """
-    Creates stratified splits for RAG evaluation ensuring:
-    - Balanced question types across folds
-    - Balanced technology categories  
-    - Balanced answer count bins (low/medium/high)
-    - Reproducible splits with seeds
+    Stratified splits for RAG at the QUESTION level.
+    Stratification key: question_type × primary_tag_category_grouped × answer_count_bin.
     """
 
     def __init__(self, dataset_path: str, random_state: int = 42):
         self.dataset_path = Path(dataset_path)
         self.random_state = random_state
-        self.questions_df = None
+        self.questions_df: pd.DataFrame = None
+        self._answer_bins: pd.Series = None
+        self._strat_key: pd.Series = None
 
     def load_dataset(self):
-        """Load SOSum dataset from CSV and normalize columns for stratification."""
-        questions_file = self.dataset_path / "question.csv"
+        questions_file = self.dataset_path / "question.csv"  # NOTE: CSV, not JSONL
         self.questions_df = pd.read_csv(questions_file)
-        print(f"📊 Loaded {len(self.questions_df)} questions from CSV")
+        print(f"Loaded {len(self.questions_df)} questions")
 
-        # Normalize column names for downstream code
-        # Map question_id -> id
+        # Normalize ID
         if 'question_id' in self.questions_df.columns:
             self.questions_df['id'] = self.questions_df['question_id']
-        # Use question_type as label
-        if 'question_type' in self.questions_df.columns:
-            self.questions_df['question_type_label'] = self.questions_df['question_type']
-        # Compute answer_count from answer_posts (assume ';' or '|' separated, or count non-empty answers)
-        if 'answer_posts' in self.questions_df.columns:
-            def count_answers(x):
-                if pd.isna(x) or not str(x).strip():
-                    return 0
-                # If already a list
-                if isinstance(x, list):
-                    return len(x)
-                # If string representation of a list
-                try:
-                    parsed = ast.literal_eval(x)
-                    if isinstance(parsed, list):
-                        return len(parsed)
-                except Exception:
-                    pass
-                # Fallback: treat as single answer if not empty
-                return 1
-            self.questions_df['answer_count'] = self.questions_df['answer_posts'].apply(
-                count_answers)
-        else:
-            self.questions_df['answer_count'] = 0
+        elif 'id' not in self.questions_df.columns:
+            raise ValueError("Missing 'question_id' or 'id' column.")
 
-    def create_answer_count_bins(self) -> pd.Series:
-        """
-        Create answer count bins:
-        - Low: 1-3 answers
-        - Medium: 4-6 answers  
-        - High: 7+ answers
-        """
-        def categorize_answer_count(count):
-            if 1 <= count <= 3:
-                return 'low'
-            elif 4 <= count <= 6:
-                return 'medium'
-            else:  # 7+
-                return 'high'
+        # Ensure question_type exists
+        if 'question_type' not in self.questions_df.columns:
+            self.questions_df['question_type'] = 'General'
 
-        answer_bins = self.questions_df['answer_count'].apply(
-            categorize_answer_count)
-
-        # Print distribution
-        bin_counts = answer_bins.value_counts()
-        print(f"📈 Answer Count Distribution:")
-        print(f"  Low (1-3): {bin_counts.get('low', 0)} questions")
-        print(f"  Medium (4-6): {bin_counts.get('medium', 0)} questions")
-        print(f"  High (7+): {bin_counts.get('high', 0)} questions")
-
-        return answer_bins
-
-    def create_stratification_key(self) -> pd.Series:
-        """
-        Create composite stratification key based on:
-        - Question type (Conceptual/How-to/Debug)
-        - Primary technology category (top 6 categories)
-        - Answer count bins (low/medium/high)
-        """
-        # Ensure tags_parsed exists
+        # Tags → tags_parsed
         if 'tags_parsed' not in self.questions_df.columns:
             if 'tags' in self.questions_df.columns:
                 self.questions_df['tags_parsed'] = self.questions_df['tags'].apply(
@@ -102,121 +45,121 @@ class StratifiedRAGDatasetSplitter:
                 self.questions_df['tags_parsed'] = [[]
                                                     for _ in range(len(self.questions_df))]
 
-        # Ensure question_type exists (use actual column from CSV)
-        if 'question_type' not in self.questions_df.columns:
-            self.questions_df['question_type'] = 'General'
-
-        # Ensure primary technology category exists
+        # Primary tag category
         if 'primary_tag_category' not in self.questions_df.columns:
             self.questions_df['primary_tag_category'] = self.questions_df['tags_parsed'].apply(
                 lambda x: x[0] if len(x) > 0 else 'Other'
             )
 
-        # Group rare categories into 'Other' to ensure enough samples
-        top_categories = self.questions_df['primary_tag_category'].value_counts().head(
-            6).index
-        self.questions_df['primary_tag_category_grouped'] = self.questions_df['primary_tag_category'].apply(
-            lambda x: x if x in top_categories else 'Other'
-        )
+        # Compute answer_count from answer_posts if present
+        if 'answer_posts' in self.questions_df.columns:
+            def count_answers(x):
+                if pd.isna(x) or not str(x).strip():
+                    return 0
+                if isinstance(x, list):
+                    return len(x)
+                try:
+                    parsed = ast.literal_eval(x)
+                    if isinstance(parsed, list):
+                        return len(parsed)
+                except Exception:
+                    pass
+                return 1
+            self.questions_df['answer_count'] = self.questions_df['answer_posts'].apply(
+                count_answers)
+        else:
+            self.questions_df['answer_count'] = 0
 
-        # Create answer count bins
-        answer_bins = self.create_answer_count_bins()
+    def _create_answer_count_bins(self) -> pd.Series:
+        def bin_count(c):
+            if 1 <= c <= 3:
+                return 'low'
+            elif 4 <= c <= 6:
+                return 'medium'
+            elif c >= 7:
+                return 'high'
+            else:
+                return 'none'  # 0 answers; κρατά το sample αντί να χαθεί
 
-        # Create composite stratification key
-        strat_key = (
+        bins = self.questions_df['answer_count'].apply(bin_count)
+        return bins
+
+    def _create_strat_key(self, top_k_categories: int = 6) -> pd.Series:
+        cats = self.questions_df['primary_tag_category'].value_counts().head(
+            top_k_categories).index
+        grouped = self.questions_df['primary_tag_category'].apply(
+            lambda x: x if x in cats else 'Other')
+        bins = self._create_answer_count_bins()
+        self._answer_bins = bins
+        strat = (
             self.questions_df['question_type'].astype(str) + "_" +
-            self.questions_df['primary_tag_category_grouped'].astype(str) + "_" +
-            answer_bins.astype(str)
+            grouped.astype(str) + "_" +
+            bins.astype(str)
         )
+        return strat
 
-        print(
-            f"🔑 Created {len(strat_key.unique())} unique stratification groups")
-        return strat_key
-
-    def create_cv_splits(self, n_folds: int = 5, min_samples_per_fold: int = 8) -> Dict:
-        """
-        Create stratified K-fold splits optimized for hyperparameter optimization.
-
-        Strategy:
-        - 4 folds for optimization (train on 3, dev on 1)
-        - 1 fold held out for final testing
-
-        Args:
-            n_folds: Number of CV folds (default: 5)
-            min_samples_per_fold: Minimum samples per group per fold
-
-        Returns:
-            Dictionary with fold information and splits
-        """
+    def create_cv_splits(self, n_folds: int = 5, min_samples_per_fold: int = 3) -> Dict:
         if self.questions_df is None:
             self.load_dataset()
 
-        # Create stratification key
-        strat_key = self.create_stratification_key()
+        strat_key = self._create_strat_key()
+        self._strat_key = strat_key
 
-        # Filter groups to ensure enough samples for stratification
-        strat_counts = strat_key.value_counts()
-        valid_strats = strat_counts[strat_counts >=
-                                    n_folds * min_samples_per_fold].index
+        # Keep strata with enough samples; relax threshold to avoid over-filtering
+        needed = n_folds * min_samples_per_fold
+        counts = strat_key.value_counts()
+        valid = counts[counts >= needed].index
+        mask = strat_key.isin(valid)
+        filtered = self.questions_df[mask].copy()
+        strat_f = strat_key[mask]
+        bins_f = self._answer_bins[mask]
 
-        mask = strat_key.isin(valid_strats)
-        filtered_df = self.questions_df[mask].copy()
-        filtered_strat_key = strat_key[mask]
-
-        print(f"📈 Stratification groups: {len(strat_counts)}")
         print(
-            f"✅ Valid groups (≥{n_folds * min_samples_per_fold} samples): {len(valid_strats)}")
-        print(f"📊 Samples after filtering: {len(filtered_df)}")
+            f"Strata total: {len(counts)} | valid: {len(valid)} | kept samples: {len(filtered)}")
 
-        # Use question_id for splits
-        id_col = 'question_id' if 'question_id' in filtered_df.columns else 'id'
+        id_col = 'question_id' if 'question_id' in filtered.columns else 'id'
 
-        # Create stratified folds
         skf = StratifiedKFold(n_splits=n_folds, shuffle=True,
                               random_state=self.random_state)
-
         splits = {}
         fold_stats = []
+        rng = np.random.RandomState(self.random_state)
 
-        for fold_idx, (train_val_idx, test_idx) in enumerate(skf.split(filtered_df, filtered_strat_key)):
-            fold_train_val = filtered_df.iloc[train_val_idx]
-            fold_test = filtered_df.iloc[test_idx]
+        for fold_idx, (train_val_idx, test_idx) in enumerate(skf.split(filtered, strat_f)):
+            train_val_df = filtered.iloc[train_val_idx]
+            test_df = filtered.iloc[test_idx]
+            strat_train_val = strat_f.iloc[train_val_idx]
 
             if fold_idx == n_folds - 1:
-                # Last fold: held out for final testing only
                 splits[f'fold_{fold_idx}'] = {
-                    'train': [],  # No training on final test fold
-                    'dev': [],    # No dev on final test fold
-                    'test': fold_test[id_col].tolist(),
+                    'train': [],
+                    'dev': [],
+                    'test': test_df[id_col].tolist(),
                     'role': 'final_test'
                 }
-
                 fold_stats.append({
                     'fold': fold_idx,
                     'role': 'final_test',
                     'train_size': 0,
                     'dev_size': 0,
-                    'test_size': len(fold_test),
-                    'test_question_types': fold_test['question_type'].value_counts().to_dict(),
-                    'test_answer_bins': self.create_answer_count_bins().loc[fold_test.index].value_counts().to_dict()
+                    'test_size': len(test_df),
+                    'test_question_types': test_df['question_type'].value_counts().to_dict(),
+                    'test_answer_bins': bins_f.loc[test_df.index].value_counts().to_dict()
                 })
             else:
-                # Optimization folds: split train_val into train (75%) and dev (25%)
-                dev_size = max(20, len(fold_train_val) // 4)
-                np.random.seed(self.random_state + fold_idx)
-                dev_indices = np.random.choice(
-                    len(fold_train_val), size=dev_size, replace=False)
+                # Stratified dev split inside train_val (e.g., 25% dev)
+                sss = StratifiedShuffleSplit(
+                    n_splits=1, test_size=0.25, random_state=self.random_state + fold_idx)
+                (train_idx_rel, dev_idx_rel), = sss.split(
+                    train_val_df, strat_train_val)
 
-                dev_mask = np.zeros(len(fold_train_val), dtype=bool)
-                dev_mask[dev_indices] = True
-
-                fold_dev = fold_train_val[dev_mask]
-                fold_train = fold_train_val[~dev_mask]
+                fold_train = train_val_df.iloc[train_idx_rel]
+                fold_dev = train_val_df.iloc[dev_idx_rel]
 
                 splits[f'fold_{fold_idx}'] = {
                     'train': fold_train[id_col].tolist(),
                     'dev': fold_dev[id_col].tolist(),
-                    'test': fold_test[id_col].tolist(),
+                    'test': test_df[id_col].tolist(),
                     'role': 'optimization'
                 }
 
@@ -225,13 +168,13 @@ class StratifiedRAGDatasetSplitter:
                     'role': 'optimization',
                     'train_size': len(fold_train),
                     'dev_size': len(fold_dev),
-                    'test_size': len(fold_test),
+                    'test_size': len(test_df),
                     'train_question_types': fold_train['question_type'].value_counts().to_dict(),
                     'dev_question_types': fold_dev['question_type'].value_counts().to_dict(),
-                    'test_question_types': fold_test['question_type'].value_counts().to_dict(),
-                    'train_answer_bins': self.create_answer_count_bins().loc[fold_train.index].value_counts().to_dict(),
-                    'dev_answer_bins': self.create_answer_count_bins().loc[fold_dev.index].value_counts().to_dict(),
-                    'test_answer_bins': self.create_answer_count_bins().loc[fold_test.index].value_counts().to_dict()
+                    'test_question_types': test_df['question_type'].value_counts().to_dict(),
+                    'train_answer_bins': bins_f.loc[fold_train.index].value_counts().to_dict(),
+                    'dev_answer_bins': bins_f.loc[fold_dev.index].value_counts().to_dict(),
+                    'test_answer_bins': bins_f.loc[test_df.index].value_counts().to_dict()
                 })
 
         return {
@@ -241,10 +184,10 @@ class StratifiedRAGDatasetSplitter:
                 'n_folds': n_folds,
                 'optimization_folds': n_folds - 1,
                 'final_test_fold': n_folds - 1,
-                'total_samples': len(filtered_df),
+                'total_samples': int(len(filtered)),
                 'random_state': self.random_state,
-                'stratification_groups': len(valid_strats),
-                'answer_count_bins': ['low (1-3)', 'medium (4-6)', 'high (7+)'],
+                'stratification_groups': int(len(valid)),
+                'answer_count_bins': ['none (0)', 'low (1-3)', 'medium (4-6)', 'high (7+)'],
                 'creation_timestamp': pd.Timestamp.now().isoformat()
             }
         }
@@ -252,15 +195,15 @@ class StratifiedRAGDatasetSplitter:
 
 if __name__ == "__main__":
     import argparse
+    import json
 
     parser = argparse.ArgumentParser(
-        description="Test stratified splitting on SOSum StackOverflow dataset.")
+        description="Stratified splitting on SOSum StackOverflow dataset (CSV).")
     parser.add_argument("--dataset-path", type=str, required=True,
-                        help="Path to SOSum dataset root (should contain questions.jsonl)")
-    parser.add_argument("--fold", type=int, default=0,
-                        help="Which fold to print (default: 0)")
-    parser.add_argument("--split", type=str, default="test", choices=[
-                        "train", "dev", "test"], help="Which split to print (default: test)")
+                        help="Path to dataset root (expects question.csv)")
+    parser.add_argument("--fold", type=int, default=0)
+    parser.add_argument("--split", type=str, default="test",
+                        choices=["train", "dev", "test"])
     args = parser.parse_args()
 
     splitter = StratifiedRAGDatasetSplitter(args.dataset_path)
@@ -269,10 +212,7 @@ if __name__ == "__main__":
 
     fold_key = f"fold_{args.fold}"
     split_ids = cv_info['splits'][fold_key][args.split]
-    print(f"\nFold {args.fold} | Split: {args.split} | #Docs: {len(split_ids)}")
-
-    # Print external IDs only (document-level stratification; chunk logic removed)
-    for ext_id in split_ids[:20]:  # Print only first 20 for brevity
-        print(f"Document ID: {ext_id}")
-
-    print("\nDone.")
+    print(
+        f"\nFold {args.fold} | Split: {args.split} | #Questions: {len(split_ids)}")
+    for ext_id in split_ids[:20]:
+        print(f"Question ID: {ext_id}")
