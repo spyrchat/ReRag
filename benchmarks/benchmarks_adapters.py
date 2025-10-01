@@ -1,8 +1,6 @@
 """StackOverflow benchmark adapter."""
-import json
-import os
 from pathlib import Path
-from typing import List, Union, Dict, Any
+from typing import List
 from abc import ABC, abstractmethod
 from benchmark_contracts import BenchmarkTask, BenchmarkQuery
 from utils import preload_chunk_id_mapping
@@ -168,36 +166,4 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                     }
                 )
                 queries.append(query)
-
-            # # Show sample for debugging
-            # if queries:
-            #     sample = queries[0]
-            #     print(f"📝 Sample query:")
-            #     print(f"   ID: {sample.query_id}")
-            #     print(f"   Text: {sample.query_text}")
-            #     print(f"   Ground truth docs: {sample.relevant_doc_ids}")
-
         return queries
-
-    def _create_dummy_queries(self) -> List[BenchmarkQuery]:
-        """Fallback dummy queries for testing."""
-        return [
-            BenchmarkQuery(
-                query_id="dummy_1",
-                query_text="How to implement binary search tree?",
-                expected_answer=None,
-                relevant_doc_ids=None,  # No ground truth for dummies
-                difficulty="medium",
-                category="programming",
-                metadata={"source": "dummy"}
-            ),
-            BenchmarkQuery(
-                query_id="dummy_2",
-                query_text="How to optimize database queries?",
-                expected_answer=None,
-                relevant_doc_ids=None,
-                difficulty="medium",
-                category="programming",
-                metadata={"source": "dummy"}
-            )
-        ]

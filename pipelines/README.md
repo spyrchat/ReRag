@@ -165,16 +165,6 @@ python bin/ingest.py ingest my_dataset /path/to/data
 python bin/ingest.py cleanup
 ```
 
-## 📊 Evaluation Framework
-
-The pipeline includes a comprehensive evaluation system:
-
-### Metrics
-- **Recall@k**: Fraction of relevant docs in top-k
-- **Precision@k**: Fraction of top-k that are relevant  
-- **NDCG@k**: Normalized Discounted Cumulative Gain
-- **MRR**: Mean Reciprocal Rank
-- **MAP**: Mean Average Precision
 
 ### Usage
 ```bash

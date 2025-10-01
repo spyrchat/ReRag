@@ -1,20 +1,19 @@
 """
-Experiment 1: Clean experiment runner with separated concerns.
+Experiment 3: Clean experiment runner with separated concerns.
 """
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 from datetime import datetime
-from pathlib import Path
 import yaml
 from utils import calculate_confidence_intervals
 
 
-class Experiment1Runner:
+class Experiment3Runner:
     """Clean experiment runner focused only on orchestration."""
 
-    def __init__(self, output_dir: str = "results/experiment_1", test_mode: bool = False):
+    def __init__(self, output_dir: str = "results/experiment_3", test_mode: bool = False):
         from benchmarks.utils import calculate_confidence_intervals
         from benchmarks.report_generator import BenchmarkReportGenerator
         from benchmarks.results_exporter import BenchmarkResultsExporter
@@ -55,16 +54,16 @@ class Experiment1Runner:
     def _get_scenarios(self):
         """Define experiment scenarios."""
         return [
-            {'path': 'benchmark_scenarios/experiment_1/bm25_baseline.yml',
-                'name': 'BM25_Baseline'},
-            {'path': 'benchmark_scenarios/experiment_1/splade_baseline.yml',
-                'name': 'SPLADE_Baseline'},
-            {'path': 'benchmark_scenarios/experiment_1/dense_bge_m3.yml',
-                'name': 'Dense_BGE_M3'},
-            {'path': 'benchmark_scenarios/experiment_1/hybrid_splade_bge_m3.yml',
-                'name': 'Hybrid_SPLADE_BGE_M3'},
-            {'path': 'benchmark_scenarios/experiment_1/hybrid_bm25_bge_m3.yml',
-                'name': 'Hybrid_BM25_BGE_M3'}
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_30.yml',
+                'name': 'hybrid_splade_30'},
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_60.yml',
+                'name': 'hybrid_splade_60'},
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_80.yml',
+                'name': 'hybrid_splade_80'},
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_100.yml',
+                'name': 'hybrid_splade_100'},
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_optim.yml',
+                'name': 'hybrid_splade_optimal'}
         ]
 
     def _run_single_scenario(self, scenario):
@@ -74,10 +73,9 @@ class Experiment1Runner:
             with open(scenario['path'], 'r') as f:
                 config = yaml.safe_load(f)
 
-            print("Loaded config:", config)
-            print("retrieval:", config.get('retrieval'))
-            print("qdrant:", config.get('retrieval', {}).get('qdrant'))
-            print("dataset:", config.get('dataset'))
+            if not config or 'retrieval' not in config or 'qdrant' not in config['retrieval'] or 'dataset' not in config:
+                print(f"❌ Invalid or incomplete config: {config}")
+                return None
 
             if self.test_mode:
                 config['max_queries'] = 10
@@ -139,7 +137,7 @@ class Experiment1Runner:
         query_count = "10 queries" if self.test_mode else "506 queries"
 
         print(
-            f"🧪 EXPERIMENT 1 - {mode_title}: Complete Retrieval Method Comparison")
+            f"🧪 EXPERIMENT 3 - {mode_title}: Complete Retrieval Method Comparison")
         print("=" * 70)
         print("📋 Configuration:")
         print("   • Methods: BM25, SPLADE, Dense BGE-M3, Hybrid combinations")
@@ -180,14 +178,14 @@ class Experiment1Runner:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run Experiment 1')
+    parser = argparse.ArgumentParser(description='Run Experiment 3')
     parser.add_argument('--test', action='store_true', help='Run in test mode')
     parser.add_argument(
-        '--output-dir', default='results/experiment_1', help='Output directory')
+        '--output-dir', default='results/experiment_3', help='Output directory')
 
     args = parser.parse_args()
 
-    runner = Experiment1Runner(output_dir=args.output_dir, test_mode=args.test)
+    runner = Experiment3Runner(output_dir=args.output_dir, test_mode=args.test)
     runner.run_experiment()
 
 
