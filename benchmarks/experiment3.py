@@ -60,8 +60,8 @@ class Experiment3Runner:
                 'name': 'hybrid_splade_60'},
             {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_80.yml',
                 'name': 'hybrid_splade_80'},
-            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_100.yml',
-                'name': 'hybrid_splade_100'},
+            {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_optimal.yml',
+                'name': 'hybrid_splade_a=0.6'},
             {'path': 'benchmark_scenarios/experiment_3/hybrid_splade_optim.yml',
                 'name': 'hybrid_splade_optimal'}
         ]
@@ -142,7 +142,7 @@ class Experiment3Runner:
         print("📋 Configuration:")
         print("   • Methods: BM25, SPLADE, Dense BGE-M3, Hybrid combinations")
         print(f"   • Queries: {query_count}")
-        print("   • top_k: 20")
+        print("   • top_k: 10")
         print("   • Metrics: Precision@K, Recall@K, MRR, NDCG@K, F1@K, MAP")
         if not self.test_mode:
             print("   • Statistics: Mean, STD, 95% CI, Statistical significance")

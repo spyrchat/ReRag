@@ -144,7 +144,7 @@ class QdrantSparseRetriever(ModernBaseRetriever):
                 results.append(retrieval_result)
 
             # Normalize scores for consistency
-            results = self._normalize_scores(results)
+            # results = self._normalize_scores(results)
             return results
 
         except Exception as e:

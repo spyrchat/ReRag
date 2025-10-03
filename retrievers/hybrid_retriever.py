@@ -61,6 +61,7 @@ class QdrantHybridRetriever(ModernBaseRetriever):
 
         # RRF constant (only used if method is RRF)
         self.rrf_k = fusion_config.get('rrf_k', 60)
+        print('rrf_K: ', self.rrf_k)
 
         self._initialized = False
 
@@ -289,8 +290,8 @@ class QdrantHybridRetriever(ModernBaseRetriever):
 
             return normalized
 
-        dense_normalized = normalize_scores(dense_results)
-        sparse_normalized = normalize_scores(sparse_results)
+        dense_normalized = dense_results
+        sparse_normalized = sparse_results
 
         # Combine with alpha weighting
         doc_scores = {}

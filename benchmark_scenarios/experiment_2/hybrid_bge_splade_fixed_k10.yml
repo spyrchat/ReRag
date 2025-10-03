@@ -1,0 +1,196 @@
+# hybrid_bge_splade_fixed_k10.yml
+pipeline:
+  name: "Hybrid Splade + BGE-M3 - Fixed k=10 (Agent Composite Objective)"
+  description: |
+    Fixed-k approach with multi-criteria optimization for AI agent applications.
+    
+    Design decisions:
+    - k=10: Based on agent context window and latency constraints
+    - Optimizing α (dense-sparse fusion weight) only
+    - Composite objective balancing success, precision, recall, and latency
+    
+    Optimization mode: agent_composite
+    - Success@3 (35%): Ensures at least one relevant document in top results
+    - Precision@3 (30%): Quality of top results (most important for agent)
+    - Recall@10 (20%): Completeness of retrieved context
+    - Precision@10 (15%): Overall quality of provided context
+    - Latency penalty: 10% max penalty for excessive response time
+  
+  dataset:
+    path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+    use_ground_truth: true
+    ground_truth_type: "unordered_binary"
+  
+  retrieval:
+    type: "hybrid"
+    top_k: 10  # FIXED - design decision, not hyperparameter
+    fusion:
+      method: "rrf"
+      alpha: 0.5  # Will be optimized via grid search
+      rrf_k: 60
+    qdrant:
+      host: "localhost"
+      port: 6333
+      collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
+      dense_vector_name: "dense"
+      sparse_vector_name: "sparse"
+    embedding:
+      dense:
+        provider: "huggingface"
+        model: "BAAI/bge-m3"
+        model_kwargs:
+          device: "cpu"
+        encode_kwargs:
+          normalize_embeddings: true
+      sparse:
+        provider: "sparse-splade"
+        model: "prithivida/Splade_PP_en_v1"
+      strategy: "hybrid"
+  
+  evaluation:
+    # Comprehensive evaluation at multiple k values
+    k_values: [1, 3, 5, 10, 15, 20]
+    
+    # Set-based metrics (valid for unordered binary GT)
+    metrics:
+      retrieval: [
+        "precision@k",
+        "recall@k",
+        "f1@k",
+        "r_precision",
+        "success@k"
+      ]
+    
+    # ============================================================
+    # OPTIMIZATION CONFIGURATION
+    # ============================================================
+    
+    # Mode: "agent_composite" or "single_metric"
+    optimization_mode: "agent_composite"
+    
+    # Agent Composite Objective (recommended for AI agent applications)
+    composite_objective:
+      weights:
+        w_success: 0.35         # Success@3: Critical for agent performance
+        w_precision_early: 0.30 # Precision@3: Quality of top results
+        w_recall: 0.20          # Recall@k: Context completeness
+        w_precision_full: 0.15  # Precision@k: Overall quality
+      
+      latency:
+        target_ms: 500          # Target response time
+        max_penalty_ms: 1000    # Maximum latency excess before capping penalty
+        # Latency penalty: 0.1 * (min(excess, max_penalty) / max_penalty)
+    
+    # Legacy single-metric optimization (for comparison/ablation)
+    # optimization_mode: "single_metric"
+    # optimization_metric: "f1@10"
+  
+  max_queries: 506
+  experiment_name: "hybrid_fixed_k10_agent_composite"
+  generation:
+    enabled: false
+
+# Grid search configuration
+grid:
+  # Optimize only alpha (k is fixed at 10)
+  alpha: "0.0:1.0:0.1"  # 11 values: [0.0, 0.1, 0.2, ..., 1.0]
+
+# Cross-validation configuration
+cv:
+  n_folds: 5
+  random_state: 42
+  stratification:
+    method: "question_type"  # Stratify by question characteristics if available
+
+# Optimization configuration
+optimization:
+  # Statistical equivalence threshold (1% window)
+  epsilon: 0.01
+  
+  # Tie-breaking preferences (applied in order)
+  prefer_balanced_alpha: true   # Prefer α closer to 0.5 (more balanced fusion)
+  
+  # Note: latency_tiebreak is deprecated in agent_composite mode
+  # (latency is integrated into the objective function)
+  latency_tiebreak: false
+
+# Experimental variants (for ablation studies)
+variants:
+  # Compare different objective configurations
+  alternative_weights:
+    - name: "success_focused"
+      description: "Prioritize finding at least one relevant document"
+      weights:
+        w_success: 0.50
+        w_precision_early: 0.25
+        w_recall: 0.15
+        w_precision_full: 0.10
+    
+    - name: "precision_focused"
+      description: "Prioritize quality over completeness"
+      weights:
+        w_success: 0.25
+        w_precision_early: 0.40
+        w_recall: 0.10
+        w_precision_full: 0.25
+    
+    - name: "recall_focused"
+      description: "Prioritize completeness for comprehensive answers"
+      weights:
+        w_success: 0.20
+        w_precision_early: 0.20
+        w_recall: 0.40
+        w_precision_full: 0.20
+  
+  # Latency sensitivity analysis
+  latency_profiles:
+    - name: "strict_latency"
+      target_ms: 300
+      max_penalty_ms: 500
+    
+    - name: "relaxed_latency"
+      target_ms: 800
+      max_penalty_ms: 1500
+
+# Reporting configuration
+reporting:
+  # Metrics to report in detail
+  primary_metrics: ["success@3", "precision@3", "recall@10", "f1@10"]
+  
+  # Additional metrics for comprehensive analysis
+  secondary_metrics: ["precision@1", "precision@5", "recall@5", "success@1"]
+  
+  # Generate performance breakdown
+  breakdown:
+    by_query_length: true       # Analyze by query length bins
+    by_result_availability: true # Analyze queries with many vs few relevant docs
+  
+  # Visualization
+  plots:
+    - "alpha_vs_composite_score"
+    - "alpha_vs_latency"
+    - "component_contributions"
+    - "fold_consistency"
+
+# Documentation
+rationale:
+  fixed_k: |
+    k=10 is chosen based on:
+    1. Agent context window constraints
+    2. Latency requirements (<1s end-to-end)
+    3. Empirical observation that most relevant documents appear in top-10
+  
+  composite_objective: |
+    Multi-criteria objective addresses AI agent requirements:
+    - Success@3: Ensures agent has useful information to work with
+    - Precision@3: Reduces noise in most influential positions
+    - Recall@k: Enables comprehensive answers requiring multiple sources
+    - Precision@k: Maintains overall quality of provided context
+    - Latency: Ensures responsive user experience
+  
+  weight_distribution: |
+    Weights reflect relative importance for agent performance:
+    - Success (35%): Most critical - agent fails without relevant docs
+    - Early Precision (30%): Very important - top results most influential
+    - Recall (20%): Important - enables multi-faceted answers
+    - Full Precision (15%): Useful - maintains context quality

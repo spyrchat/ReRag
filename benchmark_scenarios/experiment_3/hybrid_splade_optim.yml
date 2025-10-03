@@ -7,7 +7,7 @@ dataset:
 
 retrieval:
   type: "hybrid"
-  top_k: 5
+  top_k: 10
   fusion:
     method: "rrf"
     alpha: 1.0
@@ -30,7 +30,7 @@ retrieval:
     strategy: "hybrid"
 
 evaluation:
-  k_values: [1, 3, 5]
+  k_values: [1, 3, 5, 10]
   metrics:
     retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map", "f1@k"]
 

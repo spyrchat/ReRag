@@ -7,7 +7,7 @@ dataset:
 
 retrieval:
   type: "sparse"
-  top_k: 20
+  top_k: 10
   qdrant:
     collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
     sparse_vector_name: "sparse"
@@ -16,7 +16,7 @@ retrieval:
     model: "prithivida/Splade_PP_en_v1"
 
 evaluation:
-  k_values: [1, 3, 5]
+  k_values: [1, 3, 5, 10]
   metrics:
     retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map", "f1@k"]
 

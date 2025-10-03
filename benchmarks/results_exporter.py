@@ -21,33 +21,44 @@ class BenchmarkResultsExporter:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # 1. Detailed metrics CSV
-        csv_filename = f"experiment_1_detailed_metrics_{mode_suffix}_{timestamp}.csv"
+        csv_filename = f"experiment_detailed_metrics_{mode_suffix}_{timestamp}.csv"
         export_detailed_metrics(results, csv_filename, self.output_dir)
 
         # 2. Summary comparison CSV
-        summary_filename = f"experiment_1_summary_{mode_suffix}_{timestamp}.csv"
+        summary_filename = f"experiment_summary_{mode_suffix}_{timestamp}.csv"
         self._export_summary_comparison(results, summary_filename)
 
         # 3. Per-query results CSV
-        per_query_filename = f"experiment_1_per_query_{mode_suffix}_{timestamp}.csv"
+        per_query_filename = f"experiment_per_query_{mode_suffix}_{timestamp}.csv"
         export_per_query_results(results, per_query_filename, self.output_dir)
 
         # 4. Full JSON results
-        json_filename = f"experiment_1_full_results_{mode_suffix}_{timestamp}.json"
+        json_filename = f"experiment_full_results_{mode_suffix}_{timestamp}.json"
         self._export_json_results(results, json_filename)
 
         # 5. Statistical analysis CSV (if available)
         if statistical_results:
-            stats_filename = f"experiment_1_statistical_analysis_{mode_suffix}_{timestamp}.csv"
+            stats_filename = f"experiment_statistical_analysis_{mode_suffix}_{timestamp}.csv"
             self._export_statistical_results(
                 statistical_results, stats_filename)
 
     def _export_summary_comparison(self, results: Dict[str, Any], filename: str):
         """Export summary comparison table."""
         summary_data = []
-        key_metrics = ['precision@1', 'precision@3', 'precision@5',
-                       'recall@1', 'recall@3', 'recall@5',
-                       'mrr', 'ndcg@1', 'ndcg@3', 'ndcg@5', 'f1@3', 'f1@5', 'map']
+        # Dynamically collect all metric names across all scenarios
+        all_metrics = set()
+        for result in results.values():
+            metrics = result.get('metrics', {})
+            all_metrics.update(metrics.keys())
+        # Always include these base columns
+        base_columns = [
+            'precision@3', 'precision@5', 'precision@10',
+            'recall@3', 'recall@5', 'recall@10',
+            'mrr', 'ndcg@3', 'ndcg@5', 'ndcg@10', 'map', 'f1@3', 'f1@5', 'f1@10'
+        ]
+        extra_metrics = sorted(
+            [m for m in all_metrics if m not in base_columns and not m.startswith('f1@')])
+        key_metrics = base_columns + extra_metrics
 
         for scenario_name, result in results.items():
             metrics = result.get('metrics', {})
