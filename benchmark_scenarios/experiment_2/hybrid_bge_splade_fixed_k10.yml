@@ -94,7 +94,7 @@ pipeline:
 # Grid search configuration
 grid:
   # Optimize only alpha (k is fixed at 10)
-  alpha: "0.0:1.0:0.1"  # 11 values: [0.0, 0.1, 0.2, ..., 1.0]
+  alpha: "0.9:1.0:0.02"  # 11 values: [0.0, 0.1, 0.2, ..., 1.0]
 
 # Cross-validation configuration
 cv:

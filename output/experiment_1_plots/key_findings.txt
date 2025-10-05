@@ -1,0 +1,11 @@
+KEY FINDINGS FROM EXPERIMENT 1
+============================================================
+
+Best Overall (MAP): Dense
+MAP = 0.4810 ± 0.2491
+
+Improvement over BM25: 113.2%
+
+Highest Precision@5: Hybrid-S = 0.6523
+Highest Recall@5: Dense = 0.4104
+Fastest: BM25 = 17.0 ms
