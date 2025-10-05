@@ -184,3 +184,47 @@ class SmokeTestResult(BaseModel):
     test_name: str
     details: Dict[str, Any] = Field(default_factory=dict)
     errors: List[str] = Field(default_factory=list)
+
+
+class RetrievalMetrics(BaseModel):
+    """Metrics for retrieval evaluation."""
+    precision_at_k: Dict[int, float] = Field(default_factory=dict)
+    recall_at_k: Dict[int, float] = Field(default_factory=dict)
+    f1_at_k: Dict[int, float] = Field(default_factory=dict)
+    ndcg_at_k: Dict[int, float] = Field(default_factory=dict)
+    mrr: float = 0.0
+    map_score: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return self.dict()
+
+
+class EvaluationRun(BaseModel):
+    """Record of an evaluation run."""
+    run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dataset_name: str
+    dataset_version: str
+    split: str
+
+    # Retriever configuration
+    retriever_type: str
+    retriever_config: Dict[str, Any] = Field(default_factory=dict)
+    embedding_config: Dict[str, Any] = Field(default_factory=dict)
+
+    # Metrics
+    metrics: RetrievalMetrics
+
+    # Per-query results
+    per_query_results: List[Dict[str, Any]] = Field(default_factory=list)
+
+    # Timing
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+
+    # Metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def mark_complete(self):
+        """Mark the evaluation as completed."""
+        self.completed_at = datetime.utcnow()

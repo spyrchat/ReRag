@@ -83,22 +83,20 @@ class Experiment3Runner:
             # Initialize and run benchmark
             qdrant_cfg = config['retrieval']['qdrant']
             from qdrant_client import QdrantClient
-            from benchmarks.benchmarks_runner import BenchmarkRunner  # <-- ensure import here
-            from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter
+            from benchmarks.benchmarks_runner import BenchmarkRunner
+
             qdrant_client = QdrantClient(
                 host=qdrant_cfg.get('host', 'localhost'),
                 port=qdrant_cfg.get('port', 6333)
             )
 
             runner = BenchmarkRunner(config)
-            adapter = StackOverflowBenchmarkAdapter(
-                dataset_path=config['dataset']['path'],
-                qdrant_client=qdrant_client,
-                collection_name=qdrant_cfg['collection_name']
-            )
 
+            # Adapter is now loaded dynamically from config
             results = runner.run_benchmark(
-                adapter=adapter, max_queries=config['max_queries'])
+                qdrant_client=qdrant_client,
+                max_queries=config['max_queries']
+            )
 
             # Add metadata
             results.update({

@@ -1,22 +1,23 @@
 # SOSum Stack Overflow Dataset Configuration with BGE Large Embeddings and Code-Aware Chunking
 # Dataset: https://github.com/BonanKou/SOSum-A-Dataset-of-Extractive-Summaries-of-Stack-Overflow-Posts-and-labeling-tools
 dataset:
-  name: "stackoverflow_sosum_bge_code_aware"
+  name: "stackoverflow_sosum_bge_recursive"
   version: "v1.0.0"
-  adapter: "stackoverflow"
+  adapter: "pipelines.adapters.stackoverflow.StackOverflowAdapter"
+  path: "datasets/sosum/data"
 
 chunking:
-  strategy: "recursive"      # Changed from "recursive" to "code_aware"
-  chunk_size: 500            # Larger chunks for 1024-dim embeddings
+  strategy: "recursive"      
+  chunk_size: 500            
   chunk_overlap: 100
   separators: ["\n\n", "\n", " ", ""]
 
 embedding:
   strategy: "hybrid"
   dense:
-    provider: "hf"   # Changed from "voyage" to "hf"
-    model: "BAAI/bge-m3"  # BGE Large model
-    dimensions: 1024          # BGE Large produces 1024-dim embeddings
+    provider: "hf"   
+    model: "BAAI/bge-m3" 
+    dimensions: 1024          
     batch_size: 32
   sparse:
     provider: "sparse-splade"

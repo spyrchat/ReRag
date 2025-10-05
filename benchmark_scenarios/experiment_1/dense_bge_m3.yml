@@ -2,6 +2,7 @@ name: "Dense BGE-M3 - Experiment 1"
 description: "Dense retrieval using BGE-M3 embeddings"
 
 dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
   use_ground_truth: true
 

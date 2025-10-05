@@ -1,0 +1,55 @@
+# Advanced Multi-Stage Reranking Example
+# Demonstrates all supported reranker types
+
+description: "Advanced pipeline with multi-stage and ensemble reranking"
+
+retrieval:
+  type: hybrid
+  top_k: 50  
+  fusion:
+    method: rrf
+    alpha: 0.5
+    rrf_k: 60
+
+embedding:
+  strategy: hybrid
+  dense:
+    provider: google
+    model: models/embedding-001
+  sparse:
+    provider: sparse
+    model: Qdrant/bm25
+
+qdrant:
+  collection_name: sosum_stackoverflow_hybrid_v1
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+retrieval_pipeline:
+  stages:
+    - type: reranker
+      name: multistage_reranker
+      config:
+        model_type: multistage
+        stage1:
+          model_type: cross_encoder
+          model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
+          top_k: 30  # First stage keeps top 30
+        stage2:
+          model_type: bge
+          model_name: BAAI/bge-reranker-base
+          top_k: 15  # Second stage keeps top 15
+
+    - type: tag_filter
+      name: tag_filter
+      config:
+        required_tags: ["python", "javascript"]  # At least one of these
+        excluded_tags: ["deprecated"]  # None of these
+    
+    - type: result_limiter
+      name: final_limiter
+      config:
+        max_results: 10
+
+evaluation:
+  k_values: [1, 3, 5, 10, 20]

@@ -2,6 +2,7 @@ name: "Hybrid Splade + BGE-M3 - Experiment 1"
 description: "Hybrid Splade + BGE-M3 retrieval"
 
 dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
   use_ground_truth: true
 

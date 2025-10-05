@@ -2,8 +2,8 @@
 from pathlib import Path
 from typing import List
 from abc import ABC, abstractmethod
-from benchmark_contracts import BenchmarkTask, BenchmarkQuery
-from utils import preload_chunk_id_mapping
+from .benchmark_contracts import BenchmarkTask, BenchmarkQuery
+from .utils import preload_chunk_id_mapping
 
 
 class BenchmarkAdapter(ABC):
@@ -37,11 +37,22 @@ class BenchmarkAdapter(ABC):
 class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
     """Benchmark adapter that loads questions with ground truth mappings."""
 
-    def __init__(self, dataset_path: str, qdrant_client=None, collection_name=None):
+    def __init__(self, dataset_path: str, version: str = "1.0.0", qdrant_client=None, collection_name=None, **kwargs):
+        """
+        Initialize StackOverflow benchmark adapter.
+
+        Args:
+            dataset_path: Path to dataset directory
+            version: Dataset version (for compatibility with AdapterLoader)
+            qdrant_client: Qdrant client instance for ground truth mapping
+            collection_name: Qdrant collection name
+            **kwargs: Additional arguments (ignored, for compatibility)
+        """
         self.dataset_path = Path(dataset_path)
         self._queries_cache = None  # Cache loaded queries
         self.qdrant_client = qdrant_client
         self.collection_name = collection_name
+        self.version = version  # Store for compatibility
 
     @property
     def name(self) -> str:

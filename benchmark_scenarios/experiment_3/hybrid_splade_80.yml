@@ -2,6 +2,7 @@ name: "Hybrid Splade 80"
 description: "Hybrid Splade 80"
 
 dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
   use_ground_truth: true
 

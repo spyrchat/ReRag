@@ -17,6 +17,7 @@ pipeline:
     - Latency penalty: 10% max penalty for excessive response time
   
   dataset:
+    adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
     path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
     use_ground_truth: true
     ground_truth_type: "unordered_binary"

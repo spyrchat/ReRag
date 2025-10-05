@@ -3,10 +3,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from components.retrieval_pipeline import RetrievalPipelineFactory
-from benchmarks_metrics import BenchmarkMetrics
-from benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from .benchmarks_metrics import BenchmarkMetrics
+from .benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from pipelines.adapters.loader import AdapterLoader
 from tqdm import tqdm
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 import numpy as np
 import time
@@ -151,12 +152,67 @@ class BenchmarkRunner:
         # For now, return None - generation engine can be implemented later
         return None
 
+    def create_adapter_from_config(self, qdrant_client=None) -> BenchmarkAdapter:
+        """
+        Create a benchmark adapter from configuration.
+
+        Args:
+            qdrant_client: Optional Qdrant client for adapters that need it
+
+        Returns:
+            BenchmarkAdapter instance
+        """
+        dataset_config = self.config.get("dataset", {})
+
+        if "adapter" not in dataset_config:
+            raise ValueError(
+                "Config must specify 'dataset.adapter' as a full class path "
+                "(e.g., 'benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter')"
+            )
+
+        adapter_spec = dataset_config["adapter"]
+        dataset_path = dataset_config.get("path")
+
+        if not dataset_path:
+            raise ValueError("Config must specify 'dataset.path'")
+
+        # Get collection name for adapters that need it
+        collection_name = self.config.get("retrieval", {}).get(
+            "qdrant", {}).get("collection_name")
+
+        # Load adapter dynamically with additional kwargs for benchmark adapters
+        adapter = AdapterLoader.load_adapter(
+            adapter_spec=adapter_spec,
+            dataset_path=dataset_path,
+            version="1.0.0",
+            qdrant_client=qdrant_client,
+            collection_name=collection_name
+        )
+
+        print(f"✅ Loaded adapter: {adapter.__class__.__name__} from config")
+        return adapter
+
     def run_benchmark(
         self,
-        adapter: BenchmarkAdapter,
+        adapter: Optional[BenchmarkAdapter] = None,
         tasks: List[str] = None,
-        max_queries: int = None
+        max_queries: int = None,
+        qdrant_client=None
     ) -> Dict[str, Any]:
+        """
+        Run benchmark with either a provided adapter or load from config.
+
+        Args:
+            adapter: Optional pre-instantiated adapter. If None, loads from config.
+            tasks: Optional list of tasks to run
+            max_queries: Optional limit on number of queries
+            qdrant_client: Optional Qdrant client for config-based adapter creation
+        """
+        # Load adapter from config if not provided
+        if adapter is None:
+            adapter = self.create_adapter_from_config(
+                qdrant_client=qdrant_client)
+
         print(f"🚀 Running benchmark: {adapter.name}")
         retrieval_type = self.config.get(
             "retrieval", {}).get("type", "unknown")
@@ -184,11 +240,24 @@ class BenchmarkRunner:
 
     def run_benchmark_with_individual_results(
         self,
-        adapter: BenchmarkAdapter,
+        adapter: Optional[BenchmarkAdapter] = None,
         tasks: List[str] = None,
-        max_queries: int = None
+        max_queries: int = None,
+        qdrant_client=None
     ) -> Dict[str, Any]:
-        """Run benchmark and return both aggregated and individual results."""
+        """
+        Run benchmark and return both aggregated and individual results.
+
+        Args:
+            adapter: Optional pre-instantiated adapter. If None, loads from config.
+            tasks: Optional list of tasks to run
+            max_queries: Optional limit on number of queries
+            qdrant_client: Optional Qdrant client for config-based adapter creation
+        """
+        # Load adapter from config if not provided
+        if adapter is None:
+            adapter = self.create_adapter_from_config(
+                qdrant_client=qdrant_client)
 
         print(f"🚀 Running benchmark: {adapter.name}")
 

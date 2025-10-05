@@ -2,6 +2,7 @@ name: "Hybrid Splade 0.6 Optimal"
 description: "Hybrid Splade 0.6 Optimal"
 
 dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
   path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
   use_ground_truth: true
 

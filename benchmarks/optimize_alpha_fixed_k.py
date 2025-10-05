@@ -713,12 +713,18 @@ def main():
     )
     collection_name = qdrant_cfg["collection_name"]
 
-    # Initialize base adapter
-    import importlib
-    mod = importlib.import_module(args.adapter_module)
-    adapter_cls = getattr(mod, args.adapter_class)
-    base_adapter = adapter_cls(
+    # Initialize base adapter - load dynamically from config
+    from pipelines.adapters.loader import AdapterLoader
+
+    adapter_spec = base_cfg["dataset"].get("adapter")
+    if not adapter_spec:
+        # Fallback to CLI args for backwards compatibility
+        adapter_spec = f"{args.adapter_module}.{args.adapter_class}"
+
+    base_adapter = AdapterLoader.load_adapter(
+        adapter_spec=adapter_spec,
         dataset_path=args.dataset_path,
+        version="1.0.0",
         qdrant_client=qdrant_client,
         collection_name=collection_name
     )

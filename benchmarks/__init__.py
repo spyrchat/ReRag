@@ -1,1 +1,1 @@
-from benchmarks_adapters import StackOverflowBenchmarkAdapter
+from .benchmarks_adapters import StackOverflowBenchmarkAdapter

@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipelines.ingest.pipeline import IngestionPipeline, BatchIngestionPipeline
 from pipelines.eval.evaluator import RetrievalEvaluator
-from pipelines.adapters.stackoverflow import StackOverflowAdapter
+from pipelines.adapters.loader import AdapterLoader
 from pipelines.contracts import DatasetSplit
 from config.config_loader import load_config
 
@@ -38,32 +38,96 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def get_adapter(adapter_type: str, dataset_path: str, version: str = "1.0.0"):
-    """Factory function to create dataset adapters."""
-    adapters = {
-        "stackoverflow": StackOverflowAdapter
-    }
+def get_adapter(adapter_spec: str, dataset_path: str, version: str = "1.0.0", config: Dict[str, Any] = None):
+    """
+    Dynamically load dataset adapter.
 
-    if adapter_type not in adapters:
-        available = ", ".join(adapters.keys())
-        raise ValueError(
-            f"Unknown adapter type '{adapter_type}'. Available: {available}")
+    This function loads adapters dynamically, allowing you to add new adapters
+    without modifying this code. Just specify the adapter in your config file!
 
-    adapter_class = adapters[adapter_type]
-    return adapter_class(dataset_path, version)
+    Args:
+        adapter_spec: Adapter shortcut (e.g., "stackoverflow") or full class path
+                     (e.g., "pipelines.adapters.stackoverflow.StackOverflowAdapter")
+        dataset_path: Path to dataset files
+        version: Dataset version
+        config: Optional config dict to extract adapter settings from
+
+    Returns:
+        Instantiated adapter object
+
+    Examples:
+        # Using built-in shortcut
+        adapter = get_adapter("stackoverflow", "/path/to/data")
+
+        # Using full class path (no code changes needed!)
+        adapter = get_adapter(
+            "my_custom_package.adapters.MyAdapter",
+            "/path/to/data"
+        )
+    """
+    try:
+        # If config provided, try to load from config first
+        if config and "dataset" in config:
+            dataset_config = config.get("dataset", {})
+            adapter_kwargs = dataset_config.get("adapter_kwargs", {})
+
+            return AdapterLoader.load_adapter(
+                adapter_spec=adapter_spec,
+                dataset_path=dataset_path,
+                version=version,
+                **adapter_kwargs
+            )
+        else:
+            # Simple loading without extra kwargs
+            return AdapterLoader.load_adapter(
+                adapter_spec=adapter_spec,
+                dataset_path=dataset_path,
+                version=version
+            )
+    except ValueError as e:
+        logger = logging.getLogger("ingest")
+        logger.error(f"Failed to load adapter: {e}")
+
+        # Show helpful error message
+        shortcuts = AdapterLoader.list_shortcuts()
+        print("\n❌ Adapter loading failed!")
+        print(f"Error: {e}\n")
+        print("💡 Available adapter shortcuts:")
+        for name, path in shortcuts.items():
+            print(f"   - {name:20} -> {path}")
+        print("\n💡 You can also use full class paths:")
+        print("   - my_package.adapters.MyAdapter")
+        print("\n📖 See pipelines/adapters/README.md for adding custom adapters")
+        sys.exit(1)
 
 
 def cmd_ingest(args):
     """Run ingestion pipeline."""
     logger = logging.getLogger("ingest")
-    logger.info(
-        f"Starting ingestion: {args.adapter_type} from {args.dataset_path}")
 
     # Load configuration
     config = load_config(args.config) if args.config else load_config()
 
-    # Create adapter
-    adapter = get_adapter(args.adapter_type, args.dataset_path, args.version)
+    # Get adapter spec from config if not provided as argument
+    if hasattr(args, 'adapter_type') and args.adapter_type:
+        adapter_spec = args.adapter_type
+    elif "dataset" in config and "adapter" in config["dataset"]:
+        adapter_spec = config["dataset"]["adapter"]
+        logger.info(f"Using adapter from config: {adapter_spec}")
+    else:
+        raise ValueError(
+            "No adapter specified. Provide as argument or in config file under 'dataset.adapter'")
+
+    # Get dataset path
+    dataset_path = args.dataset_path if hasattr(
+        args, 'dataset_path') and args.dataset_path else config.get("dataset", {}).get("path")
+    if not dataset_path:
+        raise ValueError("No dataset path specified")
+
+    logger.info(f"Starting ingestion: {adapter_spec} from {dataset_path}")
+
+    # Create adapter (dynamically loaded based on config)
+    adapter = get_adapter(adapter_spec, dataset_path, args.version, config)
 
     # Create pipeline
     pipeline = IngestionPipeline(config=config)
@@ -204,9 +268,10 @@ Examples:
     # Ingest command
     ingest_parser = subparsers.add_parser(
         "ingest", help="Ingest a single dataset")
-    ingest_parser.add_argument("adapter_type", choices=["natural_questions", "stackoverflow", "energy_papers"],
-                               help="Dataset adapter type")
-    ingest_parser.add_argument("dataset_path", help="Path to dataset")
+    ingest_parser.add_argument("adapter_type", nargs='?',
+                               help="Adapter (optional if specified in config under 'dataset.adapter')")
+    ingest_parser.add_argument("dataset_path", nargs='?',
+                               help="Path to dataset (optional if specified in config under 'dataset.path')")
     ingest_parser.add_argument(
         "--version", default="1.0.0", help="Dataset version")
     ingest_parser.add_argument("--split", choices=["train", "val", "test", "all"], default="all",
