@@ -1,141 +1,16 @@
-agent_retrieval:
-  active_config: fast_hybrid
-  config_path: pipelines/configs/retrieval/fast_hybrid.yml
-benchmark:
-  evaluation:
-    k_values:
-    - 1
-    - 5
-    - 10
-    - 20
-    metrics:
-    - precision
-    - recall
-    - f1
-    - mrr
-    - ndcg
-  retrieval:
-    search_params:
-      score_threshold: 0.0
-    strategy: hybrid
-    top_k: 20
-embedding:
-  dense:
-    api_key_env: GOOGLE_API_KEY
-    batch_size: 32
-    dimensions: 768
-    model: models/embedding-001
-    provider: google
-    vector_name: dense
-  sparse:
-    model: Qdrant/bm25
-    provider: sparse
-    vector_name: sparse
-  strategy: hybrid
+# ============================================================================
+# MINIMAL CONFIG FOR MAIN.PY - RAG AGENT
+# ============================================================================
+# This config contains only what's necessary to run the interactive RAG agent.
+# For benchmark configs, see benchmark_scenarios/
+# ============================================================================
+
+# === LLM Configuration ===
 llm:
-  model: gpt-4.1-mini
-  provider: openai
+  model: gpt-4o-mini  # or gpt-4, gpt-3.5-turbo
   temperature: 0.0
-qdrant:
-  collection: sosum_stackoverflow_hybrid_v1
-  dense_vector_name: dense
-  sparse_vector_name: sparse
-retrieval_pipeline:
-  components:
-  - config:
-      retriever_type: hybrid
-    type: retriever
-  - config:
-      min_score: 0.01
-    type: score_filter
-  - config:
-      model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
-      model_type: cross_encoder
-      top_k: 10
-    type: reranker
-  default_retriever: hybrid
-retrievers:
-  dense:
-    embedding:
-      api_key_env: GOOGLE_API_KEY
-      dimensions: 768
-      model: models/embedding-001
-      provider: google
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: dense
-    score_threshold: 0.0
-    top_k: 10
-    type: dense
-  hybrid:
-    dense_weight: 0.6
-    embedding:
-      dense:
-        api_key_env: GOOGLE_API_KEY
-        dimensions: 768
-        model: models/embedding-001
-        provider: google
-      sparse:
-        dimensions: null
-        model: Qdrant/bm25
-        provider: sparse
-      strategy: hybrid
-    fusion:
-      dense_weight: 0.7
-      method: rrf
-      rrf_k: 60
-      sparse_weight: 0.3
-    fusion_method: rrf
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-      parallel_search: false
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      dense_vector_name: dense
-      hybrid_config:
-        alpha: 0.5
-        reciprocal_rank_constant: 60
-      sparse_vector_name: sparse
-    score_threshold: 0.0
-    sparse_weight: 0.4
-    top_k: 10
-    type: hybrid
-  semantic:
-    embedding:
-      api_key_env: GOOGLE_API_KEY
-      dimensions: 768
-      model: models/embedding-001
-      provider: google
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: dense
-    score_threshold: 0.0
-    semantic_config:
-      context_window: 3
-      similarity_threshold: 0.8
-    top_k: 10
-    type: semantic
-  sparse:
-    embedding:
-      model: Qdrant/bm25
-      provider: sparse
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: sparse
-    score_threshold: 0.0
-    top_k: 10
-    type: sparse
+
+# === Agent Retrieval Configuration ===
+# Points to the retrieval pipeline config (separate file)
+agent_retrieval:
+  config_path: pipelines/configs/retrieval/fast_hybrid.yml

@@ -5,7 +5,8 @@ Provides an interactive chat interface for the LangGraph agent with configurable
 
 from agent.graph import graph
 from logs.utils.logger import get_logger
-
+from dotenv import load_dotenv
+load_dotenv()
 logger = get_logger("chat")
 
 
