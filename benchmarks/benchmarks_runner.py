@@ -3,8 +3,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from components.retrieval_pipeline import RetrievalPipelineFactory
-from .benchmarks_metrics import BenchmarkMetrics
-from .benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from benchmarks.benchmarks_metrics import BenchmarkMetrics
+from benchmarks.benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
 from pipelines.adapters.loader import AdapterLoader
 from tqdm import tqdm
 from typing import List, Dict, Any, Optional
