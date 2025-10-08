@@ -836,7 +836,7 @@ The benchmarking framework supports measuring:
 
 **Minimum Requirements:**
 - Python 3.11+
-- 4GB RAM (for development/testing)
+- 8GB RAM (for development/testing)
 - 10GB storage
 - 2 CPU cores
 
@@ -847,28 +847,6 @@ The benchmarking framework supports measuring:
 - Dedicated GPU (optional, for local embedding models)
 
 Run your own benchmarks to determine optimal hardware for your specific use case.
-
----
-
-## 🤝 Community & Support
-
-### Getting Help
-1. **Documentation**: Start with component-specific README files
-2. **GitHub Issues**: Report bugs and request features
-3. **GitHub Discussions**: Ask questions and share experiences
-4. **Discord/Slack**: Real-time community support (if available)
-
-### Contributing Guidelines
-1. **Code Style**: Follow PEP 8, use Black formatter and type hints
-2. **Testing**: Add tests for new features, maintain >80% coverage
-3. **Documentation**: Update relevant README files and docstrings
-4. **Performance**: Benchmark performance-sensitive changes
-
-### Contribution Areas
-- 🐛 **Bug Fixes**: Error handling and edge cases
-- 🚀 **Features**: New embedding providers, retrieval strategies
-- 📚 **Documentation**: Tutorials, examples, and guides
-- 🧪 **Testing**: Test coverage and integration tests
 
 ---
 
@@ -894,9 +872,6 @@ Run your own benchmarks to determine optimal hardware for your specific use case
 Start with our [Quick Start Guide](#-quick-start) and join the community of developers building intelligent information retrieval systems!
 
 For questions, support, or contributions, please:
-- 📖 Check the [component documentation](pipelines/README.md)
-- 🐛 Report issues on [GitHub Issues](https://github.com/your-repo/issues)
-- 💬 Join discussions on [GitHub Discussions](https://github.com/your-repo/discussions)
 - 📧 Contact: [spyrchat@ece.auth.gr]
 
 **Happy building! 🎉**
