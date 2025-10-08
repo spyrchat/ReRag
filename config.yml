@@ -16,6 +16,11 @@ llm:
   model: llama3.1            # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
   temperature: 0.0
   base_url: http://localhost:11434  # Ollama URL (optional, defaults to this)
+  
+  # Ollama-specific parameters
+  num_ctx: 8192              # Context window size (default: 2048)
+  num_predict: 2048          # Max tokens to generate per response (default: 128)
+  # Increase num_predict if you need longer answers (e.g., 4096 for very detailed responses)
 
 # Example OpenAI config:
 # llm:
@@ -27,6 +32,14 @@ llm:
 # Points to the retrieval pipeline config (separate file)
 agent_retrieval:
   config_path: pipelines/configs/retrieval/fast_dense_bge_m3.yml
+
+# === Generation Configuration ===
+# Controls how the LLM generates answers
+generation:
+  prompt_style: conversational  # Options: "strict", "conversational", "citations"
+  # strict:         Strict grounding to context, minimal hallucinations (best for benchmarks)
+  # conversational: More natural, allows some inference (best for UX)
+  # citations:      Research-focused with explicit references (best for verification)
 
 # === Benchmark Configuration ===
 benchmark:

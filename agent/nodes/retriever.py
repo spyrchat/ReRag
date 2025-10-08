@@ -33,7 +33,6 @@ def _format_docs_for_agent(results) -> tuple[str, List[Document]]:
     retrieved_docs = []
 
     for result in results:
-        print(result)
         content = result.document.page_content
         context_parts.append(content)
 

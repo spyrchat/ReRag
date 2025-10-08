@@ -33,7 +33,10 @@ llm = create_llm(llm_cfg)
 
 # Setup nodes
 query_analyzer = make_query_analyzer(llm)
-generator = make_generator(llm)
+
+# Get generator prompt style from config (default: "strict")
+prompt_style = config.get("generation", {}).get("prompt_style", "strict")
+generator = make_generator(llm, prompt_style=prompt_style)
 
 # Initialize benchmark logger (check environment variable or config)
 benchmark_enabled = os.getenv("BENCHMARK_MODE", "false").lower() == "true"
@@ -61,8 +64,9 @@ builder.set_entry_point("query_analyzer")
 # Define linear flow (always retrieve)
 builder.add_edge("query_analyzer", "retriever")
 builder.add_edge("retriever", "generator")
-builder.add_edge("generator", "memory_updater")
-builder.add_edge("memory_updater", "benchmark_logger")
+# builder.add_edge("generator", "memory_updater")
+# builder.add_edge("memory_updater", "benchmark_logger")
+builder.add_edge("generator", "benchmark_logger")
 builder.add_edge("benchmark_logger", END)
 
 # Compile the graph
@@ -77,7 +81,7 @@ print(f"LLM Model: {llm_cfg.get('model', 'unknown')}")
 print(f"Benchmark Logging: {'ENABLED' if benchmark_enabled else 'DISABLED'}")
 print("\nPipeline Flow:")
 print("1. Query Analyzer → Breaks down query")
-print("2. Retriever → Fetches documents (always)")
+print("2. Retriever → Fetches documents (optional)")
 print("3. Generator → Creates answer")
 print("4. Memory Updater → Updates history")
 print("5. Benchmark Logger → Saves execution data")
