@@ -202,7 +202,7 @@ class RetrievalPipeline:
 
         for i, component in enumerate(self.components):
             component_name = component.component_name
-            logger.debug(f"Step {i+1}: Running {component_name}")
+            logger.debug(f"Step {i + 1}: Running {component_name}")
 
             try:
                 # Merge component-specific config with runtime kwargs

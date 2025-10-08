@@ -125,7 +125,7 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             for result in search_result:
                 payload = result.payload or {}
                 document = Document(
-                    page_content=payload.get('page_content', ''),
+                    page_content=payload.get('text', ''),
                     metadata={
                         **payload.get('metadata', {}),
                         'external_id': payload.get('external_id'),

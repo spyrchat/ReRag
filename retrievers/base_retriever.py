@@ -32,13 +32,10 @@ class ModernBaseRetriever(BaseRetriever):
         # Store the exact configuration provided - NO MERGING WITH DEFAULTS
         self.config = config.copy()  # Use exact copy of provided config
 
-        # Only extract essential parameters that must exist
-        self.top_k = config.get('top_k')
+        # Extract optional parameters - top_k can be provided at runtime
+        # Default fallback, usually overridden at runtime
+        self.top_k = config.get('top_k', 10)
         self.score_threshold = config.get('score_threshold', 0.0)
-
-        if self.top_k is None:
-            raise ValueError(
-                "top_k parameter is required in retriever configuration")
 
         # Performance settings - only if explicitly provided
         self.performance_config = config.get('performance', {})

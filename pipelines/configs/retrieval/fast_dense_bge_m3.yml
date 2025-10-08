@@ -1,76 +1,30 @@
 # ============================================================================
-# Fast Dense Retrieval Configuration - BGE-M3
+# Fast Dense Retrieval - BGE-M3 (No Reranking)
 # ============================================================================
-# Fast dense retrieval without reranking for quick agent responses
-# Best for: Interactive chat with fast response times
+# Quick semantic retrieval for interactive agent use
 # ============================================================================
 
-description: "Fast dense retrieval using BAAI BGE-M3 embeddings (no reranking)"
+# === Embedding Configuration ===
+embedding:
+  provider: huggingface
+  model: BAAI/bge-m3
+  dimensions: 1024
 
-# Main retrieval pipeline configuration
+# === Qdrant Configuration ===
+qdrant:
+  host: localhost
+  port: 6333
+  collection_name: sosum_stackoverflow_bge_splade_recursive_v2
+  vector_name: dense
+
+# === Retrieval Pipeline ===
 retrieval_pipeline:
-  # Primary retriever configuration
   retriever:
-    type: "dense"
-    top_k: 10                    # Fewer results for speed
-    score_threshold: 0.0        # Minimum similarity score
-    
-    # Embedding configuration for BGE-M3
-    embedding:
-      provider: "huggingface"
-      model: "BAAI/bge-m3"
-      dimensions: 1024          # BGE-M3 embedding dimensions
-      
-      # HuggingFace model parameters
-      model_kwargs:
-        device: "cpu"           # Use "cuda" if GPU available
-        trust_remote_code: true
-      
-      # Encoding parameters
-      encode_kwargs:
-        normalize_embeddings: true
-        batch_size: 32
-        show_progress_bar: false
-    
-    # Qdrant database configuration
-    qdrant:
-      host: "localhost"
-      port: 6333
-      collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
-      vector_name: "dense"
-    
-    # Performance settings
-    performance:
-      lazy_initialization: true
-      batch_size: 32
-      enable_caching: true
-
-  # Processing stages (minimal for speed)
+    type: dense
+    top_k: 10
+    score_threshold: 0.0
+  
   stages:
-    # Stage 1: Dense retrieval only
-    - type: "retriever"
-      name: "dense_retriever"
-    
-    # # Stage 2: Light filtering
-    # - type: "score_filter"
-    #   name: "score_filter"
-    #   config:
-    #     min_score: 0.2          
-    #     max_results: 10
-
-# Global configuration
-embedding_strategy: "dense"
-
-# Quality settings (relaxed for speed)
-quality:
-  min_relevance_score: 0.2
-  
-# Performance optimization (aggressive caching)
-optimization:
-  cache_embeddings: true
-  cache_ttl: 3600              # 1 hour cache
-  
-# Monitoring
-monitoring:
-  log_retrieval_stats: false
-  log_pipeline_timing: false
+    - type: score_filter
+      config:
+        min_score: 0.3

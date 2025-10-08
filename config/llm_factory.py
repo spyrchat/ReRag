@@ -39,7 +39,8 @@ def create_llm(config: Dict[str, Any]):
     model = config.get("model", "gpt-4o-mini")
     temperature = config.get("temperature", 0.0)
 
-    logger.info(f"Creating LLM: provider={provider}, model={model}, temp={temperature}")
+    logger.info(
+        f"Creating LLM: provider={provider}, model={model}, temp={temperature}")
 
     if provider == "openai":
         return _create_openai_llm(model, temperature, config)

@@ -15,9 +15,8 @@ load_dotenv()  # Load environment variables first
 
 from langgraph.graph import StateGraph, END
 from agent.nodes.query_analyzer import make_query_analyzer
-from agent.nodes.router import make_router, router_condition
-from agent.nodes.retriever import make_configurable_retriever
-from agent.nodes.generator_improved import make_generator
+from agent.nodes.retriever import retriever
+from agent.nodes.generator import make_generator
 from agent.nodes.memory_updater import memory_updater
 from agent.nodes.benchmark_logger import make_benchmark_logger_node, initialize_benchmark_logger
 from agent.schema import AgentState
@@ -32,19 +31,14 @@ config = load_config("config.yml")
 llm_cfg = config["llm"]
 llm = create_llm(llm_cfg)
 
-# Setup retriever
-retrieval_config_path = config.get("agent_retrieval", {}).get(
-    "config_path", "pipelines/configs/retrieval/fast_dense_bge_m3.yml")
-retriever = make_configurable_retriever(config_path=retrieval_config_path)
-
 # Setup nodes
 query_analyzer = make_query_analyzer(llm)
-router = make_router(llm)
 generator = make_generator(llm)
 
 # Initialize benchmark logger (check environment variable or config)
 benchmark_enabled = os.getenv("BENCHMARK_MODE", "false").lower() == "true"
-benchmark_enabled = config.get("benchmark", {}).get("enabled", benchmark_enabled)
+benchmark_enabled = config.get("benchmark", {}).get(
+    "enabled", benchmark_enabled)
 initialize_benchmark_logger(
     output_dir="logs/benchmark",
     enabled=benchmark_enabled
@@ -75,12 +69,11 @@ builder.add_edge("benchmark_logger", END)
 graph = builder.compile()
 
 # Print graph info
-print("\n" + "="*70)
+print("\n" + "=" * 70)
 print("REFINED RAG AGENT INITIALIZED")
-print("="*70)
+print("=" * 70)
 print(f"LLM Provider: {llm_cfg.get('provider', 'unknown')}")
 print(f"LLM Model: {llm_cfg.get('model', 'unknown')}")
-print(f"Retrieval Config: {retrieval_config_path}")
 print(f"Benchmark Logging: {'ENABLED' if benchmark_enabled else 'DISABLED'}")
 print("\nPipeline Flow:")
 print("1. Query Analyzer → Breaks down query")
@@ -88,4 +81,4 @@ print("2. Retriever → Fetches documents (always)")
 print("3. Generator → Creates answer")
 print("4. Memory Updater → Updates history")
 print("5. Benchmark Logger → Saves execution data")
-print("="*70 + "\n")
+print("=" * 70 + "\n")

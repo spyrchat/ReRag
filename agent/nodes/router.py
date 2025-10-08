@@ -12,18 +12,18 @@ logger = get_logger(__name__)
 def make_router(llm):
     """
     Factory to create a routing decision node.
-    
+
     This node determines:
     1. Whether the query needs database retrieval
     2. Routes to either retriever or direct answer generator
-    
+
     Args:
         llm: Language model instance
-        
+
     Returns:
         function: Router node function
     """
-    
+
     # Prompt for routing decision
     routing_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a routing agent for a StackOverflow Q&A system.
@@ -63,50 +63,53 @@ Query Analysis: {query_analysis}
 
 Decision:""")
     ])
-    
+
     chain = routing_prompt | llm
-    
+
     def router(state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Route the query to retriever or direct answering.
-        
+
         Args:
             state: Current agent state
-            
+
         Returns:
             Updated state with routing decision
         """
         question = state["question"]
         query_analysis = state.get("query_analysis", "No analysis available")
-        
-        logger.info(f"[Router] Making routing decision for: {question[:100]}...")
-        
+
+        logger.info(
+            f"[Router] Making routing decision for: {question[:100]}...")
+
         try:
             # Get LLM decision
             response = chain.invoke({
                 "question": question,
                 "query_analysis": query_analysis
             })
-            
-            decision = response.content.strip().upper() if hasattr(response, 'content') else str(response).strip().upper()
-            
+
+            decision = response.content.strip().upper() if hasattr(
+                response, 'content') else str(response).strip().upper()
+
             # Parse decision
             needs_retrieval = "RETRIEVE" in decision
-            
+
             if needs_retrieval:
                 next_node = "retriever"
-                logger.info("[Router] Decision: RETRIEVE - Routing to retriever")
+                logger.info(
+                    "[Router] Decision: RETRIEVE - Routing to retriever")
             else:
                 next_node = "generator"
                 logger.info("[Router] Decision: DIRECT - Routing to generator")
-            
+
             return {
                 **state,
                 "needs_retrieval": needs_retrieval,
                 "routing_decision": decision,
                 "next_node": next_node
             }
-            
+
         except Exception as e:
             logger.error(f"[Router] Routing failed: {str(e)}")
             # Fallback: assume retrieval is needed for safety
@@ -117,17 +120,17 @@ Decision:""")
                 "routing_decision": "RETRIEVE (fallback)",
                 "next_node": "retriever"
             }
-    
+
     return router
 
 
 def router_condition(state: Dict[str, Any]) -> str:
     """
     Conditional edge function for routing.
-    
+
     Args:
         state: Current agent state
-        
+
     Returns:
         Next node name based on routing decision
     """

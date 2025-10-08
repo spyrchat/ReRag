@@ -79,7 +79,7 @@ class StratifiedRAGDatasetSplitter:
             elif c >= 7:
                 return 'high'
             else:
-                return 'none'  # 0 answers; κρατά το sample αντί να χαθεί
+                return 'none'  
 
         bins = self.questions_df['answer_count'].apply(bin_count)
         return bins

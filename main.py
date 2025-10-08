@@ -4,22 +4,10 @@ Provides an interactive chat interface for the LangGraph agent with configurable
 """
 
 import argparse
-from config.config_loader import load_config
+from agent.graph_refined import graph
 from logs.utils.logger import get_logger
 
 logger = get_logger("chat")
-
-# Load configuration to determine which graph to use
-config = load_config("config.yml")
-agent_mode = config.get("agent", {}).get("mode", "simple")
-
-# Import appropriate graph
-if agent_mode == "refined":
-    from agent.graph_refined import graph
-    logger.info("[Main] Using REFINED agent with multi-stage pipeline")
-else:
-    from agent.graph import graph
-    logger.info("[Main] Using SIMPLE agent (legacy mode)")
 
 
 def main():
