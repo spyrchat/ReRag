@@ -5,12 +5,30 @@
 # For benchmark configs, see benchmark_scenarios/
 # ============================================================================
 
+# === Agent Configuration ===
+agent:
+  mode: refined  # "simple" (old) or "refined" (new multi-stage pipeline)
+
 # === LLM Configuration ===
+# Supported providers: openai, ollama
 llm:
-  model: gpt-4o-mini  # or gpt-4, gpt-3.5-turbo
+  provider: ollama           # or "openai"
+  model: llama3.1            # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
   temperature: 0.0
+  base_url: http://localhost:11434  # Ollama URL (optional, defaults to this)
+
+# Example OpenAI config:
+# llm:
+#   provider: openai
+#   model: gpt-4o-mini
+#   temperature: 0.0
 
 # === Agent Retrieval Configuration ===
 # Points to the retrieval pipeline config (separate file)
 agent_retrieval:
-  config_path: pipelines/configs/retrieval/fast_hybrid.yml
+  config_path: pipelines/configs/retrieval/fast_dense_bge_m3.yml
+
+# === Benchmark Configuration ===
+benchmark:
+  enabled: true  # Set to false to disable execution logging
+  output_dir: logs/benchmark

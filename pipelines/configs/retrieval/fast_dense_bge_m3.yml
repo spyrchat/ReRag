@@ -1,0 +1,28 @@
+# Fast Dense Retrieval - BGE-M3 (No Reranking)
+
+# Top-level retriever config (required by base_retriever.py)
+top_k: 5
+score_threshold: 0.0
+
+# Embedding Configuration
+embedding:
+  provider: huggingface
+  model: BAAI/bge-m3
+  dimensions: 1024
+
+# Qdrant Configuration
+qdrant:
+  host: localhost
+  port: 6333
+  collection_name: sosum_stackoverflow_bge_splade_recursive_v2
+  vector_name: dense
+
+# Retrieval Pipeline
+retrieval_pipeline:
+  retriever:
+    type: dense
+  
+  stages:
+    - type: score_filter
+      config:
+        min_score: 0.3

@@ -4,11 +4,22 @@ Provides an interactive chat interface for the LangGraph agent with configurable
 """
 
 import argparse
-from agent.graph import graph
+from config.config_loader import load_config
 from logs.utils.logger import get_logger
-from dotenv import load_dotenv
-load_dotenv()
+
 logger = get_logger("chat")
+
+# Load configuration to determine which graph to use
+config = load_config("config.yml")
+agent_mode = config.get("agent", {}).get("mode", "simple")
+
+# Import appropriate graph
+if agent_mode == "refined":
+    from agent.graph_refined import graph
+    logger.info("[Main] Using REFINED agent with multi-stage pipeline")
+else:
+    from agent.graph import graph
+    logger.info("[Main] Using SIMPLE agent (legacy mode)")
 
 
 def main():
@@ -26,21 +37,21 @@ def main():
             "question": args.query,
             "chat_history": []
         }
-        
+
         try:
             final_state = graph.invoke(state)
             answer = final_state.get("answer", "[No answer returned]")
             print(f"Query: {args.query}")
             print(f"Answer: {answer}")
-            
+
             if "error" in final_state:
                 logger.error(f"Execution error: {final_state['error']}")
                 print(f"[Error occurred: {final_state['error']}]")
-                
+
         except Exception as e:
             logger.error(f"Agent invocation failed: {e}")
             print(f"[Error: Agent failed to process your request: {e}]")
-        
+
         return
 
     # Interactive mode

@@ -57,6 +57,12 @@ def make_configurable_retriever(config_path: str = None, cache_pipeline: bool = 
             # Retrieve documents using configurable pipeline
             docs_info = agent.retrieve(query, top_k=top_k)
 
+            # DEBUG: Log what we got
+            logger.info(f"[Retriever] DEBUG: Retrieved {len(docs_info)} docs_info entries")
+            if docs_info:
+                logger.info(f"[Retriever] DEBUG: First doc keys: {list(docs_info[0].keys())}")
+                logger.info(f"[Retriever] DEBUG: First doc content length: {len(docs_info[0].get('content', ''))}")
+
             # Convert to context string and preserve metadata
             context_parts = []
             retrieved_docs = []
@@ -87,6 +93,9 @@ def make_configurable_retriever(config_path: str = None, cache_pipeline: bool = 
                 f"[Retriever] Retrieved {len(docs_info)} documents using {config_info['retriever_type']}")
             logger.info(
                 f"[Retriever] Pipeline components: {', '.join(config_info['stage_types'])}")
+            logger.info(f"[Retriever] Context length: {len(context)} characters")
+            if not context or not context.strip():
+                logger.warning("[Retriever] WARNING: Context is empty or whitespace only!")
 
             # Return enhanced state with retrieval metadata
             return {
