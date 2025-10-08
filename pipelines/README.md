@@ -16,9 +16,11 @@ This pipeline guarantees:
 pipelines/
 ├── contracts.py          # Base schemas and interfaces
 ├── adapters/             # Dataset-specific adapters
-│   ├── natural_questions.py
-│   ├── stackoverflow.py
-│   └── energy_papers.py
+│   ├── __init__.py
+│   ├── README.md
+│   ├── loader.py                # Base adapter utilities
+│   ├── my_dataset_schema.py    # Template for new adapters
+│   └── stackoverflow.py         # Implemented adapter
 ├── ingest/               # Core ingestion components
 │   ├── validator.py      # Document validation and cleaning
 │   ├── chunker.py        # Advanced chunking strategies
@@ -28,10 +30,12 @@ pipelines/
 │   └── pipeline.py       # Main orchestrator
 ├── eval/                 # Evaluation framework
 │   └── evaluator.py      # Unified retrieval evaluation
-└── configs/              # Dataset-specific configurations
-    ├── natural_questions.yml
-    ├── stackoverflow.yml
-    └── energy_papers.yml
+└── configs/              # Configuration files
+    ├── README.md
+    ├── __init__.py
+    ├── datasets/         # Dataset-specific configs
+    ├── retrieval/        # Retrieval strategy configs
+    └── examples/         # Example configurations
 ```
 
 ## 🚀 Quick Start
@@ -40,40 +44,32 @@ pipelines/
 
 The pipeline uses your existing dependencies plus these optional packages:
 ```bash
-pip install numpy  # For evaluation metrics
+pip install -r requirements.txt  # For evaluation metrics
 ```
 
 ### 2. Configure Your Setup
 
 Copy and modify a configuration template:
 ```bash
-cp pipelines/configs/energy_papers.yml my_config.yml
+# Use the StackOverflow config as a template
+cp pipelines/configs/datasets/stackoverflow_hybrid.yml my_config.yml
 # Edit my_config.yml for your needs
 ```
 
 ### 3. Ingest Your First Dataset
 
 ```bash
-# Ingest your energy papers (using existing papers/ directory)
-python bin/ingest.py ingest energy_papers papers/ --config my_config.yml
+# Ingest StackOverflow dataset
+python bin/ingest.py ingest --config pipelines/configs/datasets/stackoverflow_hybrid.yml
 
-# Dry run with limited documents for testing
-python bin/ingest.py ingest energy_papers papers/ --dry-run --max-docs 10
-
-# Canary deployment (test with separate collection)
-python bin/ingest.py ingest energy_papers papers/ --canary --verify
+# Check ingestion status
+python bin/ingest.py status
 ```
 
 ### 4. Check Status
 
 ```bash
 python bin/ingest.py status
-```
-
-### 5. Evaluate Retrieval
-
-```bash
-python bin/ingest.py evaluate energy_papers papers/ --output-dir results/
 ```
 
 ## 📖 Core Concepts
@@ -111,18 +107,19 @@ This ensures identical content always gets the same ID.
 ### Batch Processing
 
 ```bash
-# Create batch configuration
+# Example batch configuration structure
 cat > batch_config.json << EOF
 {
   "datasets": [
-    {"type": "energy_papers", "path": "papers/", "version": "1.0.0"},
-    {"type": "stackoverflow", "path": "/path/to/stackoverflow", "version": "1.0.0"}
+    {"type": "stackoverflow", "path": "datasets/sosum/data", "version": "1.0.0"},
+    {"type": "my_custom_dataset", "path": "/path/to/my_data", "version": "1.0.0"}
   ]
 }
 EOF
 
-# Run batch ingestion
-python bin/ingest.py batch-ingest batch_config.json --max-docs 100
+# The batch-ingest CLI command is not yet implemented.
+# For batch ingestion, run ingest multiple times with different configs
+# or use the BatchIngestionPipeline class programmatically.
 ```
 
 ### Custom Dataset Adapter
@@ -152,25 +149,17 @@ class MyDatasetAdapter(DatasetAdapter):
 ### Canary → Promote Workflow
 
 ```bash
-# 1. Canary deployment
-python bin/ingest.py ingest my_dataset /path/to/data --canary
+# 1. Canary deployment (test with small sample)
+python bin/ingest.py ingest --config my_config.yml --canary --max-docs 100
 
-# 2. Verify canary collection
-python bin/ingest.py evaluate my_dataset /path/to/data --output-dir canary_results/
+# 2. Verify canary collection manually using Qdrant dashboard
+# or by testing retrieval with bin/agent_retriever.py
 
-# 3. If good, promote (re-run without --canary)
-python bin/ingest.py ingest my_dataset /path/to/data
+# 3. If good, run full ingestion (re-run without --canary)
+python bin/ingest.py ingest --config my_config.yml
 
-# 4. Clean up canary
+# 4. Clean up canary collections
 python bin/ingest.py cleanup
-```
-
-
-### Usage
-```bash
-python bin/ingest.py evaluate energy_papers papers/ \
-  --split test \
-  --output-dir evaluation_results/
 ```
 
 ## 🔧 Configuration
@@ -208,7 +197,7 @@ Every ingestion run creates a lineage record:
 ```json
 {
   "run_id": "uuid",
-  "dataset_name": "energy_papers",
+  "dataset_name": "stackoverflow",
   "config_hash": "abc123",
   "git_commit": "def456",
   "total_documents": 100,
@@ -234,10 +223,10 @@ Automatic post-ingestion validation:
 
 ### Adding a New Dataset
 
-1. **Create an adapter** in `pipelines/adapters/my_dataset.py`
-2. **Add configuration** in `pipelines/configs/my_dataset.yml`
-3. **Register in CLI** by adding to `get_adapter()` in `bin/ingest.py`
-4. **Test** with dry run: `python bin/ingest.py ingest my_dataset /path --dry-run`
+1. **Create an adapter** in `pipelines/adapters/my_dataset.py` (follow the pattern in `stackoverflow.py`)
+2. **Add configuration** in `pipelines/configs/datasets/my_dataset.yml`
+3. **Reference adapter in config** under `dataset.adapter` key
+4. **Test** with dry run: `python bin/ingest.py ingest --config pipelines/configs/datasets/my_dataset.yml --dry-run --max-docs 10`
 
 ### Adding a New Chunking Strategy
 
@@ -297,8 +286,8 @@ class MyCustomTest(SmokeTest):
 
 **Embeddings are all zeros**
 ```bash
-# Check embedding configuration
-python bin/ingest.py ingest my_dataset /path --dry-run --max-docs 1 -v
+# Check embedding configuration with verbose logging
+python bin/ingest.py ingest --config my_config.yml --dry-run --max-docs 1 --verbose
 ```
 
 **Collection not found**
@@ -307,10 +296,10 @@ python bin/ingest.py ingest my_dataset /path --dry-run --max-docs 1 -v
 python bin/ingest.py status
 ```
 
-**Evaluation shows zero recall**
+**Need to verify ingestion**
 ```bash
-# Verify evaluation queries match ingested content
-python bin/ingest.py evaluate my_dataset /path --max-docs 10
+# Use the verify flag during ingestion
+python bin/ingest.py ingest --config my_config.yml --max-docs 10 --verify
 ```
 
 **Import errors**
@@ -333,31 +322,34 @@ The theory-backed design ensures that you can confidently:
 ## 🎉 Example: Complete Workflow
 
 ```bash
-# 1. Setup
-git add . && git commit -m "Setup ingestion pipeline"
+# 1. Setup - commit your configuration
+git add pipelines/configs/datasets/my_dataset.yml
+git commit -m "Add dataset configuration"
 
 # 2. Test with dry run
-python bin/ingest.py ingest energy_papers papers/ \
-  --config pipelines/configs/energy_papers.yml \
+python bin/ingest.py ingest \
+  --config pipelines/configs/datasets/my_dataset.yml \
   --dry-run --max-docs 5 --verbose
 
-# 3. Canary deployment
-python bin/ingest.py ingest energy_papers papers/ \
+# 3. Canary deployment (small test batch)
+python bin/ingest.py ingest \
+  --config pipelines/configs/datasets/my_dataset.yml \
   --canary --max-docs 50
 
-# 4. Evaluate canary
-python bin/ingest.py evaluate energy_papers papers/ \
-  --output-dir canary_eval/
+# 4. Verify canary manually using:
+#    - Qdrant dashboard at http://localhost:6333/dashboard
+#    - bin/agent_retriever.py for test queries
 
 # 5. Full deployment (if canary looks good)
-python bin/ingest.py ingest energy_papers papers/
+python bin/ingest.py ingest \
+  --config pipelines/configs/datasets/my_dataset.yml \
+  --verify
 
-# 6. Production evaluation
-python bin/ingest.py evaluate energy_papers papers/ \
-  --output-dir production_eval/
-
-# 7. Check final status
+# 6. Check final status
 python bin/ingest.py status
+
+# 7. Clean up canary collections
+python bin/ingest.py cleanup
 ```
 
 This gives you a production-ready, theory-backed ingestion pipeline that scales across datasets and maintains full lineage! 🚀
