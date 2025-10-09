@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split
 from pathlib import Path
 from typing import Dict, List
 import ast
@@ -8,13 +8,16 @@ import ast
 
 class StratifiedRAGDatasetSplitter:
     """
-    Optimized stratified splits for RAG hyperparameter optimization.
+    Simple stratified train/test split for RAG hyperparameter optimization.
 
     Strategy:
-    - N-1 optimization folds: each uses 80% of data for evaluation
-    - 1 final test fold: uses 20% of data for final validation
-    - No test split within optimization folds (maximizes data usage)
+    - 80% train (validation) set: for hyperparameter selection
+    - 20% test set: for final validation
     - Stratification: question_type × primary_tag_category × answer_count_bin
+
+    This simplified approach is suitable for hyperparameter optimization without
+    model training, where a single stratified split provides sufficient statistical
+    power for reliable configuration selection.
     """
 
     def __init__(self, dataset_path: str, random_state: int = 42):
@@ -25,7 +28,7 @@ class StratifiedRAGDatasetSplitter:
         self._strat_key: pd.Series = None
 
     def load_dataset(self):
-        """Φόρτωση και προεπεξεργασία του dataset ερωτημάτων."""
+        """Load and preprocess the questions dataset."""
         questions_file = self.dataset_path / "question.csv"
         self.questions_df = pd.read_csv(questions_file)
         print(f"Loaded {len(self.questions_df)} questions")
@@ -48,8 +51,8 @@ class StratifiedRAGDatasetSplitter:
                                for t in str(x).split(';') if t.strip()]
                 )
             else:
-                self.questions_df['tags_parsed'] = [[]
-                                                    for _ in range(len(self.questions_df))]
+                self.questions_df['tags_parsed'] = [
+                    [] for _ in range(len(self.questions_df))]
 
         # Primary tag category
         if 'primary_tag_category' not in self.questions_df.columns:
@@ -77,7 +80,7 @@ class StratifiedRAGDatasetSplitter:
             self.questions_df['answer_count'] = 0
 
     def _create_answer_count_bins(self) -> pd.Series:
-        """Κατηγοριοποίηση του αριθμού απαντήσεων σε bins."""
+        """Categorize answer counts into bins."""
         def bin_count(c):
             if 1 <= c <= 3:
                 return 'low'
@@ -114,24 +117,31 @@ class StratifiedRAGDatasetSplitter:
         )
         return strat
 
-    def create_cv_splits(self, n_folds: int = 5, min_samples_per_fold: int = 3) -> Dict:
+    def create_train_test_split(
+        self,
+        test_size: float = 0.2,
+        min_samples_per_stratum: int = 5
+    ) -> Dict:
         """
-        Δημιουργία βελτιστοποιημένων stratified CV splits.
+        Δημιουργία stratified train/test split.
 
         Μεθοδολογία:
-        - N-1 optimization folds: Κάθε fold χρησιμοποιεί 80% των δεδομένων
-        - 1 final test fold: Χρησιμοποιεί το υπόλοιπο 20% για τελική επικύρωση
+        - 80% train (validation): για επιλογή hyperparameters
+        - 20% test: για τελική επικύρωση
+        - Stratification διατηρεί την κατανομή των χαρακτηριστικών
 
-        Το βασικό πλεονέκτημα αυτής της προσέγγισης είναι η μέγιστη αξιοποίηση 
-        των δεδομένων για την αξιολόγηση υπερπαραμέτρων, αφού δεν πραγματοποιείται 
-        εκπαίδευση παραμέτρων μοντέλου.
+        Πλεονεκτήματα:
+        - Απλότητα: Μία διαίρεση, όχι πολλαπλά folds
+        - Αποδοτικότητα: 4× ταχύτερο από 5-fold CV
+        - Επαρκής στατιστική ισχύ: 80% = ~450 samples για validation
+        - Stratification: Διασφάλιση αντιπροσωπευτικότητας
 
         Args:
-            n_folds: Συνολικός αριθμός folds (default: 5)
-            min_samples_per_fold: Ελάχιστο πλήθος samples ανά stratum (default: 3)
+            test_size: Ποσοστό για test set (default: 0.2 = 20%)
+            min_samples_per_stratum: Ελάχιστα samples ανά stratum (default: 5)
 
         Returns:
-            Dictionary με splits, statistics και metadata
+            Dictionary με train/test splits και statistics
         """
         if self.questions_df is None:
             self.load_dataset()
@@ -139,114 +149,110 @@ class StratifiedRAGDatasetSplitter:
         strat_key = self._create_strat_key()
         self._strat_key = strat_key
 
-        # Φιλτράρισμα strata με επαρκές μέγεθος δείγματος
-        needed = n_folds * min_samples_per_fold
+        # Φιλτράρισμα strata με επαρκές μέγεθος
+        # Για train/test split χρειαζόμαστε τουλάχιστον 2 samples ανά stratum
+        # αλλά χρησιμοποιούμε υψηλότερο threshold για ασφάλεια
         counts = strat_key.value_counts()
-        valid = counts[counts >= needed].index
+        valid = counts[counts >= min_samples_per_stratum].index
         mask = strat_key.isin(valid)
         filtered = self.questions_df[mask].copy()
         strat_f = strat_key[mask]
         bins_f = self._answer_bins[mask]
 
         print(f"\n{'=' * 70}")
-        print("STRATIFIED CROSS-VALIDATION SPLITS")
+        print("STRATIFIED TRAIN/TEST SPLIT")
         print(f"{'=' * 70}")
         print(f"Total strata identified: {len(counts)}")
-        print(f"Valid strata (≥{needed} samples): {len(valid)}")
+        print(
+            f"Valid strata (≥{min_samples_per_stratum} samples): {len(valid)}")
         print(f"Samples retained: {len(filtered)} / {len(self.questions_df)}")
+        print(
+            f"Split ratio: {int((1 - test_size) * 100)}/{int(test_size * 100)}")
         print(f"{'=' * 70}\n")
 
         id_col = 'question_id' if 'question_id' in filtered.columns else 'id'
 
-        # Δημιουργία stratified K-fold splits
-        skf = StratifiedKFold(n_splits=n_folds, shuffle=True,
-                              random_state=self.random_state)
-        splits = {}
-        fold_stats = []
+        # Stratified train/test split
+        train_df, test_df = train_test_split(
+            filtered,
+            test_size=test_size,
+            stratify=strat_f,
+            random_state=self.random_state
+        )
 
-        for fold_idx, (train_idx, test_idx) in enumerate(skf.split(filtered, strat_f)):
-            train_df = filtered.iloc[train_idx]  # 80% του συνόλου
-            test_df = filtered.iloc[test_idx]    # 20% του συνόλου
+        # Αποθήκευση των indices για reference
+        train_strat = strat_f.loc[train_df.index]
+        test_strat = strat_f.loc[test_df.index]
+        train_bins = bins_f.loc[train_df.index]
+        test_bins = bins_f.loc[test_df.index]
 
-            if fold_idx == n_folds - 1:
-                # FINAL TEST FOLD: Μόνο test data για την τελική επικύρωση
-                splits[f'fold_{fold_idx}'] = {
-                    'train': [],
-                    'dev': [],
-                    'test': test_df[id_col].tolist(),
-                    'role': 'final_test'
-                }
-                fold_stats.append({
-                    'fold': fold_idx,
-                    'role': 'final_test',
-                    'train_size': 0,
-                    'dev_size': 0,
-                    'test_size': len(test_df),
-                    'test_question_types': test_df['question_type'].value_counts().to_dict(),
-                    'test_answer_bins': bins_f.loc[test_df.index].value_counts().to_dict()
-                })
+        # Δημιουργία του splits dictionary
+        splits = {
+            'train': train_df[id_col].tolist(),
+            'test': test_df[id_col].tolist()
+        }
 
-                print(f"Fold {fold_idx} [FINAL TEST]:")
-                print(
-                    f"  Test size: {len(test_df)} ({len(test_df) / len(filtered) * 100:.1f}%)")
+        # Στατιστικά
+        statistics = {
+            'train': {
+                'size': len(train_df),
+                'percentage': len(train_df) / len(filtered) * 100,
+                'question_types': train_df['question_type'].value_counts().to_dict(),
+                'answer_bins': train_bins.value_counts().to_dict(),
+                'strata_distribution': train_strat.value_counts().to_dict()
+            },
+            'test': {
+                'size': len(test_df),
+                'percentage': len(test_df) / len(filtered) * 100,
+                'question_types': test_df['question_type'].value_counts().to_dict(),
+                'answer_bins': test_bins.value_counts().to_dict(),
+                'strata_distribution': test_strat.value_counts().to_dict()
+            }
+        }
 
-            else:
-                # OPTIMIZATION FOLD: Όλο το 80% διατίθεται για αξιολόγηση
-                # Τα train και dev είναι κενά - όλα τα data θα χρησιμοποιηθούν μαζί
-                # Στο optimization script, αυτά θα συγχωνευτούν ούτως ή άλλως
-                splits[f'fold_{fold_idx}'] = {
-                    'train': train_df[id_col].tolist(),  # Όλο το 80%
-                    'dev': [],  # Κενό - δεν χρειάζεται train/dev split
-                    'test': [],  # Κενό - δεν χρειάζεται test split εδώ
-                    'role': 'optimization'
-                }
+        # Metadata
+        metadata = {
+            'total_samples': int(len(filtered)),
+            'train_samples': int(len(train_df)),
+            'test_samples': int(len(test_df)),
+            'test_size': float(test_size),
+            'random_state': self.random_state,
+            'stratification_groups': int(len(valid)),
+            'stratification_key': 'question_type × primary_tag_category × answer_count_bin',
+            'answer_count_bins': ['none (0)', 'low (1-3)', 'medium (4-6)', 'high (7+)'],
+            'split_method': 'stratified_train_test_split',
+            'creation_timestamp': pd.Timestamp.now().isoformat()
+        }
 
-                fold_stats.append({
-                    'fold': fold_idx,
-                    'role': 'optimization',
-                    'train_size': len(train_df),  # Όλο το διαθέσιμο 80%
-                    'dev_size': 0,
-                    'test_size': 0,
-                    'train_question_types': train_df['question_type'].value_counts().to_dict(),
-                    'dev_question_types': {},
-                    'test_question_types': {},
-                    'train_answer_bins': bins_f.loc[train_df.index].value_counts().to_dict(),
-                    'dev_answer_bins': {},
-                    'test_answer_bins': {}
-                })
-
-                print(f"Fold {fold_idx} [OPTIMIZATION]:")
-                print(
-                    f"  Evaluation size: {len(train_df)} ({len(train_df) / len(filtered) * 100:.1f}%)")
-
-        print(f"\n{'=' * 70}")
-        print("SUMMARY")
-        print(f"{'=' * 70}")
-        print(f"Optimization folds: {n_folds - 1}")
-        print(f"Evaluation data per fold: ~{len(train_df)} samples (80%)")
-        print(f"Final test fold: 1")
-        print(f"Final test data: {len(test_df)} samples (20%)")
+        # Εκτύπωση αποτελεσμάτων
+        print(f"Split Results:")
         print(
-            f"Total data usage for optimization: {(n_folds - 1) * len(train_df)} evaluations")
-        print(f"{'=' * 70}\n")
+            f"  Train: {len(train_df)} samples ({len(train_df) / len(filtered) * 100:.1f}%)")
+        print(
+            f"  Test:  {len(test_df)} samples ({len(test_df) / len(filtered) * 100:.1f}%)")
+
+        print(f"\nStratification Verification:")
+        print(f"  Number of strata: {len(valid)}")
+        print(f"  Train strata coverage: {len(train_strat.unique())}")
+        print(f"  Test strata coverage: {len(test_strat.unique())}")
+
+        # Επιβεβαίωση ότι οι κατανομές είναι παρόμοιες
+        train_type_dist = train_df['question_type'].value_counts(
+            normalize=True)
+        test_type_dist = test_df['question_type'].value_counts(normalize=True)
+
+        print(f"\nQuestion Type Distribution:")
+        for qtype in train_type_dist.index:
+            train_pct = train_type_dist.get(qtype, 0) * 100
+            test_pct = test_type_dist.get(qtype, 0) * 100
+            print(f"  {qtype}: Train={train_pct:.1f}%, Test={test_pct:.1f}%")
+
+        print(f"\n{'=' * 70}\n")
 
         return {
             'splits': splits,
-            'statistics': fold_stats,
-            'metadata': {
-                'n_folds': n_folds,
-                'optimization_folds': n_folds - 1,
-                'final_test_fold': n_folds - 1,
-                'total_samples': int(len(filtered)),
-                'samples_per_optimization_fold': int(len(train_df)),
-                'samples_final_test': int(len(test_df)),
-                'random_state': self.random_state,
-                'stratification_groups': int(len(valid)),
-                'answer_count_bins': ['none (0)', 'low (1-3)', 'medium (4-6)', 'high (7+)'],
-                'optimization_strategy': 'full_fold_evaluation',
-                'note': 'Each optimization fold uses 80% of data; no internal train/dev split',
-                'creation_timestamp': pd.Timestamp.now().isoformat()
-            }
+            'statistics': statistics,
+            'metadata': metadata
         }
 
 
@@ -255,320 +261,33 @@ if __name__ == "__main__":
     import json
 
     parser = argparse.ArgumentParser(
-        description="Optimized stratified splitting for RAG hyperparameter tuning.")
+        description="Simple stratified train/test split for RAG hyperparameter optimization.")
     parser.add_argument("--dataset-path", type=str, required=True,
                         help="Path to dataset root (expects question.csv)")
-    parser.add_argument("--n-folds", type=int, default=5,
-                        help="Number of folds (default: 5)")
+    parser.add_argument("--test-size", type=float, default=0.2,
+                        help="Test set size as fraction (default: 0.2)")
+    parser.add_argument("--random-state", type=int, default=42,
+                        help="Random state for reproducibility (default: 42)")
     parser.add_argument("--output", type=str, default=None,
-                        help="Output path for CV splits JSON (optional)")
+                        help="Output path for split JSON (optional)")
     args = parser.parse_args()
 
-    splitter = StratifiedRAGDatasetSplitter(args.dataset_path)
+    splitter = StratifiedRAGDatasetSplitter(
+        args.dataset_path,
+        random_state=args.random_state
+    )
     splitter.load_dataset()
-    cv_info = splitter.create_cv_splits(n_folds=args.n_folds)
+    split_info = splitter.create_train_test_split(test_size=args.test_size)
 
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(cv_info, f, ensure_ascii=False, indent=2)
-        print(f"\n✓ CV splits saved to: {output_path}")
+            json.dump(split_info, f, ensure_ascii=False, indent=2)
+        print(f"✓ Split saved to: {output_path}")
 
-    # Εμφάνιση στατιστικών
-    print("\nFold Statistics:")
-    for stat in cv_info['statistics']:
-        fold = stat['fold']
-        role = stat['role']
-        if role == 'optimization':
-            print(
-                f"  Fold {fold}: {stat['train_size']} samples for evaluation")
-        else:
-            print(f"  Fold {fold}: {stat['test_size']} samples for final test")
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import StratifiedKFold
-from pathlib import Path
-from typing import Dict, List
-import ast
-
-
-class StratifiedRAGDatasetSplitter:
-    """
-    Optimized stratified splits for RAG hyperparameter optimization.
-
-    Strategy:
-    - N-1 optimization folds: each uses 80% of data for evaluation
-    - 1 final test fold: uses 20% of data for final validation
-    - No test split within optimization folds (maximizes data usage)
-    - Stratification: question_type × primary_tag_category × answer_count_bin
-    """
-
-    def __init__(self, dataset_path: str, random_state: int = 42):
-        self.dataset_path = Path(dataset_path)
-        self.random_state = random_state
-        self.questions_df: pd.DataFrame = None
-        self._answer_bins: pd.Series = None
-        self._strat_key: pd.Series = None
-
-    def load_dataset(self):
-        """Φόρτωση και προεπεξεργασία του dataset ερωτημάτων."""
-        questions_file = self.dataset_path / "question.csv"
-        self.questions_df = pd.read_csv(questions_file)
-        print(f"Loaded {len(self.questions_df)} questions")
-
-        # Normalize ID
-        if 'question_id' in self.questions_df.columns:
-            self.questions_df['id'] = self.questions_df['question_id']
-        elif 'id' not in self.questions_df.columns:
-            raise ValueError("Missing 'question_id' or 'id' column.")
-
-        # Ensure question_type exists
-        if 'question_type' not in self.questions_df.columns:
-            self.questions_df['question_type'] = 'General'
-
-        # Tags → tags_parsed
-        if 'tags_parsed' not in self.questions_df.columns:
-            if 'tags' in self.questions_df.columns:
-                self.questions_df['tags_parsed'] = self.questions_df['tags'].apply(
-                    lambda x: [t.strip()
-                               for t in str(x).split(';') if t.strip()]
-                )
-            else:
-                self.questions_df['tags_parsed'] = [[]
-                                                    for _ in range(len(self.questions_df))]
-
-        # Primary tag category
-        if 'primary_tag_category' not in self.questions_df.columns:
-            self.questions_df['primary_tag_category'] = self.questions_df['tags_parsed'].apply(
-                lambda x: x[0] if len(x) > 0 else 'Other'
-            )
-
-        # Compute answer_count from answer_posts if present
-        if 'answer_posts' in self.questions_df.columns:
-            def count_answers(x):
-                if pd.isna(x) or not str(x).strip():
-                    return 0
-                if isinstance(x, list):
-                    return len(x)
-                try:
-                    parsed = ast.literal_eval(x)
-                    if isinstance(parsed, list):
-                        return len(parsed)
-                except Exception:
-                    pass
-                return 1
-            self.questions_df['answer_count'] = self.questions_df['answer_posts'].apply(
-                count_answers)
-        else:
-            self.questions_df['answer_count'] = 0
-
-    def _create_answer_count_bins(self) -> pd.Series:
-        """Κατηγοριοποίηση του αριθμού απαντήσεων σε bins."""
-        def bin_count(c):
-            if 1 <= c <= 3:
-                return 'low'
-            elif 4 <= c <= 6:
-                return 'medium'
-            elif c >= 7:
-                return 'high'
-            else:
-                return 'none'
-
-        bins = self.questions_df['answer_count'].apply(bin_count)
-        return bins
-
-    def _create_strat_key(self, top_k_categories: int = 6) -> pd.Series:
-        """
-        Δημιουργία πολυδιάστατου stratification key.
-
-        Το κλειδί συνδυάζει τρεις διαστάσεις για διασφάλιση αντιπροσωπευτικότητας:
-        - question_type: Τύπος ερωτήματος
-        - primary_tag_category: Κύρια θεματική κατηγορία (grouped)
-        - answer_count_bin: Κατηγορία πλήθους απαντήσεων
-        """
-        cats = self.questions_df['primary_tag_category'].value_counts().head(
-            top_k_categories).index
-        grouped = self.questions_df['primary_tag_category'].apply(
-            lambda x: x if x in cats else 'Other'
-        )
-        bins = self._create_answer_count_bins()
-        self._answer_bins = bins
-        strat = (
-            self.questions_df['question_type'].astype(str) + "_" +
-            grouped.astype(str) + "_" +
-            bins.astype(str)
-        )
-        return strat
-
-    def create_cv_splits(self, n_folds: int = 5, min_samples_per_fold: int = 3) -> Dict:
-        """
-        Δημιουργία βελτιστοποιημένων stratified CV splits.
-
-        Μεθοδολογία:
-        - N-1 optimization folds: Κάθε fold χρησιμοποιεί 80% των δεδομένων
-        - 1 final test fold: Χρησιμοποιεί το υπόλοιπο 20% για τελική επικύρωση
-
-        Το βασικό πλεονέκτημα αυτής της προσέγγισης είναι η μέγιστη αξιοποίηση 
-        των δεδομένων για την αξιολόγηση υπερπαραμέτρων, αφού δεν πραγματοποιείται 
-        εκπαίδευση παραμέτρων μοντέλου.
-
-        Args:
-            n_folds: Συνολικός αριθμός folds (default: 5)
-            min_samples_per_fold: Ελάχιστο πλήθος samples ανά stratum (default: 3)
-
-        Returns:
-            Dictionary με splits, statistics και metadata
-        """
-        if self.questions_df is None:
-            self.load_dataset()
-
-        strat_key = self._create_strat_key()
-        self._strat_key = strat_key
-
-        # Φιλτράρισμα strata με επαρκές μέγεθος δείγματος
-        needed = n_folds * min_samples_per_fold
-        counts = strat_key.value_counts()
-        valid = counts[counts >= needed].index
-        mask = strat_key.isin(valid)
-        filtered = self.questions_df[mask].copy()
-        strat_f = strat_key[mask]
-        bins_f = self._answer_bins[mask]
-
-        print(f"\n{'=' * 70}")
-        print("STRATIFIED CROSS-VALIDATION SPLITS")
-        print(f"{'=' * 70}")
-        print(f"Total strata identified: {len(counts)}")
-        print(f"Valid strata (≥{needed} samples): {len(valid)}")
-        print(f"Samples retained: {len(filtered)} / {len(self.questions_df)}")
-        print(f"{'=' * 70}\n")
-
-        id_col = 'question_id' if 'question_id' in filtered.columns else 'id'
-
-        # Δημιουργία stratified K-fold splits
-        skf = StratifiedKFold(n_splits=n_folds, shuffle=True,
-                              random_state=self.random_state)
-        splits = {}
-        fold_stats = []
-
-        for fold_idx, (train_idx, test_idx) in enumerate(skf.split(filtered, strat_f)):
-            train_df = filtered.iloc[train_idx]  # 80% του συνόλου
-            test_df = filtered.iloc[test_idx]    # 20% του συνόλου
-
-            if fold_idx == n_folds - 1:
-                # FINAL TEST FOLD: Μόνο test data για την τελική επικύρωση
-                splits[f'fold_{fold_idx}'] = {
-                    'train': [],
-                    'dev': [],
-                    'test': test_df[id_col].tolist(),
-                    'role': 'final_test'
-                }
-                fold_stats.append({
-                    'fold': fold_idx,
-                    'role': 'final_test',
-                    'train_size': 0,
-                    'dev_size': 0,
-                    'test_size': len(test_df),
-                    'test_question_types': test_df['question_type'].value_counts().to_dict(),
-                    'test_answer_bins': bins_f.loc[test_df.index].value_counts().to_dict()
-                })
-
-                print(f"Fold {fold_idx} [FINAL TEST]:")
-                print(
-                    f"  Test size: {len(test_df)} ({len(test_df) / len(filtered) * 100:.1f}%)")
-
-            else:
-                # OPTIMIZATION FOLD: Όλο το 80% διατίθεται για αξιολόγηση
-                # Τα train και dev είναι κενά - όλα τα data θα χρησιμοποιηθούν μαζί
-                # Στο optimization script, αυτά θα συγχωνευτούν ούτως ή άλλως
-                splits[f'fold_{fold_idx}'] = {
-                    'train': train_df[id_col].tolist(),  # Όλο το 80%
-                    'dev': [],  # Κενό - δεν χρειάζεται train/dev split
-                    'test': [],  # Κενό - δεν χρειάζεται test split εδώ
-                    'role': 'optimization'
-                }
-
-                fold_stats.append({
-                    'fold': fold_idx,
-                    'role': 'optimization',
-                    'train_size': len(train_df),  # Όλο το διαθέσιμο 80%
-                    'dev_size': 0,
-                    'test_size': 0,
-                    'train_question_types': train_df['question_type'].value_counts().to_dict(),
-                    'dev_question_types': {},
-                    'test_question_types': {},
-                    'train_answer_bins': bins_f.loc[train_df.index].value_counts().to_dict(),
-                    'dev_answer_bins': {},
-                    'test_answer_bins': {}
-                })
-
-                print(f"Fold {fold_idx} [OPTIMIZATION]:")
-                print(
-                    f"  Evaluation size: {len(train_df)} ({len(train_df) / len(filtered) * 100:.1f}%)")
-
-        print(f"\n{'=' * 70}")
-        print("SUMMARY")
-        print(f"{'=' * 70}")
-        print(f"Optimization folds: {n_folds - 1}")
-        print(f"Evaluation data per fold: ~{len(train_df)} samples (80%)")
-        print(f"Final test fold: 1")
-        print(f"Final test data: {len(test_df)} samples (20%)")
-        print(
-            f"Total data usage for optimization: {(n_folds - 1) * len(train_df)} evaluations")
-        print(f"{'=' * 70}\n")
-
-        return {
-            'splits': splits,
-            'statistics': fold_stats,
-            'metadata': {
-                'n_folds': n_folds,
-                'optimization_folds': n_folds - 1,
-                'final_test_fold': n_folds - 1,
-                'total_samples': int(len(filtered)),
-                'samples_per_optimization_fold': int(len(train_df)),
-                'samples_final_test': int(len(test_df)),
-                'random_state': self.random_state,
-                'stratification_groups': int(len(valid)),
-                'answer_count_bins': ['none (0)', 'low (1-3)', 'medium (4-6)', 'high (7+)'],
-                'optimization_strategy': 'full_fold_evaluation',
-                'note': 'Each optimization fold uses 80% of data; no internal train/dev split',
-                'creation_timestamp': pd.Timestamp.now().isoformat()
-            }
-        }
-
-
-if __name__ == "__main__":
-    import argparse
-    import json
-
-    parser = argparse.ArgumentParser(
-        description="Optimized stratified splitting for RAG hyperparameter tuning.")
-    parser.add_argument("--dataset-path", type=str, required=True,
-                        help="Path to dataset root (expects question.csv)")
-    parser.add_argument("--n-folds", type=int, default=5,
-                        help="Number of folds (default: 5)")
-    parser.add_argument("--output", type=str, default=None,
-                        help="Output path for CV splits JSON (optional)")
-    args = parser.parse_args()
-
-    splitter = StratifiedRAGDatasetSplitter(args.dataset_path)
-    splitter.load_dataset()
-    cv_info = splitter.create_cv_splits(n_folds=args.n_folds)
-
-    if args.output:
-        output_path = Path(args.output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(cv_info, f, ensure_ascii=False, indent=2)
-        print(f"\n✓ CV splits saved to: {output_path}")
-
-    # Εμφάνιση στατιστικών
-    print("\nFold Statistics:")
-    for stat in cv_info['statistics']:
-        fold = stat['fold']
-        role = stat['role']
-        if role == 'optimization':
-            print(
-                f"  Fold {fold}: {stat['train_size']} samples for evaluation")
-        else:
-            print(f"  Fold {fold}: {stat['test_size']} samples for final test")
+    # Εμφάνιση σύνοψης
+    print("\nSummary:")
+    print(f"  Train samples: {split_info['metadata']['train_samples']}")
+    print(f"  Test samples:  {split_info['metadata']['test_samples']}")
+    print(f"  Random state:  {split_info['metadata']['random_state']}")

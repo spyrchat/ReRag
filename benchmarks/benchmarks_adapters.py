@@ -122,59 +122,29 @@ class StackOverflowBenchmarkAdapter(BenchmarkAdapter):
                     f"Failed to parse answer_posts for question {row['question_id']}: {e}")
                 continue
 
+            # Map answer IDs to chunk IDs in Qdrant
             relevant_chunk_ids = []
             for aid in answer_ids:
                 external_id = f"a_{aid}"
                 chunk_ids = chunk_id_mapping.get(external_id, [])
                 relevant_chunk_ids.extend(chunk_ids)
 
-                # Skip if no question title
-                if pd.isna(row['question_title']) or not str(row['question_title']).strip():
-                    continue
-
-                # Parse the answer IDs from answer_posts column
-                try:
-                    answer_posts = row['answer_posts']
-
-                    if isinstance(answer_posts, str):
-                        # Handle list format: "[123, 456, 789]"
-                        if answer_posts.startswith('[') and answer_posts.endswith(']'):
-                            answer_ids = ast.literal_eval(answer_posts)
-                        else:
-                            # Single ID as string
-                            answer_ids = [int(answer_posts)]
-                    else:
-                        # Single numeric ID
-                        answer_ids = [int(answer_posts)]
-
-                    # Convert to string IDs (without 'a_' prefix for ground truth)
-                    # The benchmark runner will compare these against extracted IDs
-                    relevant_doc_ids = [str(aid) for aid in answer_ids]
-
-                    if not relevant_doc_ids:
-                        continue
-
-                except (ValueError, SyntaxError, TypeError) as e:
-                    print(
-                        f"Failed to parse answer_posts for question {row['question_id']}: {e}")
-                    continue
-
-                # Create the benchmark query
-                query = BenchmarkQuery(
-                    query_id=str(row['question_id']),
-                    query_text=f"{row['question_title']} {row.get('question_body', '')}".strip(
-                    ),
-                    expected_answer=None,  # Not needed for retrieval evaluation
-                    # Ground truth: which answers should be retrieved
-                    relevant_doc_ids=relevant_chunk_ids,
-                    difficulty="medium",
-                    category="programming",
-                    metadata={
-                        "source": "stackoverflow_sosum",
-                        "question_type": row.get('question_type', 'unknown'),
-                        "tags": row.get('tags', ''),
-                        "num_answers": len(relevant_doc_ids)
-                    }
-                )
-                queries.append(query)
+            # Create ONE query per question (not per answer)
+            query = BenchmarkQuery(
+                query_id=str(row['question_id']),
+                query_text=f"{row['question_title']} {row.get('question_body', '')}".strip(
+                ),
+                expected_answer=None,  # Not needed for retrieval evaluation
+                # Ground truth: which answers should be retrieved
+                relevant_doc_ids=relevant_chunk_ids,
+                difficulty="medium",
+                category="programming",
+                metadata={
+                    "source": "stackoverflow_sosum",
+                    "question_type": row.get('question_type', 'unknown'),
+                    "tags": row.get('tags', ''),
+                    "num_answers": len(answer_ids)
+                }
+            )
+            queries.append(query)
         return queries
