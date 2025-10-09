@@ -89,64 +89,76 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             else:
                 query_vector = self.embedding.embed_documents([query])[0]
 
-            if isinstance(query_vector, dict):
-                logger.info(
-                    f"[DEBUG][SparseRetriever] Query vector sample: {{k: query_vector[k] for k in list(query_vector.keys())[:10]}}")
+            # CRITICAL: Validate that we received a sparse vector (dictionary)
+            if not isinstance(query_vector, dict):
+                raise TypeError(
+                    f"Sparse retriever requires dictionary embedding, but received {type(query_vector)}. "
+                    f"This indicates a dense embedding model is configured instead of sparse. "
+                    f"Check your embedding configuration."
+                )
 
-            # Perform Qdrant search
-            if isinstance(query_vector, dict):
-                from qdrant_client.models import NamedSparseVector
-                payload = {
-                    "collection_name": self.qdrant_db.collection_name,
-                    "query_vector": NamedSparseVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector={"indices": list(query_vector.keys()), "values": list(
-                            query_vector.values())}
-                    ),
-                    "limit": k,
-                    "with_payload": True
-                }
-                search_result = self.qdrant_db.client.search(**payload)
-            else:
-                from qdrant_client.models import NamedVector
-                payload = {
-                    "collection_name": self.qdrant_db.collection_name,
-                    "query_vector": NamedVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector=query_vector
-                    ),
-                    "limit": k,
-                    "with_payload": True
-                }
-                search_result = self.qdrant_db.client.search(**payload)
+            # # Log sparse vector statistics for debugging
+            # logger.info(
+            #     f"[SPARSE_RETRIEVER] Query vector has {len(query_vector)} non-zero elements"
+            # )
+            # logger.debug(
+            #     f"[SPARSE_RETRIEVER] Sample indices: {list(query_vector.keys())[:10]}"
+            # )
 
-            # Convert to RetrievalResult objects (for both branches)
+            # Perform Qdrant sparse search using Query API
+            from qdrant_client.models import SparseVector
+
+            query_response = self.qdrant_db.client.query_points(
+                collection_name=self.qdrant_db.collection_name,
+                query=SparseVector(
+                    indices=list(query_vector.keys()),
+                    values=list(query_vector.values())
+                ),
+                using=self.qdrant_db.sparse_vector_name,
+                limit=k,
+                with_payload=True
+            )
+
+            # Convert query_points response to RetrievalResult objects
+            # IMPORTANT: query_points returns QueryResponse with .points attribute
             results = []
-            for result in search_result:
-                payload = result.payload or {}
+            for point in query_response.points:
+                payload = point.payload or {}
+
                 document = Document(
                     page_content=payload.get('text', ''),
                     metadata={
                         **payload.get('metadata', {}),
                         'external_id': payload.get('external_id'),
-                        'qdrant_id': str(result.id),
+                        'qdrant_id': str(point.id),
                         'chunk_id': payload.get('chunk_id')
                     }
                 )
+
                 retrieval_result = self._create_retrieval_result(
                     document=document,
-                    score=result.score,
+                    score=point.score,
                     additional_metadata={
-                        'search_type': 'sparse_component',
-                        'external_id': payload.get('external_id')
+                        'search_type': 'sparse_vector',
+                        'embedding_model': type(self.embedding).__name__,
+                        'external_id': payload.get('external_id'),
+                        'non_zero_elements': len(query_vector)
                     }
                 )
                 results.append(retrieval_result)
 
-            # Normalize scores for consistency
+            # logger.info(
+            #     f"[SPARSE_RETRIEVER] Retrieved {len(results)} results for query"
+            # )
+
+            # Normalize scores for consistency (optional, depends on your pipeline)
             # results = self._normalize_scores(results)
+
             return results
 
+        except TypeError as e:
+            logger.error(f"Configuration error in sparse retriever: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error during sparse search: {e}")
             import traceback
