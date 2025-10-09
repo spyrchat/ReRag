@@ -58,6 +58,10 @@ class AgentState(TypedDict, total=False):
     answer: Optional[str]
     generation_mode: Optional[str]
 
+    # Self-RAG (verification and refinement)
+    verification: Optional[Dict[str, Any]]
+    self_rag_metadata: Optional[Dict[str, Any]]
+
     # Control
     next_node: str
 

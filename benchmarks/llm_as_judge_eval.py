@@ -33,8 +33,9 @@ from llm_judge import LLMJudge
 
 # === Config ===
 PROVIDER = "openai"       # openai | anthropic
-# change per provider ex "gpt-4.1" for OpenAI, "claude-sonnet-4-0" for Anthropic
-MODEL_NAME = "gpt-5"  # gpt-4.1 | claude-sonnet-4-0
+# Valid OpenAI models: gpt-4o, gpt-4o-mini, gpt-4-turbo
+# Valid Anthropic models: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+MODEL_NAME = "gpt-5-mini"
 
 INPUT_PATH = "/home/spiros/Desktop/Thesis/results/ground_truth_for_test/ground_truth_intermediate.json"
 OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
@@ -73,7 +74,7 @@ def build_prompt(entry: Dict[str, str]) -> str:
         context = str(raw_context) if raw_context else "No context provided."
 
     return f"""
-You are a rigorous, impartial evaluator. Your job is to assess an assistant's answer to a user's energy-related question using structured context data.
+You are a rigorous, impartial evaluator. Your job is to assess an assistant's answer to a user's software engineering question using structured context data.
 
 For each evaluation dimension, assign an integer score from 1 (poor) to 5 (excellent), using the detailed rubric below.
 Justify your ratings with specific evidence from the answer and context.
@@ -103,16 +104,19 @@ Justify your ratings with specific evidence from the answer and context.
 
 ### Format
 
-You must respond in this **strict JSON** format (no code blocks, no commentary):
+You must respond in this **strict JSON** format (no code blocks, no commentary).
+IMPORTANT: Properly escape any quotes, newlines, or special characters in the justification string.
 
 {{
-  "faithfulness": int,      // 1 to 5
-  "relevance": int,         // 1 to 5
-  "helpfulness": int,       // 1 to 5
-  "justification": "Concise explanation referencing specific parts of the answer and context"
+  "faithfulness": 4,
+  "relevance": 5,
+  "helpfulness": 4,
+  "justification": "Brief explanation without special characters that break JSON"
 }}
 
-### Evaluation Example
+Return ONLY valid JSON, nothing else.
+
+### Evaluation
 
 User Question:
 {entry.get("question", "No question provided.")}
@@ -125,15 +129,22 @@ Context:
 """.strip()
 
 
-def run_llm_judge_evaluation() -> pd.Series:
+def run_llm_judge_evaluation() -> Dict[str, float]:
     """
     Runs LLM-based evaluation for each entry in the input file.
 
     Returns:
-        pd.Series: Mean scores for faithfulness, relevance, helpfulness.
+        Dict[str, float]: Mean scores for faithfulness, relevance, helpfulness.
     """
+    # Ensure output directory exists
+    Path(OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"Loading data from: {INPUT_PATH}")
     with open(INPUT_PATH, "r", encoding="utf-8") as infile:
         entries = json.load(infile)  # Load JSON array directly
+
+    print(f"Loaded {len(entries)} entries")
+    print(f"Output will be saved to: {OUTPUT_PATH}")
 
     results = []
     for i in tqdm(range(0, len(entries), BATCH_SIZE), desc=f"Evaluating with {PROVIDER}/{MODEL_NAME}"):
@@ -141,41 +152,113 @@ def run_llm_judge_evaluation() -> pd.Series:
         prompts = [build_prompt(entry) for entry in batch]
 
         for prompt, entry in zip(prompts, batch):
-            try:
-                score = judge.evaluate(prompt)
-                results.append({
-                    "question": entry.get("question", ""),
-                    "faithfulness": score.get("faithfulness", 0),
-                    "relevance": score.get("relevance", 0),
-                    "helpfulness": score.get("helpfulness", 0),
-                    "justification": score.get("justification", ""),
-                    "answer": entry.get("answer", ""),
-                    "has_context": bool(entry.get("context"))
-                })
-            except Exception as e:
-                logging.error(
-                    f"Evaluation failed for question: {entry.get('question', '')}")
-                logging.error(f"Error: {e}")
-                results.append({
-                    "question": entry.get("question", ""),
-                    "faithfulness": 0,
-                    "relevance": 0,
-                    "helpfulness": 0,
-                    "justification": f"Evaluation failed: {str(e)}",
-                    "answer": entry.get("answer", ""),
-                    "has_context": bool(entry.get("context"))
-                })
+            max_retries = 3
+            retry_count = 0
+            success = False
+
+            while retry_count < max_retries and not success:
+                try:
+                    score = judge.evaluate(prompt)
+
+                    # Validate the response has required fields
+                    if not all(k in score for k in ["faithfulness", "relevance", "helpfulness"]):
+                        raise ValueError(
+                            f"Missing required fields in response: {score}")
+
+                    # Validate score ranges
+                    for key in ["faithfulness", "relevance", "helpfulness"]:
+                        if not (1 <= score[key] <= 5):
+                            raise ValueError(
+                                f"{key} score {score[key]} out of range [1-5]")
+
+                    results.append({
+                        "question": entry.get("question", ""),
+                        "faithfulness": score.get("faithfulness", 0),
+                        "relevance": score.get("relevance", 0),
+                        "helpfulness": score.get("helpfulness", 0),
+                        "justification": score.get("justification", ""),
+                        "answer": entry.get("answer", ""),
+                        "has_context": bool(entry.get("context"))
+                    })
+                    success = True
+
+                except json.JSONDecodeError as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        logging.warning(
+                            f"JSON parsing failed (attempt {retry_count}/{max_retries}), retrying...")
+                        time.sleep(1)  # Brief delay before retry
+                    else:
+                        logging.error(
+                            f"Evaluation failed after {max_retries} attempts for question: {entry.get('question', '')[:100]}...")
+                        logging.error(f"Error: {e}")
+                        results.append({
+                            "question": entry.get("question", ""),
+                            "faithfulness": 0,
+                            "relevance": 0,
+                            "helpfulness": 0,
+                            "justification": f"Evaluation failed after {max_retries} retries: JSON parsing error",
+                            "answer": entry.get("answer", ""),
+                            "has_context": bool(entry.get("context"))
+                        })
+
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        logging.warning(
+                            f"Evaluation failed (attempt {retry_count}/{max_retries}): {str(e)[:100]}, retrying...")
+                        time.sleep(1)
+                    else:
+                        logging.error(
+                            f"Evaluation failed after {max_retries} attempts for question: {entry.get('question', '')[:100]}...")
+                        logging.error(f"Error: {e}")
+                        results.append({
+                            "question": entry.get("question", ""),
+                            "faithfulness": 0,
+                            "relevance": 0,
+                            "helpfulness": 0,
+                            "justification": f"Evaluation failed after {max_retries} retries: {str(e)[:100]}",
+                            "answer": entry.get("answer", ""),
+                            "has_context": bool(entry.get("context"))
+                        })
 
         time.sleep(SLEEP_BETWEEN_BATCHES)
 
     # Save results
+    print(f"\nSaving {len(results)} results to: {OUTPUT_PATH}")
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         for row in results:
             json.dump(row, f, ensure_ascii=False)
             f.write("\n")
 
+    print(f"✅ Results saved successfully!")
+
+    # Calculate summary statistics
+    valid_results = [r for r in results if r['faithfulness'] > 0]
+
+    if not valid_results:
+        print("⚠️  No valid results to summarize")
+        return {}
+
+    summary = {
+        "total_evaluated": len(results),
+        "successful": len(valid_results),
+        "failed": len(results) - len(valid_results),
+        "mean_faithfulness": sum(r['faithfulness'] for r in valid_results) / len(valid_results),
+        "mean_relevance": sum(r['relevance'] for r in valid_results) / len(valid_results),
+        "mean_helpfulness": sum(r['helpfulness'] for r in valid_results) / len(valid_results)
+    }
+
+    return summary
+
 
 if __name__ == "__main__":
     summary = run_llm_judge_evaluation()
     print("\n=== LLM-as-a-Judge Evaluation Complete ===")
-    print(summary)
+    print(f"Total evaluated: {summary.get('total_evaluated', 0)}")
+    print(f"Successful: {summary.get('successful', 0)}")
+    print(f"Failed: {summary.get('failed', 0)}")
+    print(f"\nMean Scores:")
+    print(f"  Faithfulness: {summary.get('mean_faithfulness', 0):.3f}")
+    print(f"  Relevance:    {summary.get('mean_relevance', 0):.3f}")
+    print(f"  Helpfulness:  {summary.get('mean_helpfulness', 0):.3f}")

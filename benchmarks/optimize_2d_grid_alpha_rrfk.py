@@ -1,9 +1,14 @@
 """
 2D Grid Search: Optimize both alpha and rrf_k for fixed retrieval k.
 
-This script extends the fixed-k optimization to search over two hyperparameters:
-- alpha: Dense-sparse fusion weight
-- rrf_k: RRF constant for rank normalization
+This script implements exhaustive 2D grid search with stratified cross-validation
+for hyperparameter optimization in RAG systems without trainable parameters.
+
+Key features:
+- Maximizes data usage: 80% of data per optimization fold
+- Stratified sampling preserves dataset characteristics
+- Repeated evaluation reduces selection bias
+- Independent final test set for unbiased performance estimation
 """
 
 import sys
@@ -159,12 +164,18 @@ class TwoDimensionalGridSearchOptimizer:
     """
     2D Grid search optimizer for (alpha, rrf_k) hyperparameters.
 
-    Features:
-    - Exhaustive 2D grid search
-    - Fixed retrieval k (design decision)
-    - Composite objective function
-    - Cross-validation
-    - Comprehensive reporting with 2D visualizations
+    Μεθοδολογία:
+    - Exhaustive 2D grid search over hyperparameter space
+    - Stratified cross-validation for robust performance estimation
+    - Each optimization fold uses 80% of data (maximizing sample size)
+    - Independent final test fold (20%) for unbiased evaluation
+    - Composite objective function balancing multiple metrics
+
+    Επιστημονική Αιτιολόγηση:
+    Η cross-validation χρησιμοποιείται για τη μείωση της μεροληψίας επιλογής
+    (selection bias) και την ποσοτικοποίηση της στατιστικής αβεβαιότητας των
+    μετρικών απόδοσης, όχι για την πρόληψη υπερπροσαρμογής εκπαιδεύσιμων
+    παραμέτρων (καθώς δεν υπάρχει φάση εκπαίδευσης).
     """
 
     def __init__(
@@ -223,7 +234,7 @@ class TwoDimensionalGridSearchOptimizer:
 
         if self.verbose:
             print(f"\n{'=' * 70}")
-            print("2D GRID SEARCH OPTIMIZATION")
+            print("2D GRID SEARCH OPTIMIZATION WITH CROSS-VALIDATION")
             print(f"{'=' * 70}")
             print(f"Fixed k = {self.k_fixed} (retrieval depth)")
             print(f"\nHyperparameter Grid:")
@@ -235,6 +246,13 @@ class TwoDimensionalGridSearchOptimizer:
                 print(f"Objective weights:")
                 for key, val in self.objective_weights.items():
                     print(f"  {key}: {val:.2f}")
+            print(f"\nMethodology:")
+            print(
+                f"  - Each config evaluated on {self.cv_info['metadata']['optimization_folds']} folds")
+            print(
+                f"  - Each fold uses ~80% of data ({self.cv_info['metadata']['samples_per_optimization_fold']} samples)")
+            print(
+                f"  - Final test on independent 20% ({self.cv_info['metadata']['samples_final_test']} samples)")
             print(f"{'=' * 70}\n")
 
     def _compute_objective_score(
@@ -242,7 +260,13 @@ class TwoDimensionalGridSearchOptimizer:
         metrics: Dict[str, Any],
         latency_ms: float
     ) -> Tuple[float, Dict[str, float]]:
-        """Compute composite objective score."""
+        """
+        Υπολογισμός σύνθετης αντικειμενικής συνάρτησης.
+
+        Η αντικειμενική συνάρτηση συνδυάζει πολλαπλές μετρικές ποιότητας
+        με ποινή για αυξημένη latency, επιτρέποντας τη βελτιστοποίηση
+        για την πρακτική αποδοτικότητα του συστήματος.
+        """
         w = self.objective_weights
 
         success_3 = metrics.get("success@3", {}).get("mean", 0.0)
@@ -291,29 +315,53 @@ class TwoDimensionalGridSearchOptimizer:
         return self.cv_info["splits"][fold_key][split]
 
     def optimize(self) -> OptimizationResult:
-        """Run 2D grid search optimization."""
+        """
+        Εκτέλεση 2D grid search με stratified cross-validation.
+
+        Η διαδικασία περιλαμβάνει τρία στάδια:
+        1. Optimization Phase: Αξιολόγηση όλων των configurations σε πολλαπλά folds
+        2. Aggregation Phase: Συνάθροιση αποτελεσμάτων και επιλογή βέλτιστης configuration
+        3. Final Test Phase: Ανεξάρτητη επικύρωση στο final test set
+        """
 
         fold_results: List[Dict[str, Any]] = []
         config_scores: Dict[Tuple[float, int], List[float]] = {}
         config_breakdowns: Dict[Tuple[float, int], List[Dict[str, float]]] = {}
 
-        # Stage 1: CV optimization over 2D grid
+        # ========================================================================
+        # STAGE 1: CV OPTIMIZATION OVER 2D GRID
+        # ========================================================================
         for fold_key in self._fold_keys():
             if self._fold_role(fold_key) != "optimization":
                 continue
 
+            # Συλλογή όλων των διαθέσιμων IDs για αξιολόγηση
+            # Σημείωση: Με το νέο stratification, όλα τα δεδομένα βρίσκονται στο 'train'
+            # και το 'dev' είναι κενό. Η συγχώνευση διατηρείται για backward compatibility.
+            train_ids = self._ids_for(fold_key, "train")
             dev_ids = self._ids_for(fold_key, "dev")
 
-            if self.verbose:
+            if dev_ids:
+                # Backward compatibility: Εάν υπάρχουν dev_ids, συγχώνευση
+                eval_ids = list(set(train_ids) | set(dev_ids))
                 print(f"\n{'=' * 70}")
-                print(f"[Fold {fold_key}] Dev size: {len(dev_ids)}")
-                print(f"Testing {self.total_combinations} configurations")
-                print(f"{'=' * 70}")
+                print(f"[Fold {fold_key}] Evaluation size: {len(eval_ids)} "
+                      f"(train: {len(train_ids)}, dev: {len(dev_ids)})")
+            else:
+                # Νέα αρχιτεκτονική: Όλα στο train
+                eval_ids = train_ids
+                print(f"\n{'=' * 70}")
+                print(f"[Fold {fold_key}] Evaluation size: {len(eval_ids)} "
+                      f"(80% of dataset)")
 
-            dev_adapter = SplitFilteringAdapter(
+            print(f"Testing {self.total_combinations} configurations")
+            print(f"{'=' * 70}")
+
+            # Δημιουργία adapter για το evaluation set
+            eval_adapter = SplitFilteringAdapter(
                 self.base_adapter,
-                set(dev_ids),
-                name_suffix=f"{fold_key}-dev"
+                set(eval_ids),
+                name_suffix=f"{fold_key}-eval"
             )
 
             best_score = -np.inf
@@ -322,7 +370,8 @@ class TwoDimensionalGridSearchOptimizer:
             best_breakdown = None
 
             eval_count = 0
-            # Iterate over all (alpha, rrf_k) combinations
+
+            # Επανάληψη σε όλους τους συνδυασμούς (alpha, rrf_k)
             for alpha, rrf_k in itertools.product(self.alpha_grid, self.rrf_k_grid):
                 eval_count += 1
 
@@ -335,7 +384,7 @@ class TwoDimensionalGridSearchOptimizer:
 
                 runner = BenchmarkRunner(cfg)
                 aggregated = runner.run_benchmark(
-                    dev_adapter,
+                    eval_adapter,
                     max_queries=self.max_queries_dev
                 )
 
@@ -362,7 +411,7 @@ class TwoDimensionalGridSearchOptimizer:
                     best_breakdown = breakdown
 
             if best_alpha is None or best_rrf_k is None:
-                raise RuntimeError(f"No valid scores on dev for {fold_key}")
+                raise RuntimeError(f"No valid scores for {fold_key}")
 
             fold_result = {
                 "fold": fold_key,
@@ -384,13 +433,14 @@ class TwoDimensionalGridSearchOptimizer:
                 print(f"  α = {best_alpha:.2f}, rrf_k = {best_rrf_k}")
                 print(f"  Score = {best_score:.4f}")
 
-        # Stage 2: Aggregate and select winner
+        # ========================================================================
+        # STAGE 2: AGGREGATE AND SELECT WINNER
+        # ========================================================================
         if self.verbose:
             print(f"\n{'=' * 70}")
             print("AGGREGATING RESULTS ACROSS FOLDS")
             print(f"{'=' * 70}")
 
-        # Calculate expected number of optimization folds
         expected_folds = sum(1 for fk in self._fold_keys()
                              if self._fold_role(fk) == "optimization")
 
@@ -407,7 +457,7 @@ class TwoDimensionalGridSearchOptimizer:
 
             num_folds_tested = len(valid_scores)
 
-            # Track configurations that weren't tested on all folds
+            # Παρακολούθηση configurations που δεν δοκιμάστηκαν σε όλα τα folds
             if num_folds_tested < expected_folds:
                 incomplete_configs.append({
                     "alpha": alpha,
@@ -419,7 +469,7 @@ class TwoDimensionalGridSearchOptimizer:
                     f"Config (α={alpha:.2f}, rrf_k={rrf_k}) only tested on "
                     f"{num_folds_tested}/{expected_folds} folds. Skipping for fairness."
                 )
-                continue  # Skip incomplete configurations
+                continue
 
             mean_score = float(np.mean(valid_scores))
             std_score = float(np.std(valid_scores))
@@ -446,17 +496,17 @@ class TwoDimensionalGridSearchOptimizer:
         if not records:
             raise RuntimeError("No valid configuration records across folds")
 
-        # Log incomplete configurations
+        # Καταγραφή incomplete configurations
         if incomplete_configs and self.verbose:
             print(
                 f"\n⚠️  Skipped {len(incomplete_configs)} incomplete configurations:")
-            for cfg in incomplete_configs[:5]:  # Show first 5
+            for cfg in incomplete_configs[:5]:
                 print(f"   α={cfg['alpha']:.2f}, rrf_k={cfg['rrf_k']}: "
                       f"{cfg['folds_tested']}/{cfg['folds_expected']} folds")
             if len(incomplete_configs) > 5:
                 print(f"   ... and {len(incomplete_configs) - 5} more")
 
-        # Sort and display top configurations
+        # Ταξινόμηση και εμφάνιση κορυφαίων configurations
         records_sorted = sorted(records, key=lambda r: -r["score_mean"])
 
         if self.verbose:
@@ -474,7 +524,7 @@ class TwoDimensionalGridSearchOptimizer:
                     f"{r.get('latency_ms_mean', 0):<10.0f}"
                 )
 
-        # Winner selection with tie-breaking
+        # Επιλογή νικητή με tie-breaking
         best_mean = max(r["score_mean"] for r in records)
 
         candidates = [
@@ -482,17 +532,13 @@ class TwoDimensionalGridSearchOptimizer:
             if (best_mean - r["score_mean"]) <= self.epsilon * abs(best_mean)
         ]
 
-        # Proper tie-breaking with priority ordering
-        # Primary: maximize score
-        # Secondary: prefer balanced alpha (0.5) if enabled
-        # Tertiary: prefer standard rrf_k (60) if enabled
+        # Tie-breaking με προτεραιότητα
         candidates.sort(
             key=lambda r: (
-                # Primary: maximize score (negative for descending)
-                -r["score_mean"],
-                # Secondary: closer to 0.5
+                -r["score_mean"],  # Primary: μεγιστοποίηση score
+                # Secondary
                 abs(r["alpha"] - 0.5) if self.prefer_balanced_alpha else 0,
-                # Tertiary: closer to 60
+                # Tertiary
                 abs(r["rrf_k"] -
                     self.standard_rrf_k) if self.prefer_standard_rrf else 0,
             )
@@ -519,7 +565,9 @@ class TwoDimensionalGridSearchOptimizer:
             print(f"  Latency:      {winner.get('latency_ms_mean', 0):.0f} ms")
             print(f"{'=' * 70}\n")
 
-        # Stage 3: Final test evaluation
+        # ========================================================================
+        # STAGE 3: FINAL TEST EVALUATION
+        # ========================================================================
         final_fold_key = next(
             (fk for fk in self._fold_keys() if self._fold_role(fk) == "final_test"),
             None
@@ -542,7 +590,7 @@ class TwoDimensionalGridSearchOptimizer:
             retrieval_k=self.k_fixed
         )
 
-        # Add all report k values
+        # Προσθήκη όλων των k values για reporting
         final_cfg.setdefault("evaluation", {}).setdefault("k_values", [])
         for k in self.report_k_values:
             if k not in final_cfg["evaluation"]["k_values"]:
@@ -554,6 +602,7 @@ class TwoDimensionalGridSearchOptimizer:
             print(f"{'=' * 70}")
             print(
                 f"Configuration: α={alpha_star:.2f}, rrf_k={rrf_k_star}, k={self.k_fixed}")
+            print(f"Test set size: {len(test_ids)} samples (20% of dataset)")
             print(f"{'=' * 70}\n")
 
         final_runner = BenchmarkRunner(final_cfg)
@@ -562,7 +611,7 @@ class TwoDimensionalGridSearchOptimizer:
             max_queries=self.max_queries_test
         )
 
-        # Extract metrics summary
+        # Εξαγωγή σύνοψης μετρικών
         test_metrics = {}
         for k in self.report_k_values:
             for metric_type in ["precision", "recall", "f1", "success"]:
@@ -601,21 +650,30 @@ class TwoDimensionalGridSearchOptimizer:
                 "alpha_grid": self.alpha_grid,
                 "rrf_k_grid": self.rrf_k_grid,
                 "report_k_values": self.report_k_values,
-                "epsilon": self.epsilon
+                "epsilon": self.epsilon,
+                "cv_strategy": "optimized_stratified_cv",
+                "data_usage_per_fold": "80%",
+                "note": "Each configuration evaluated on multiple folds with 80% data each for robust estimation"
             }
         )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="2D grid search: optimize alpha and rrf_k"
+        description="2D grid search with optimized stratified cross-validation"
     )
-    parser.add_argument("--scenario-yaml", required=True)
-    parser.add_argument("--dataset-path", required=True)
-    parser.add_argument("--n-folds", type=int, default=5)
-    parser.add_argument("--max-queries-dev", type=int, default=None)
-    parser.add_argument("--max-queries-test", type=int, default=None)
-    parser.add_argument("--output-dir", default="results/")
+    parser.add_argument("--scenario-yaml", required=True,
+                        help="YAML configuration file with grid specifications")
+    parser.add_argument("--dataset-path", required=True,
+                        help="Path to dataset directory")
+    parser.add_argument("--n-folds", type=int, default=5,
+                        help="Number of CV folds (default: 5)")
+    parser.add_argument("--max-queries-dev", type=int, default=None,
+                        help="Maximum queries per optimization fold (optional)")
+    parser.add_argument("--max-queries-test", type=int, default=None,
+                        help="Maximum queries for final test (optional)")
+    parser.add_argument("--output-dir", default="results/",
+                        help="Output directory for results")
 
     args = parser.parse_args()
 
@@ -634,8 +692,8 @@ def main():
     print(f"RRF k grid: {rrf_k_grid}")
     print(f"Total combinations: {len(alpha_grid) * len(rrf_k_grid)}")
 
-    # Create CV splits
-    print(f"\nCreating {args.n_folds}-fold stratified splits...")
+    # Create CV splits with optimized strategy
+    print(f"\nCreating {args.n_folds}-fold optimized stratified splits...")
     splitter = StratifiedRAGDatasetSplitter(
         dataset_path=args.dataset_path,
         random_state=42
@@ -687,7 +745,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary = {
-        "method": "2d_grid_search",
+        "method": "2d_grid_search_optimized_cv",
         "hyperparameters": {
             "alpha_star": result.alpha_star,
             "rrf_k_star": result.rrf_k_star,
@@ -702,7 +760,14 @@ def main():
         "fold_results": result.fold_results,
         "all_config_records": result.all_config_records,
         "final_test_metrics": result.final_test_results["metrics_summary"],
-        "config": result.config
+        "config": result.config,
+        "methodology": {
+            "description": "Optimized stratified cross-validation maximizing data usage",
+            "optimization_folds": cv_info["metadata"]["optimization_folds"],
+            "samples_per_fold": cv_info["metadata"]["samples_per_optimization_fold"],
+            "final_test_samples": cv_info["metadata"]["samples_final_test"],
+            "total_evaluations": len(result.config["alpha_grid"]) * len(result.config["rrf_k_grid"]) * cv_info["metadata"]["optimization_folds"]
+        }
     }
 
     output_file = output_dir / f"2d_optimization_alpha_rrfk_k{k_fixed}.json"

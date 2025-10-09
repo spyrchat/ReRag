@@ -53,4 +53,37 @@ class LLMJudge:
             json.JSONDecodeError: If the LLM response is not valid JSON.
         """
         response = self.llm.invoke(prompt).content.strip()
-        return json.loads(response)
+
+        # Try to extract JSON from code blocks if present
+        if "```json" in response:
+            # Extract content between ```json and ```
+            start = response.find("```json") + 7
+            end = response.find("```", start)
+            if end != -1:
+                response = response[start:end].strip()
+        elif "```" in response:
+            # Extract content between ``` and ```
+            start = response.find("```") + 3
+            end = response.find("```", start)
+            if end != -1:
+                response = response[start:end].strip()
+
+        # Try to parse the JSON
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError as e:
+            # Try to find JSON object in the response
+            import re
+            json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
+            if json_match:
+                try:
+                    return json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    pass
+
+            # If all else fails, raise the original error with helpful context
+            raise json.JSONDecodeError(
+                f"Failed to parse LLM response as JSON. Response: {response[:200]}...",
+                response,
+                e.pos
+            )

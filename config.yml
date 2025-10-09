@@ -1,9 +1,6 @@
 # ============================================================================
 # MINIMAL CONFIG FOR MAIN.PY - RAG AGENT
 # ============================================================================
-# This config contains only what's necessary to run the interactive RAG agent.
-# For benchmark configs, see benchmark_scenarios/
-# ============================================================================
 
 # === Agent Configuration ===
 agent:
@@ -40,6 +37,13 @@ generation:
   # strict:         Strict grounding to context, minimal hallucinations (best for benchmarks)
   # conversational: More natural, allows some inference (best for UX)
   # citations:      Research-focused with explicit references (best for verification)
+
+# === Self-RAG Configuration ===
+# Controls iterative refinement with verification
+self_rag:
+  max_iterations: 3  # Maximum refinement cycles (1-5 recommended)
+  # Higher values = more refinement attempts but slower response time
+  # Recommended: 3 for production, 5 for maximum accuracy
 
 # === Benchmark Configuration ===
 benchmark:

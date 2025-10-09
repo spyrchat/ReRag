@@ -93,7 +93,6 @@ def _create_ollama_llm(model: str, temperature: float, config: Dict[str, Any]):
             top_k=config.get("top_k"),
             top_p=config.get("top_p"),
         )
-
         logger.info(f"✓ Ollama LLM created: {model} at {base_url}")
         return llm
 
