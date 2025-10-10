@@ -37,7 +37,7 @@ PROVIDER = "openai"       # openai | anthropic
 # Valid Anthropic models: claude-3-5-sonnet-20241022, claude-3-opus-20240229
 MODEL_NAME = "gpt-5"
 
-INPUT_PATH = "/home/spiros/Desktop/Thesis/results/test_standard/ground_truth_self_rag_20251009_221311.json"
+INPUT_PATH = "/home/spiros/Desktop/Thesis/results/test_standard/ground_truth_intermediate.json"
 OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_self_rag_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
 BATCH_SIZE = 20
 SLEEP_BETWEEN_BATCHES = 0
