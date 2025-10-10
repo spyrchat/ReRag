@@ -35,10 +35,10 @@ from llm_judge import LLMJudge
 PROVIDER = "openai"       # openai | anthropic
 # Valid OpenAI models: gpt-4o, gpt-4o-mini, gpt-4-turbo
 # Valid Anthropic models: claude-3-5-sonnet-20241022, claude-3-opus-20240229
-MODEL_NAME = "gpt-5-mini"
+MODEL_NAME = "gpt-5"
 
-INPUT_PATH = "/home/spiros/Desktop/Thesis/results/ground_truth_for_test/ground_truth_intermediate.json"
-OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
+INPUT_PATH = "/home/spiros/Desktop/Thesis/results/test_standard/ground_truth_self_rag_20251009_221311.json"
+OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_self_rag_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
 BATCH_SIZE = 20
 SLEEP_BETWEEN_BATCHES = 0
 
