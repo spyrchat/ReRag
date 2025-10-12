@@ -96,12 +96,12 @@ class StratifiedRAGDatasetSplitter:
 
     def _create_strat_key(self, top_k_categories: int = 6) -> pd.Series:
         """
-        Δημιουργία πολυδιάστατου stratification key.
+        Create a multi-dimensional stratification key.
 
-        Το κλειδί συνδυάζει τρεις διαστάσεις για διασφάλιση αντιπροσωπευτικότητας:
-        - question_type: Τύπος ερωτήματος
-        - primary_tag_category: Κύρια θεματική κατηγορία (grouped)
-        - answer_count_bin: Κατηγορία πλήθους απαντήσεων
+        The key combines three dimensions to ensure representativeness:
+        - question_type: Type of question
+        - primary_tag_category: Main topic category (grouped)
+        - answer_count_bin: Answer count category
         """
         cats = self.questions_df['primary_tag_category'].value_counts().head(
             top_k_categories).index
@@ -123,25 +123,25 @@ class StratifiedRAGDatasetSplitter:
         min_samples_per_stratum: int = 5
     ) -> Dict:
         """
-        Δημιουργία stratified train/test split.
+        Create a stratified train/test split.
 
-        Μεθοδολογία:
-        - 80% train (validation): για επιλογή hyperparameters
-        - 20% test: για τελική επικύρωση
-        - Stratification διατηρεί την κατανομή των χαρακτηριστικών
+        Methodology:
+        - 80% train (validation): for hyperparameter selection
+        - 20% test: for final validation
+        - Stratification preserves the distribution of characteristics
 
-        Πλεονεκτήματα:
-        - Απλότητα: Μία διαίρεση, όχι πολλαπλά folds
-        - Αποδοτικότητα: 4× ταχύτερο από 5-fold CV
-        - Επαρκής στατιστική ισχύ: 80% = ~450 samples για validation
-        - Stratification: Διασφάλιση αντιπροσωπευτικότητας
+        Advantages:
+        - Simplicity: Single split, no multiple folds
+        - Efficiency: 4× faster than 5-fold CV
+        - Sufficient statistical power: 80% = ~450 samples for validation
+        - Stratification: Ensures representativeness
 
         Args:
-            test_size: Ποσοστό για test set (default: 0.2 = 20%)
-            min_samples_per_stratum: Ελάχιστα samples ανά stratum (default: 5)
+            test_size: Fraction for test set (default: 0.2 = 20%)
+            min_samples_per_stratum: Minimum samples per stratum (default: 5)
 
         Returns:
-            Dictionary με train/test splits και statistics
+            Dictionary with train/test splits and statistics
         """
         if self.questions_df is None:
             self.load_dataset()
@@ -149,9 +149,9 @@ class StratifiedRAGDatasetSplitter:
         strat_key = self._create_strat_key()
         self._strat_key = strat_key
 
-        # Φιλτράρισμα strata με επαρκές μέγεθος
-        # Για train/test split χρειαζόμαστε τουλάχιστον 2 samples ανά stratum
-        # αλλά χρησιμοποιούμε υψηλότερο threshold για ασφάλεια
+        # Filter strata with sufficient size
+        # For train/test split we need at least 2 samples per stratum
+        # but we use a higher threshold for safety
         counts = strat_key.value_counts()
         valid = counts[counts >= min_samples_per_stratum].index
         mask = strat_key.isin(valid)
@@ -180,19 +180,19 @@ class StratifiedRAGDatasetSplitter:
             random_state=self.random_state
         )
 
-        # Αποθήκευση των indices για reference
+        # Store indices for reference
         train_strat = strat_f.loc[train_df.index]
         test_strat = strat_f.loc[test_df.index]
         train_bins = bins_f.loc[train_df.index]
         test_bins = bins_f.loc[test_df.index]
 
-        # Δημιουργία του splits dictionary
+        # Create splits dictionary
         splits = {
             'train': train_df[id_col].tolist(),
             'test': test_df[id_col].tolist()
         }
 
-        # Στατιστικά
+        # Statistics
         statistics = {
             'train': {
                 'size': len(train_df),
@@ -224,7 +224,7 @@ class StratifiedRAGDatasetSplitter:
             'creation_timestamp': pd.Timestamp.now().isoformat()
         }
 
-        # Εκτύπωση αποτελεσμάτων
+        # Print results
         print(f"Split Results:")
         print(
             f"  Train: {len(train_df)} samples ({len(train_df) / len(filtered) * 100:.1f}%)")
@@ -236,7 +236,7 @@ class StratifiedRAGDatasetSplitter:
         print(f"  Train strata coverage: {len(train_strat.unique())}")
         print(f"  Test strata coverage: {len(test_strat.unique())}")
 
-        # Επιβεβαίωση ότι οι κατανομές είναι παρόμοιες
+        # Verify that distributions are similar
         train_type_dist = train_df['question_type'].value_counts(
             normalize=True)
         test_type_dist = test_df['question_type'].value_counts(normalize=True)
@@ -286,7 +286,7 @@ if __name__ == "__main__":
             json.dump(split_info, f, ensure_ascii=False, indent=2)
         print(f"✓ Split saved to: {output_path}")
 
-    # Εμφάνιση σύνοψης
+    # Display summary
     print("\nSummary:")
     print(f"  Train samples: {split_info['metadata']['train_samples']}")
     print(f"  Test samples:  {split_info['metadata']['test_samples']}")

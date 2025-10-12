@@ -89,8 +89,7 @@ Be concise and focused."""),
             return {
                 **state,
                 "query_analysis": analysis,
-                "query_type": query_type,
-                "next_node": "router"  # Always go to router next
+                "query_type": query_type
             }
 
         except Exception as e:
@@ -99,8 +98,7 @@ Be concise and focused."""),
             return {
                 **state,
                 "query_analysis": f"Unable to analyze query: {str(e)}",
-                "query_type": "technical",
-                "next_node": "router"
+                "query_type": "technical"
             }
 
     return query_analyzer

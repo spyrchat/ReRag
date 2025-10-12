@@ -16,37 +16,46 @@ class SelfCorrectingGenerator:
     Generator that can self-correct when hallucinations are detected.
     Implements iterative refinement with verification feedback loop.
     """
-    
+
     def __init__(self, llm, verifier: AnswerVerifier, max_iterations: int = 3):
         self.llm = llm
         self.verifier = verifier
         self.max_iterations = max_iterations
-        
+
         # Initial generation prompt
         self.generation_prompt = PromptTemplate.from_template(
             """You are a helpful programming expert answering a developer's question.
 
 Question: {question}
 
+Query Analysis:
+{query_analysis}
+
 Context (from Stack Overflow):
 {context}
 
 Instructions:
+- Use the query analysis to understand what the user needs and the key concepts involved
+- Follow the reasoning steps identified in the analysis
 - Answer naturally and conversationally, as if you're helping a colleague
 - Use the provided context as your primary source of information
 - Include relevant code examples when helpful
+- Address the specific information needs mentioned in the analysis
 - If the context doesn't fully cover the question, acknowledge what's missing naturally (e.g., "One common approach is..." rather than "The context doesn't mention...")
 - Do NOT use phrases like "based on the context" or "according to the sources" - just answer directly
 - Focus on being helpful and practical
 
 Your answer:"""
         )
-        
+
         # Revision prompt with explicit feedback
         self.revision_prompt = PromptTemplate.from_template(
             """You're revising your answer because it contained some inaccurate information.
 
 Original question: {question}
+
+Query Analysis (what the user needs):
+{query_analysis}
 
 Available information (Stack Overflow):
 {context}
@@ -59,66 +68,73 @@ Issues detected:
 
 Please revise your answer to:
 1. Remove any information not supported by the available context above
-2. Keep the helpful and accurate parts
+2. Keep the helpful and accurate parts that address the key concepts in the query analysis
 3. Maintain a natural, conversational tone (no phrases like "based on the context")
 4. If the context doesn't fully address something, briefly acknowledge it naturally (e.g., "For this specific case..." or "One approach that works well...")
 5. Focus on being clear and practical
 
 Revised answer:"""
         )
-    
+
     def generate_with_verification(
-        self, 
-        question: str, 
-        context: str
+        self,
+        question: str,
+        context: str,
+        query_analysis: str = "No analysis available"
     ) -> Dict[str, Any]:
         """
         Generates answer with iterative verification and refinement.
-        
+
         Args:
             question: User's question
             context: Retrieved context (source of truth)
-            
+            query_analysis: Analysis of the query (reasoning steps, key concepts)
+
         Returns:
             Dict with final answer, verification status, and iteration history
         """
         iteration_history = []
         current_answer = None
-        
+
         for iteration in range(self.max_iterations):
-            logger.debug(f"[SelfRAG] Iteration {iteration + 1}/{self.max_iterations}")
-            
+            logger.debug(
+                f"[SelfRAG] Iteration {iteration + 1}/{self.max_iterations}")
+
             if iteration == 0:
                 # Initial generation
                 prompt = self.generation_prompt.format(
                     context=context if context else "No context available",
-                    question=question
+                    question=question,
+                    query_analysis=query_analysis
                 )
                 response = self.llm.invoke(prompt)
                 current_answer = response.content.strip()
-                logger.debug(f"[SelfRAG] Generated initial answer ({len(current_answer)} chars)")
+                logger.debug(
+                    f"[SelfRAG] Generated initial answer ({len(current_answer)} chars)")
             else:
                 # Revision with feedback from verification
                 previous_verification = iteration_history[-1]['verification']
                 feedback = self._format_feedback(previous_verification)
-                
+
                 prompt = self.revision_prompt.format(
                     question=question,
                     context=context if context else "No context available",
+                    query_analysis=query_analysis,
                     previous_answer=current_answer,
                     feedback=feedback
                 )
                 response = self.llm.invoke(prompt)
                 current_answer = response.content.strip()
-                logger.debug(f"[SelfRAG] Revised answer (iteration {iteration + 1})")
-            
+                logger.debug(
+                    f"[SelfRAG] Revised answer (iteration {iteration + 1})")
+
             # Verify the current answer
             verification = self.verifier.verify(
                 question=question,
                 context=context,
                 answer=current_answer
             )
-            
+
             # Store iteration metadata
             iteration_history.append({
                 'iteration': iteration + 1,
@@ -126,7 +142,7 @@ Revised answer:"""
                 'verification': verification,
                 'action': 'initial' if iteration == 0 else 'revision'
             })
-            
+
             # Check if we should stop
             if self._should_stop(verification, iteration):
                 logger.debug(
@@ -135,10 +151,10 @@ Revised answer:"""
                     f"iteration={iteration + 1}"
                 )
                 break
-        
+
         # Prepare final result
         final_verification = iteration_history[-1]['verification']
-        
+
         return {
             'final_answer': current_answer,
             'verification': final_verification,
@@ -153,35 +169,36 @@ Revised answer:"""
                 )
             }
         }
-    
+
     def _format_feedback(self, verification: Dict[str, Any]) -> str:
         """Converts verification output to human-readable feedback."""
         if not verification.get('hallucination_detected'):
             return "No major issues found."
-        
+
         feedback_parts = []
-        
+
         if verification.get('issues'):
             feedback_parts.append("**Specific Issues Found:**")
             for issue in verification['issues']:
                 feedback_parts.append(f"- {issue}")
-        
+
         feedback_parts.append(
             f"\n**Severity:** {verification.get('severity', 'unknown')}"
         )
         feedback_parts.append(
             f"**Recommendation:** {verification.get('recommendation', 'revise')}"
         )
-        
+
         if verification.get('reasoning'):
-            feedback_parts.append(f"**Reasoning:** {verification['reasoning']}")
-        
+            feedback_parts.append(
+                f"**Reasoning:** {verification['reasoning']}")
+
         return "\n".join(feedback_parts)
-    
+
     def _should_stop(self, verification: Dict[str, Any], iteration: int) -> bool:
         """
         Determines if iterative refinement should stop.
-        
+
         Stopping criteria:
         1. Verification passed (is_faithful = True)
         2. Reached max iterations
@@ -190,47 +207,51 @@ Revised answer:"""
         # Criterion 1: Passed verification
         if verification.get('is_faithful', False):
             return True
-        
+
         # Criterion 2: Max iterations reached
         if iteration >= self.max_iterations - 1:
             logger.warning(
                 f"[SelfRAG] Max iterations reached without convergence"
             )
             return True
-        
+
         # Criterion 3: High confidence with minor issues only
-        if (verification.get('confidence', 0) > 0.8 and 
-            verification.get('severity') == 'minor'):
+        if (verification.get('confidence', 0) > 0.8 and
+                verification.get('severity') == 'minor'):
             logger.info("[SelfRAG] Stopping with minor issues only")
             return True
-        
+
         return False
 
 
 def make_self_rag_generator(llm, max_iterations: int = 3):
     """
     Factory function to create a self-correcting generator node.
-    
+
     Args:
         llm: Language model instance
         max_iterations: Maximum refinement iterations (default: 3)
-        
+
     Returns:
         Self-RAG generator node function for the agent graph
     """
     # Create verifier
     verifier = AnswerVerifier(llm)
-    
+
     # Create self-correcting generator
     self_rag_gen = SelfCorrectingGenerator(llm, verifier, max_iterations)
-    
+
     def self_rag_generator_node(state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Self-RAG generator node with verification loop.
         """
         question = state.get("question", "")
         context = state.get("context", "")
-        
+        query_analysis = state.get("query_analysis", "No analysis available")
+
+        # Log query analysis for debugging
+        logger.info(f"[SelfRAG] Query analysis received: {query_analysis[:200]}..." if len(query_analysis) > 200 else f"[SelfRAG] Query analysis: {query_analysis}")
+
         if not question:
             logger.error("[SelfRAG] No question provided")
             return {
@@ -242,11 +263,12 @@ def make_self_rag_generator(llm, max_iterations: int = 3):
                     'error': 'No question provided'
                 }
             }
-        
+
         try:
             # Generate with verification loop
-            result = self_rag_gen.generate_with_verification(question, context)
-            
+            result = self_rag_gen.generate_with_verification(
+                question, context, query_analysis)
+
             # Log summary only if refinement happened
             if result['iterations'] > 1:
                 logger.info(
@@ -256,7 +278,7 @@ def make_self_rag_generator(llm, max_iterations: int = 3):
                 )
             else:
                 logger.debug(f"[SelfRAG] Answer accepted on first attempt")
-            
+
             return {
                 **state,
                 "answer": result['final_answer'],
@@ -269,7 +291,7 @@ def make_self_rag_generator(llm, max_iterations: int = 3):
                     'max_iterations_reached': result['generation_metadata']['max_iterations_reached']
                 }
             }
-            
+
         except Exception as e:
             logger.error(f"[SelfRAG] Generation failed: {str(e)}")
             return {
@@ -282,5 +304,5 @@ def make_self_rag_generator(llm, max_iterations: int = 3):
                     'error': str(e)
                 }
             }
-    
+
     return self_rag_generator_node

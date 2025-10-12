@@ -12,6 +12,9 @@ generator_prompt = PromptTemplate.from_template(
 
 Your task is to answer the user's question using ONLY the information provided in the context below. The context contains relevant excerpts from Stack Overflow posts and technical documentation.
 
+Query Analysis:
+{query_analysis}
+
 Context:
 {context}
 
@@ -19,13 +22,15 @@ Question:
 {question}
 
 Instructions:
-1. Answer ONLY based on the provided context - do not use external knowledge
-2. If the context contains code examples, include them in your answer
-3. If the context discusses multiple approaches, mention the key differences
-4. If the context doesn't fully answer the question, acknowledge what's missing
-5. Be concise but complete - aim for clarity over verbosity
-6. Use technical terminology appropriately
-7. If the context is insufficient or irrelevant, say: "Based on the provided context, I cannot fully answer this question."
+1. Use the query analysis above to understand what the user needs and follow the reasoning steps
+2. Answer ONLY based on the provided context - do not use external knowledge
+3. Address the key concepts identified in the analysis
+4. If the context contains code examples, include them in your answer
+5. If the context discusses multiple approaches, mention the key differences
+6. If the context doesn't fully answer the question, acknowledge what's missing
+7. Be concise but complete - aim for clarity over verbosity
+8. Use technical terminology appropriately
+9. If the context is insufficient or irrelevant, say: "Based on the provided context, I cannot fully answer this question."
 
 Provide your answer in clear, professional language:"""
 )
@@ -36,6 +41,9 @@ generator_prompt_conversational = PromptTemplate.from_template(
 
 Use the following context from Stack Overflow posts to answer the user's technical question. Synthesize the information and provide practical guidance.
 
+Query Analysis:
+{query_analysis}
+
 Context:
 {context}
 
@@ -43,7 +51,8 @@ Question:
 {question}
 
 Provide a clear, helpful answer that:
-- Addresses the specific question asked
+- Follows the reasoning steps from the query analysis
+- Addresses the key concepts identified
 - Includes relevant code examples from the context
 - Explains the reasoning behind solutions
 - Mentions any important caveats or considerations
@@ -58,10 +67,14 @@ generator_prompt_with_citations = PromptTemplate.from_template(
 Question:
 {question}
 
+Query Analysis:
+{query_analysis}
+
 Available Context:
 {context}
 
 Instructions:
+- Use the query analysis to understand the user's needs and key concepts
 - Base your answer strictly on the provided context
 - If multiple solutions exist, compare their trade-offs
 - Indicate when information is incomplete
@@ -92,6 +105,10 @@ def make_generator(llm, prompt_style: str = "strict"):
 
     def generator(state: Dict[str, Any]) -> Dict[str, Any]:
         question = state["question"]
+        query_analysis = state.get("query_analysis", "No analysis available")
+
+        # Log query analysis for debugging
+        logger.info(f"[Generator] Query analysis received: {query_analysis[:200]}..." if len(query_analysis) > 200 else f"[Generator] Query analysis: {query_analysis}")
 
         if "context" in state:
             context = state["context"]
@@ -105,7 +122,9 @@ def make_generator(llm, prompt_style: str = "strict"):
 
         try:
             prompt = selected_prompt.format(
-                context=context, question=question)
+                context=context,
+                question=question,
+                query_analysis=query_analysis)
             response = llm.invoke(prompt)
             final_answer = response.content.strip()
 
