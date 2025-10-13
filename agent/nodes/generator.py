@@ -108,7 +108,8 @@ def make_generator(llm, prompt_style: str = "strict"):
         query_analysis = state.get("query_analysis", "No analysis available")
 
         # Log query analysis for debugging
-        logger.info(f"[Generator] Query analysis received: {query_analysis[:200]}..." if len(query_analysis) > 200 else f"[Generator] Query analysis: {query_analysis}")
+        logger.info(f"[Generator] Query analysis received: {query_analysis[:200]}..." if len(
+            query_analysis) > 200 else f"[Generator] Query analysis: {query_analysis}")
 
         if "context" in state:
             context = state["context"]

@@ -250,7 +250,8 @@ def make_self_rag_generator(llm, max_iterations: int = 3):
         query_analysis = state.get("query_analysis", "No analysis available")
 
         # Log query analysis for debugging
-        logger.info(f"[SelfRAG] Query analysis received: {query_analysis[:200]}..." if len(query_analysis) > 200 else f"[SelfRAG] Query analysis: {query_analysis}")
+        logger.info(f"[SelfRAG] Query analysis received: {query_analysis[:200]}..." if len(
+            query_analysis) > 200 else f"[SelfRAG] Query analysis: {query_analysis}")
 
         if not question:
             logger.error("[SelfRAG] No question provided")

@@ -28,7 +28,6 @@ from typing import Dict, List
 from tqdm import tqdm
 from dotenv import load_dotenv
 import pandas as pd
-# Make sure this path matches your project
 from llm_judge import LLMJudge
 
 # === Config ===
@@ -37,8 +36,8 @@ PROVIDER = "openai"       # openai | anthropic
 # Valid Anthropic models: claude-3-5-sonnet-20241022, claude-3-opus-20240229
 MODEL_NAME = "gpt-5"
 
-INPUT_PATH = "/home/spiros/Desktop/Thesis/results/test_standard/ground_truth_intermediate.json"
-OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_self_rag_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
+INPUT_PATH = "/home/spiros/Desktop/Thesis/results/test_self_rag/ground_truth_intermediate.json"
+OUTPUT_PATH = f"/home/spiros/Desktop/Thesis/results/llm_judge_scores/llm_judge_scores_self_rag_new_{PROVIDER}_{MODEL_NAME.replace('.', '-')}.jsonl"
 BATCH_SIZE = 20
 SLEEP_BETWEEN_BATCHES = 0
 
