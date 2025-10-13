@@ -6,7 +6,6 @@ train/test split for hyperparameter optimization in RAG systems.
 
 Key features:
 - Simple 80/20 stratified split (no cross-validation)
-- 4× faster than CV approach
 - Sufficient statistical power with 450+ validation samples
 - Independent test set for final validation
 """
