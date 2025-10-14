@@ -6,11 +6,8 @@ A comprehensive evaluation framework for RAG systems with support for multiple m
 
 The benchmarks module provides:
 - **Standardized metrics** (Recall@K, Precision@K, MRR, NDCG)
-- **A/B testing framework** for comparing retrieval strategies
 - **Grid search optimization** for hyperparameter tuning
 - **Statistical analysis** with significance testing
-- **Automated reporting** with visualizations
-- **Real-world benchmark datasets** integration
 
 ## 📁 Module Structure
 
@@ -27,10 +24,7 @@ benchmarks/
 ├── 🎛️ utils.py                         # Common utilities
 │
 ├── 🧪 experiment1.py                   # Dense vs Sparse comparison
-├── 🧪 experiment3.py                   # Hybrid optimization
 ├── 🔍 optimize_2d_grid_alpha_rrfk.py   # Alpha parameter optimization
-├── 🏃 run_benchmark_optimization.py    # Grid search runner
-├── 🏃 run_real_benchmark.py            # Real dataset benchmarks
 └── 📊 stratification.py                # Dataset stratification
 ```
 
@@ -309,30 +303,7 @@ class CustomMetrics(BenchmarkMetrics):
         pass
 ```
 
-## 🐛 Troubleshooting
 
-### Common Issues
-
-**Issue**: Out of memory during large benchmarks
-- **Solution**: Edit the benchmark script to reduce max_queries parameter
-- Example: In `run_real_benchmark.py`, set `max_queries=100` instead of larger values
-
-**Issue**: Slow benchmark execution
-- **Solution**: Use test mode for quick validation before full runs
-- Example: `python -m benchmarks.experiment1 --test`
-
-**Issue**: Inconsistent results across runs
-- **Solution**: Check that random seeds are set in the experiment configuration
-- **Note**: `run_real_benchmark.py` uses hardcoded random_state=42 in the stratification splitter
-
-### Debug Mode
-```bash
-# Enable detailed logging for experiment scripts
-export LOG_LEVEL=DEBUG
-python -m benchmarks.experiment1 --test
-
-# For run_real_benchmark.py, edit the script directly to enable logging
-```
 
 ## 🎯 Best Practices
 
@@ -344,36 +315,6 @@ python -m benchmarks.experiment1 --test
 6. **Resource Monitoring**: Track memory and compute usage
 7. **Reproducibility**: Set random seeds and document environment
 
-## 🔗 Integration
 
-### With Pipelines
-```python
-# Use benchmark results to configure retrieval pipeline
-import json
-from components.retrieval_pipeline import RetrievalPipelineFactory
-
-# Load benchmark results
-with open("results/optimization.json") as f:
-    results = json.load(f)
-
-# Find best configuration manually or programmatically
-best_config = {
-    'retrieval': {'type': 'hybrid', 'alpha': 0.7},
-    'qdrant': {'collection': 'stackoverflow'}
-}
-
-pipeline = RetrievalPipelineFactory.create_pipeline(best_config)
-```
-
-### With Agent Workflows
-```python
-# Use benchmarked retrieval strategies in agent
-from agent.graph import create_agent_graph
-
-agent = create_agent_graph(
-    retrieval_strategy="hybrid",  # Based on benchmark results
-    collection="stackoverflow"
-)
-```
 
 This benchmarking framework enables rigorous evaluation and optimization of your RAG system, ensuring peak performance across different datasets and use cases.
