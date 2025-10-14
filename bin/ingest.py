@@ -241,20 +241,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Ingest Natural Questions dataset
+  # Ingest with config file (config specifies adapter and path)
+  python bin/ingest.py ingest --config pipelines/configs/datasets/stackoverflow_hybrid.yml
+  
+  # Ingest Natural Questions dataset with explicit arguments
   python bin/ingest.py ingest natural_questions /path/to/nq --config config.yml
   
   # Dry run with limited documents
-  python bin/ingest.py ingest stackoverflow /path/to/so --dry-run --max-docs 100
+  python bin/ingest.py ingest --config dataset_config.yml --dry-run --max-docs 100
   
   # Canary ingestion
   python bin/ingest.py ingest energy_papers papers/ --canary
   
-  # Batch ingestion
-  python bin/ingest.py batch-ingest batch_config.json
-  
   # Check status
-  python bin/ingest.py status
+  python bin/ingest.py status --config config.yml
         """
     )
 
@@ -272,6 +272,7 @@ Examples:
                                help="Adapter (optional if specified in config under 'dataset.adapter')")
     ingest_parser.add_argument("dataset_path", nargs='?',
                                help="Path to dataset (optional if specified in config under 'dataset.path')")
+    ingest_parser.add_argument("--config", "-c", help="Configuration file path")
     ingest_parser.add_argument(
         "--version", default="1.0.0", help="Dataset version")
     ingest_parser.add_argument("--split", choices=["train", "val", "test", "all"], default="all",
@@ -289,11 +290,13 @@ Examples:
     # Status command
     status_parser = subparsers.add_parser(
         "status", help="Show pipeline status")
+    status_parser.add_argument("--config", "-c", help="Configuration file path")
     status_parser.set_defaults(func=cmd_status)
 
     # Cleanup command
     cleanup_parser = subparsers.add_parser(
         "cleanup", help="Clean up canary collections")
+    cleanup_parser.add_argument("--config", "-c", help="Configuration file path")
     cleanup_parser.set_defaults(func=cmd_cleanup)
 
     # Parse and execute

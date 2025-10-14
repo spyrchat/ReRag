@@ -241,7 +241,7 @@ export QDRANT_COLLECTION=production_collection
 
 ```bash
 # Run database unit tests
-pytest tests/unit/test_database.py -v
+pytest tests/pipeline/test_qdrant.py -v   
 ```
 
 ### Integration Tests
@@ -250,8 +250,6 @@ pytest tests/unit/test_database.py -v
 # Start Qdrant first
 docker-compose up -d qdrant
 
-# Run integration tests
-pytest tests/integration/test_qdrant_integration.py -v
 ```
 
 ### Health Check
@@ -344,26 +342,7 @@ logging.basicConfig(level=logging.DEBUG)
 db = QdrantVectorDB()
 ```
 
-### Performance Tuning
 
-```python
-# For large datasets
-config = {
-    "qdrant": {
-        "collection": "large_collection",
-        # Add Qdrant-specific optimizations here
-    }
-}
-```
-
-## 📊 Monitoring
-
-### Key Metrics
-
-- **Connection Health**: Regular connectivity checks
-- **Collection Size**: Number of vectors stored
-- **Query Performance**: Average response time
-- **Memory Usage**: Vector storage efficiency
 
 ### Logging
 
@@ -385,10 +364,4 @@ db.insert_documents(...)  # Logs: "Inserted 100 documents"
 - **[Retrievers README](../retrievers/README.md)**: Search and retrieval
 - **[Main README](../readme.md)**: System overview
 
-## 📞 Support
 
-For database-specific issues:
-1. Check Qdrant logs: `docker logs <qdrant-container>`
-2. Verify configuration with health checks
-3. Review connection parameters and API keys
-4. Check [Qdrant documentation](https://qdrant.tech/documentation/) for advanced features
