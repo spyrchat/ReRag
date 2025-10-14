@@ -24,10 +24,7 @@ benchmarks/
 ├── 🎛️ utils.py                         # Common utilities
 │
 ├── 🧪 experiment1.py                   # Dense vs Sparse comparison
-├── 🧪 experiment3.py                   # Hybrid optimization
 ├── 🔍 optimize_2d_grid_alpha_rrfk.py   # Alpha parameter optimization
-├── 🏃 run_benchmark_optimization.py    # Grid search runner
-├── 🏃 run_real_benchmark.py            # Real dataset benchmarks
 └── 📊 stratification.py                # Dataset stratification
 ```
 
