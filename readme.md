@@ -49,9 +49,6 @@ curl http://localhost:6333/health
 # Ingest Stack Overflow dataset
 python bin/ingest.py ingest --config pipelines/configs/datasets/stackoverflow_hybrid.yml
 
-# Run retrieval demo (interactive examples)
-python bin/agent_retriever.py
-
 # Test agent workflow (interactive mode)
 python main.py
 
