@@ -64,6 +64,11 @@ def retriever(state: Dict[str, Any]) -> Dict[str, Any]:
     query = state["question"]
     logger.info(f"[Retriever] Query: {query}")
 
+    # Skip retrieval if context already exists (e.g., from test fixtures)
+    if "context" in state and state["context"]:
+        logger.info(f"[Retriever] Context already exists ({len(state['context'])} chars), skipping retrieval")
+        return state
+
     try:
         # Get top_k from state or use default
         top_k = state.get("top_k", 10)
