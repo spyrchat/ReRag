@@ -40,13 +40,13 @@ __all__ = [
     'Reranker',
     'ResultFilter',
     'PostProcessor',
-    
+
     # Rerankers
     'CrossEncoderReranker',
     'SemanticReranker',
     'BM25Reranker',
     'EnsembleReranker',
-    
+
     # Filters and processors
     'ScoreFilter',
     'MetadataFilter',

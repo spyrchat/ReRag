@@ -1,0 +1,41 @@
+name: "Hybrid Splade + BGE-M3 - Experiment 1"
+description: "Hybrid Splade + BGE-M3 retrieval"
+
+dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
+  path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+  use_ground_truth: true
+
+retrieval:
+  type: "hybrid"
+  top_k: 10
+  fusion:
+    method: "rrf"
+    alpha: 0.5
+    rrf_k: 60
+  qdrant:
+    collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
+    dense_vector_name: "dense"
+    sparse_vector_name: "sparse"
+  embedding:
+    dense:
+      provider: "huggingface"
+      model: "BAAI/bge-m3"
+      model_kwargs:
+        device: "cpu"
+      encode_kwargs:
+        normalize_embeddings: true
+    sparse:
+      provider: "sparse-splade"
+      model: "prithivida/Splade_PP_en_v1"
+    strategy: "hybrid"
+
+evaluation:
+  k_values: [1, 3, 5, 10]
+  metrics:
+    retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map", "f1@k"]
+
+max_queries: 506
+experiment_name: "hybrid_bge_m3_exp1"
+generation:
+  enabled: false

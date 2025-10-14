@@ -1,0 +1,45 @@
+# ============================================================================
+# Hybrid Retrieval - BGE-M3 + SPLADE (Alpha=0.8, RRF k=20)
+# ============================================================================
+# Dense semantic retrieval (80%) + sparse keyword matching (20%)
+# Uses Reciprocal Rank Fusion with k=20
+# ============================================================================
+
+# === Embedding Configuration ===
+embedding:
+  dense:
+    provider: huggingface
+    model: BAAI/bge-m3
+    model_kwargs:
+      device: cpu
+    encode_kwargs:
+      normalize_embeddings: true
+  
+  sparse:
+    provider: sparse-splade
+    model: prithivida/Splade_PP_en_v1
+
+# === Qdrant Configuration ===
+qdrant:
+  host: localhost
+  port: 6333
+  collection_name: sosum_stackoverflow_bge_splade_recursive_v2
+  dense_vector_name: dense
+  sparse_vector_name: sparse
+
+fusion:
+  method: rrf          # Reciprocal Rank Fusion
+  alpha: 0.8           # 80% dense, 20% sparse (applies weight to RRF scores)
+  rrf_k: 20            # RRF constant (lower = more weight to top ranks)
+
+# === Retrieval Pipeline ===
+retrieval_pipeline:
+  retriever:
+    type: hybrid
+    top_k: 10
+    score_threshold: 0.0
+    
+  stages:
+    - type: score_filter
+      config:
+        min_score: 0.0  # Changed from 0.3 - RRF scores are lower, so 0.3 was filtering everything out

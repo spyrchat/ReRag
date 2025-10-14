@@ -21,8 +21,6 @@ Contains configurations for processing and ingesting different datasets.
 
 - `stackoverflow.yml` - Main SOSum Stack Overflow dataset configuration
 - `stackoverflow_hybrid.yml` - Hybrid embedding variant for Stack Overflow
-- `natural_questions.yml` - Google Natural Questions dataset configuration
-- `energy_papers.yml` - Energy papers dataset configuration
 
 **Purpose**: Data ingestion, chunking, embedding, and indexing pipelines.
 

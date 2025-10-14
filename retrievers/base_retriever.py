@@ -2,6 +2,8 @@
 Modern base retriever that integrates with the retrieval pipeline architecture.
 """
 
+from typing import Any, Dict
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from components.retrieval_pipeline import BaseRetriever, RetrievalResult
@@ -11,6 +13,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class RetrievalResult:
+    document: Any
+    score: float
+    retrieval_method: str
+    metadata: Dict[str, Any]
+
+
 class ModernBaseRetriever(BaseRetriever):
     """
     Modern base retriever implementing the retrieval pipeline interface.
@@ -18,19 +28,22 @@ class ModernBaseRetriever(BaseRetriever):
     """
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the retriever with configuration.
+        """Initialize with ONLY the provided configuration - no defaults merged."""
+        # Store the exact configuration provided - NO MERGING WITH DEFAULTS
+        self.config = config.copy()  # Use exact copy of provided config
 
-        Args:
-            config: Configuration dictionary containing retrieval parameters
-        """
-        self.config = config
-        self.top_k = config.get("top_k", 5)
-        self.score_threshold = config.get("score_threshold", 0.0)
+        # Extract optional parameters - top_k can be provided at runtime
+        # Default fallback, usually overridden at runtime
+        self.top_k = config.get('top_k', 10)
+        self.score_threshold = config.get('score_threshold', 0.0)
+
+        # Performance settings - only if explicitly provided
+        self.performance_config = config.get('performance', {})
+        self.enable_caching = self.performance_config.get(
+            'enable_caching', False)
+        self.batch_size = self.performance_config.get('batch_size', 1)
+
         self._initialized = False  # Track initialization state
-
-        # Initialize any common components here
-        self._initialize_components()
 
     def _initialize_components(self):
         """Initialize common components. Override in subclasses."""
@@ -70,27 +83,30 @@ class ModernBaseRetriever(BaseRetriever):
         if k is None:
             k = self.top_k
 
-        logger.debug(f"Retrieving {k} results for query: {query[:50]}...")
-
         try:
             # Perform the search
             results = self._perform_search(query, k)
+
+            # Defensive: ensure results is a list
+            if results is None:
+                logger.error(
+                    f"{self.component_name}._perform_search returned None! Returning [].")
+                return []
 
             # Apply score threshold filtering
             if self.score_threshold > 0:
                 results = [r for r in results if r.score >=
                            self.score_threshold]
-                logger.debug(
-                    f"Filtered to {len(results)} results above threshold {self.score_threshold}")
 
             # Ensure we don't return more than requested
             results = results[:k]
 
-            logger.debug(f"Retrieved {len(results)} results")
             return results
 
         except Exception as e:
-            logger.error(f"Error during retrieval: {e}")
+            logger.error(f"Exception in {self.component_name}.retrieve: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _create_retrieval_result(
@@ -100,20 +116,30 @@ class ModernBaseRetriever(BaseRetriever):
         additional_metadata: Dict[str, Any] = None
     ) -> RetrievalResult:
         """
-        Create a RetrievalResult object with proper metadata.
+        Construct a RetrievalResult dataclass instance for a retrieved document.
+
+        This method extracts the chunk_id from the document's metadata (if present)
+        and adds it to the result metadata. It also merges any additional metadata provided.
 
         Args:
-            document: The retrieved document
-            score: Relevance score
-            additional_metadata: Additional metadata to include
+            document (Document): The retrieved document object, typically with metadata.
+            score (float): The relevance score for the retrieved document.
+            additional_metadata (Dict[str, Any], optional): Any extra metadata to include in the result.
 
         Returns:
-            RetrievalResult object
+            RetrievalResult: A dataclass instance containing the document, score, retrieval method, and metadata.
         """
         metadata = {
             "retriever_config": self.config,
             "retrieval_timestamp": None,  # Can add timestamp if needed
         }
+
+        # Extract chunk_id from document metadata if present
+        chunk_id = None
+        if hasattr(document, "metadata") and document.metadata:
+            chunk_id = document.metadata.get("chunk_id")
+            if chunk_id:
+                metadata["chunk_id"] = chunk_id
 
         if additional_metadata:
             metadata.update(additional_metadata)

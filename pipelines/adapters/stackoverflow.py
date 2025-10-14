@@ -226,11 +226,6 @@ class StackOverflowAdapter(DatasetAdapter):
             if not row.body.strip():
                 continue
 
-            # Build answer content
-            answer_content = row.body.strip()
-            if row.summary and row.summary.strip():
-                answer_content = f"{answer_content}\n\n[Summary: {row.summary.strip()}]"
-
             # Find the corresponding question for context
             question_context = None
             question_title = ""
@@ -249,7 +244,6 @@ class StackOverflowAdapter(DatasetAdapter):
                     break
 
             # If no direct link found, try to find question with similar ID
-            # This is a fallback heuristic for datasets where linking isn't perfect
             if not question_context:
                 for q_id, question in questions_map.items():
                     question_id_num = q_id.replace('q_', '')
@@ -259,27 +253,30 @@ class StackOverflowAdapter(DatasetAdapter):
                         question_tags = question.tags
                         break
 
-            # Create the final document content
-            # The answer is the primary content, question provides context
             content_parts = []
-            if question_title:
-                content_parts.append(f"Q: {question_title}")
-            if question_context and question_context.strip():
-                content_parts.append(
-                    f"Question Details: {question_context.strip()}")
-            content_parts.append(f"Answer: {answer_content}")
 
+            # Build answer content
+            answer_content = row.body.strip()
+            content_parts.append(answer_content)
+
+            # Add summary if available
+            if row.summary and row.summary.strip():
+                content_parts.append(f"Summary: {row.summary.strip()}")
+
+            # Join only answer parts (NO question content)
             content = "\n\n".join(content_parts)
 
             metadata = {
                 "external_id": row.external_id,
                 "source": self.source_name,
-                "post_type": "answer",  # Always answer since we only ingest answers
-                "doc_type": "answer",   # Always answer
-                "tags": question_tags,  # Use question tags
-                "title": question_title if question_title else None,
+                "post_type": "answer",
+                "doc_type": "answer",
+                "tags": question_tags,
                 "split": split.value,
-                "answer_body": row.body,  # Store pure answer separately
+                "answer_body": row.body,
+                "question_title": question_title if question_title else None,
+                "question_context": question_context if question_context else None,
+                "has_question_context": bool(question_context),
             }
 
             # Add answer-specific metadata
@@ -287,17 +284,12 @@ class StackOverflowAdapter(DatasetAdapter):
                 metadata["summary"] = row.summary
                 metadata["has_summary"] = True
 
-            # Add question context as metadata
-            if question_context:
-                metadata["question_context"] = question_context
-                metadata["has_question_context"] = True
-
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
 
             documents.append(Document(
-                page_content=content,
-                metadata=metadata
+                page_content=content,  # Only answer content
+                metadata=metadata     # Question info in metadata
             ))
 
         return documents

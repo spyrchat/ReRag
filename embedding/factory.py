@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_embedder(cfg: dict):
@@ -13,13 +16,42 @@ def get_embedder(cfg: dict):
     """
     provider = cfg.get("provider", "hf").strip().lower()
 
-    if provider == "hf":
-        from embedding.embeddings import HuggingFaceEmbedder
-
-        model_name = cfg.get(
-            "model_name", "sentence-transformers/all-MiniLM-L6-v2")
+    if provider == "hf" or provider == "huggingface":  # Support both 'hf' and 'huggingface'
+        # Support both 'model' and 'model_name' for consistency with your YAML configs
+        from langchain_huggingface import HuggingFaceEmbeddings
+        model_name = cfg.get("model") or cfg.get(
+            "model_name") or "sentence-transformers/all-MiniLM-L6-v2"
         device = cfg.get("device", "cpu")
-        return HuggingFaceEmbedder(model_name=model_name, device=device)
+        batch_size = cfg.get("batch_size", 32)
+
+        # Pass additional parameters if available
+        model_kwargs = cfg.get("model_kwargs", {})
+        encode_kwargs = cfg.get("encode_kwargs", {})
+
+        # Add device to model_kwargs if not already present
+        if "device" not in model_kwargs:
+            model_kwargs["device"] = device
+
+        # Try the new way first (without device/batch_size as direct params)
+        try:
+            return HuggingFaceEmbeddings(
+                model_name=model_name,
+                model_kwargs=model_kwargs,
+                encode_kwargs=encode_kwargs
+            )
+        except Exception:
+            # Fallback to old way for backward compatibility
+            try:
+                return HuggingFaceEmbeddings(
+                    model_name=model_name,
+                    device=device,
+                    batch_size=batch_size,
+                    model_kwargs=model_kwargs,
+                    encode_kwargs=encode_kwargs
+                )
+            except Exception as e:
+                logger.error(f"Failed to create HuggingFaceEmbeddings: {e}")
+                raise
 
     elif provider == "titan":
         from embedding.bedrock_embeddings import TitanEmbedder
@@ -74,12 +106,17 @@ def get_embedder(cfg: dict):
         )
 
     elif provider == "sparse":
-        from embedding.sparse_embedder import SparseEmbedder
-
-        # Support both 'model' and 'model_name' for consistency with other providers
+        from embedding.sparse_embedder import BM25Embedder
         model_name = cfg.get("model") or cfg.get("model_name") or "Qdrant/bm25"
         device = cfg.get("device", "cpu")
-        return SparseEmbedder(model_name=model_name, device=device)
+        return BM25Embedder(model_name=model_name, device=device)
+
+    elif provider == "sparse-splade":
+        from embedding.sparse_embedder import SpladeEmbedder
+        model_name = cfg.get("model") or cfg.get(
+            "model_name") or "naver/splade-v3"
+        device = cfg.get("device", "cpu")
+        return SpladeEmbedder(model_name=model_name, device=device)
 
     else:
         raise ValueError(

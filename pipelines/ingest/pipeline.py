@@ -215,7 +215,6 @@ class IngestionPipeline:
         """Chunk documents using configured strategy."""
         chunking_config = self.config.get("chunking", {})
         strategy_name = chunking_config.get("strategy", "recursive")
-
         # Auto-select strategy if needed
         if strategy_name == "auto":
             # Analyze first document to determine strategy
@@ -231,7 +230,47 @@ class IngestionPipeline:
         # Chunk all documents
         print("✂️  Chunking documents...")
         chunks = []
-        for doc in tqdm(documents, desc="Chunking documents", unit="doc"):
+        for i, doc in enumerate(tqdm(documents, desc="Chunking documents", unit="doc")):
+            # LOG THE ACTUAL CONTENT FOR DATA LEAKAGE ANALYSIS - FULL CONTENT
+            if i < 3:  # Log first 3 documents to check for leakage
+                print(f"\n🔍 DOCUMENT {i+1} CONTENT ANALYSIS:")
+                print(f"Document ID: {getattr(doc, 'id', 'unknown')}")
+
+                # Get the actual content that will be chunked/embedded
+                content = getattr(doc, 'page_content', getattr(
+                    doc, 'content', 'NO CONTENT FOUND'))
+
+                print(f"Content length: {len(content)} characters")
+                print(f"FULL CONTENT TO BE EMBEDDED:")
+                print("=" * 100)
+                print(content)  # SHOW COMPLETE CONTENT - NO TRUNCATION
+                print("=" * 100)
+
+                # Check for data leakage indicators
+                has_question = any(marker in content.upper()
+                                   for marker in ["Q:", "QUESTION:", "TITLE:"])
+                has_answer = any(marker in content.upper()
+                                 for marker in ["ANSWER:", "A:"])
+                both_present = has_question and has_answer
+
+                print(f"❓ Contains question text: {has_question}")
+                print(f"✅ Contains answer text: {has_answer}")
+                print(f"⚠️  BOTH Q&A in same doc: {both_present}")
+                print(
+                    f"🚨 DATA LEAKAGE RISK: {'HIGH' if both_present else 'LOW'}")
+
+                # Check metadata
+                if hasattr(doc, 'metadata'):
+                    doc_type = doc.metadata.get('doc_type', 'unknown')
+                    post_type = doc.metadata.get('post_type', 'unknown')
+                    question_title = doc.metadata.get('question_title', 'none')
+                    print(f"📋 Document type: {doc_type}")
+                    print(f"📋 Post type: {post_type}")
+                    print(f"📋 Question title in metadata: {question_title}")
+
+                print("=" * 100)
+                print()  # Extra line break for readability
+
             # Chunk one document at a time for progress
             doc_chunks = strategy.chunk([doc])
             chunks.extend(doc_chunks)

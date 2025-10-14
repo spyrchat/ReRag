@@ -1,0 +1,31 @@
+name: "Dense BGE-M3 - Experiment 1"
+description: "Dense retrieval using BGE-M3 embeddings"
+
+dataset:
+  adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
+  path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+  use_ground_truth: true
+
+retrieval:
+  type: "dense"
+  top_k: 10
+  qdrant:
+    collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
+    dense_vector_name: "dense"
+  embedding:
+    provider: "huggingface"
+    model: "BAAI/bge-m3"
+    model_kwargs:
+      device: "cpu"
+    encode_kwargs:
+      normalize_embeddings: true
+
+evaluation:
+  k_values: [1, 3, 5, 10]
+  metrics:
+    retrieval: ["precision@k", "recall@k", "mrr", "ndcg@k", "map", "f1@k"]
+
+max_queries: 506
+experiment_name: "dense_bge_m3_exp1"
+generation:
+  enabled: false
