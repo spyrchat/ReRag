@@ -28,7 +28,7 @@ llm:
 # === Agent Retrieval Configuration ===
 # Points to the retrieval pipeline config (separate file)
 agent_retrieval:
-  config_path: pipelines/configs/retrieval/fast_dense_bge_m3.yml
+  config_path: pipelines/configs/retrieval/hybrid_optimal.yml
 
 # === Generation Configuration ===
 # Controls how the LLM generates answers

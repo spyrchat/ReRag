@@ -24,50 +24,68 @@ benchmarks/
 ├── 🎛️ utils.py                         # Common utilities
 │
 ├── 🧪 experiment1.py                   # Dense vs Sparse comparison
-├── 🔍 optimize_2d_grid_alpha_rrfk.py   # Alpha parameter optimization
-└── 📊 stratification.py                # Dataset stratification
+├── 🔍 optimize_2d_grid_alpha_rrfk.py   # Alpha and rff_k parameter optimization
+├── 📊 stratification.py                # Dataset stratification
+├── 🤖 llm_judge.py                     # LLM-as-Judge evaluation framework
+├── 📝 generate_ground_truth.py         # Ground truth generation with RAG pipeline
+└── 📋 llm_as_judge_eval.py             # Batch LLM-as-Judge evaluation
 ```
 
 ## 🚀 Quick Start
 
-### 1. Basic Benchmark
-```bash
-# Run benchmark with StackOverflow dataset
-python -m benchmarks.run_real_benchmark
 
-# Configuration is hardcoded in the script.
-# To customize, edit benchmarks/run_real_benchmark.py and modify:
-# - config["retrieval"]["type"] = "dense" | "sparse" | "hybrid"
-# - config["evaluation"]["k_values"] = [1, 5, 10]
-```
-
-### 2. Run Experiments
+### 1. Run Experiments
 ```bash
 # Run Experiment 1 (Dense vs Sparse comparison)
-python -m benchmarks.experiment1 --output-dir results/exp1
-
-# Run Experiment 3 (Hybrid optimization)
-python -m benchmarks.experiment3 --output-dir results/exp3 --test
+python benchmarks/experiment1.py
 
 # Run 2D grid optimization for alpha and RRF-K
-python -m benchmarks.optimize_2d_grid_alpha_rrfk \
-  --scenario-yaml benchmark_scenarios/your_scenario.yml \
+python benchmarks/optimize_2d_grid_alpha_rrfk.py \
+  --scenario-yaml benchmark_scenarios/experiment_2/your_scenario.yml \
   --dataset-path datasets/sosum/data \
-  --n-folds 5 \
   --output-dir results/grid_search
 ```
 
-### 3. Interactive Optimization
-```bash
-# Interactive benchmark optimizer (menu-driven)
-python -m benchmarks.run_benchmark_optimization
+### 2. LLM-as-Judge Evaluation
 
-# Follow the interactive prompts to:
-# 1. Run quick test
-# 2. Run single scenario
-# 3. Run all scenarios
-# 4. Compare previous results
+#### Step 1: Generate Ground Truth
+Generate answers using your RAG pipeline for evaluation:
+
+```bash
+python benchmarks/generate_ground_truth.py
 ```
+
+This will:
+- Load all questions from the SOSUM dataset
+- Run the RAG pipeline (retrieval + generation) for each question
+- Save results to JSON with retrieved context and generated answers
+- Output includes Self-RAG statistics (iterations, convergence, hallucination corrections)
+
+**Output**: `results/<experiment>/ground_truth_intermediate.json`
+
+#### Step 2: Evaluate with LLM-as-Judge
+Evaluate the generated answers using an LLM judge:
+
+```bash
+python benchmarks/llm_as_judge_eval.py
+```
+
+**Configuration** (edit in script):
+```python
+PROVIDER = "openai"       # openai | anthropic
+MODEL_NAME = "gpt-4o"     # gpt-4o, gpt-4o-mini, claude-3-5-sonnet-20241022
+INPUT_PATH = "results/test_self_rag/ground_truth_intermediate.json"
+OUTPUT_PATH = "results/llm_judge_scores/llm_judge_scores.jsonl"
+```
+
+**Evaluation Dimensions** (1-5 scale):
+- **Faithfulness**: Answer is grounded in provided context
+- **Relevance**: Answer directly addresses the question
+- **Helpfulness**: Answer is clear, complete, and actionable
+
+**Output**: JSONL file with scores and justifications for each question
+```
+
 
 ## 📊 Supported Metrics
 
@@ -77,11 +95,13 @@ python -m benchmarks.run_benchmark_optimization
 - **Mean Reciprocal Rank (MRR)**: Average reciprocal rank of first relevant item
 - **Normalized Discounted Cumulative Gain (NDCG)**: Ranking quality with position discount
 
+### LLM-as-Judge Metrics
+- **Faithfulness** (1-5): Answer is grounded in provided context without hallucinations
+- **Relevance** (1-5): Answer directly addresses the question asked
+- **Helpfulness** (1-5): Answer is clear, complete, and actionable
+
 ### Efficiency Metrics
 - **Query Latency**: Average time per query
-- **Throughput**: Queries per second
-- **Memory Usage**: Peak memory consumption
-- **Index Size**: Storage requirements
 
 ### Statistical Tests
 - **Paired t-test**: Compare two retrieval strategies
@@ -123,184 +143,6 @@ output:
   format: ["json", "csv", "html"]
   charts: true
   statistical_tests: true
-```
-
-## 🏃‍♂️ Running Benchmarks
-
-### 1. Dataset Preparation
-```python
-from benchmarks.benchmarks_adapters import StackOverflowBenchmarkAdapter
-from pathlib import Path
-
-# Prepare your dataset
-adapter = StackOverflowBenchmarkAdapter(dataset_path=Path("datasets/stackoverflow/"))
-queries = adapter.load_queries()
-# Ground truth is optional for exploratory benchmarks
-```
-
-### 2. Configure Retrieval System
-```python
-from components.retrieval_pipeline import RetrievalPipelineFactory
-
-# Create retrieval pipeline
-config = {
-    'embedding': {'strategy': 'hybrid'},
-    'qdrant': {'collection': 'my_collection'}
-}
-pipeline = RetrievalPipelineFactory.create_pipeline(config)
-```
-
-### 3. Run Benchmark
-```python
-from benchmarks.benchmarks_runner import BenchmarkRunner
-
-# Initialize and run benchmark
-runner = BenchmarkRunner(config)
-results = runner.run_benchmark(
-    queries=queries,
-    ground_truth=ground_truth,
-    strategies=['dense', 'sparse', 'hybrid'],
-    k_values=[1, 3, 5, 10]
-)
-```
-
-### 4. Analyze Results
-```python
-from benchmarks.statistical_analyzer import StatisticalAnalyzer
-
-# Perform statistical analysis
-analyzer = StatisticalAnalyzer(results)
-analysis = analyzer.compare_strategies(
-    strategy_a="dense",
-    strategy_b="hybrid",
-    metric="recall@5"
-)
-print(f"p-value: {analysis['p_value']}")
-print(f"effect_size: {analysis['effect_size']}")
-```
-
-## 📈 Experiments
-
-### Experiment 1: Dense vs Sparse Retrieval
-Compares dense (vector) vs sparse (keyword) retrieval.
-
-```bash
-# Run experiment with StackOverflow dataset
-python -m benchmarks.experiment1
-
-# To customize configuration, edit experiment1.py
-# Currently uses hardcoded dataset and parameters
-```
-
-### Experiment 3: Hybrid Optimization
-Optimizes hybrid retrieval parameters (alpha, RRF-K) using grid search.
-
-```bash
-# Run hybrid optimization experiment
-python -m benchmarks.experiment3
-
-# For 2D grid search of alpha and RRF-K parameters:
-python -m benchmarks.optimize_2d_grid_alpha_rrfk
-
-# To customize alpha ranges and RRF-K values, edit the script
-```
-
-### Custom Experiments
-Create your own experiments by extending the base classes:
-
-```python
-from benchmarks.benchmark_contracts import BenchmarkExperiment
-
-class MyCustomExperiment(BenchmarkExperiment):
-    def setup(self):
-        """Configure experiment parameters"""
-        pass
-    
-    def run(self):
-        """Execute experiment logic"""
-        pass
-    
-    def analyze(self):
-        """Analyze and report results"""
-        pass
-```
-
-## 📊 Results & Reporting
-
-### Result Formats
-- **JSON**: Machine-readable detailed results
-- **CSV**: Tabular data for spreadsheet analysis
-- **HTML**: Interactive dashboards with charts
-- **PDF**: Publication-ready reports
-
-### Generated Reports Include:
-- **Performance Summary**: Key metrics across strategies
-- **Statistical Analysis**: Significance tests and effect sizes
-- **Visualizations**: Charts showing performance trends
-- **Recommendations**: Optimal parameter suggestions
-
-### Example Report Generation
-Reports are automatically generated by experiment scripts. To use the report generator programmatically:
-
-```python
-from benchmarks.report_generator import BenchmarkReportGenerator
-
-# Create report generator
-generator = BenchmarkReportGenerator(test_mode=False)
-
-# Print scenario summary
-generator.print_scenario_summary(scenario_name="my_experiment", result=results)
-
-# Print statistical report
-generator.print_statistical_report(statistical_results)
-```
-
-## 🔧 Advanced Features
-
-### Stratified Sampling
-Ensure representative evaluation across different query types:
-
-```python
-from benchmarks.stratification import StratifiedSampler
-
-sampler = StratifiedSampler()
-stratified_queries = sampler.sample(
-    queries=all_queries,
-    strata_column="difficulty",
-    sample_size=1000,
-    proportional=True
-)
-```
-
-### Statistical Comparison
-Compare retrieval strategies using statistical analysis:
-
-```python
-from benchmarks.statistical_analyzer import StatisticalAnalyzer
-
-# Use the existing statistical analyzer for comparisons
-analyzer = StatisticalAnalyzer(benchmark_results)
-comparison = analyzer.compare_strategies(
-    strategy_a="dense",
-    strategy_b="hybrid",
-    metric="recall@5"
-)
-
-print(f"p-value: {comparison['p_value']}")
-print(f"Significant difference: {comparison['is_significant']}")
-```
-
-### Custom Metrics
-Add domain-specific evaluation metrics:
-
-```python
-from benchmarks.benchmarks_metrics import BenchmarkMetrics
-
-class CustomMetrics(BenchmarkMetrics):
-    def code_relevance_score(self, retrieved_docs, query):
-        """Custom metric for code-related queries"""
-        # Implementation here
-        pass
 ```
 
 
