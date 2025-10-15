@@ -8,8 +8,9 @@ from typing import List, Dict, Any, Optional, Union, Tuple
 from dataclasses import dataclass
 from langchain_core.documents import Document
 import logging
+from logs.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -99,6 +100,7 @@ class BaseRetriever(RetrievalComponent):
             List[RetrievalResult]: Fresh retrieval results
         """
         k = kwargs.get('k', 5)
+        logger.info(f"  → Retrieving with {self.component_name} (k={k})")
         return self.retrieve(query, k)
 
 
@@ -125,6 +127,7 @@ class Reranker(RetrievalComponent):
 
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by reranking."""
+        logger.info(f"  → Reranking with {self.component_name}")
         return self.rerank(query, results, **kwargs)
 
 
@@ -138,6 +141,7 @@ class ResultFilter(RetrievalComponent):
 
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by filtering."""
+        logger.info(f"  → Filtering with {self.component_name}")
         return self.filter(query, results, **kwargs)
 
 
@@ -151,6 +155,7 @@ class PostProcessor(RetrievalComponent):
 
     def process(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Process by post-processing."""
+        logger.info(f"  → Post-processing with {self.component_name}")
         return self.post_process(query, results, **kwargs)
 
 
@@ -202,7 +207,7 @@ class RetrievalPipeline:
 
         for i, component in enumerate(self.components):
             component_name = component.component_name
-            logger.debug(f"Step {i + 1}: Running {component_name}")
+            logger.info(f"Pipeline step {i + 1}/{len(self.components)}: {component_name}")
 
             try:
                 # Merge component-specific config with runtime kwargs
@@ -210,11 +215,14 @@ class RetrievalPipeline:
                 component_config = self.config.get(component_name, {})
                 component_kwargs.update(component_config)
 
+                # Log input to component
+                logger.info(f"  Input: {len(results)} results")
+
                 # Process with component
                 results = component.process(query, results, **component_kwargs)
 
-                logger.debug(
-                    f"{component_name} returned {len(results)} results")
+                # Log output from component
+                logger.info(f"  Output: {len(results)} results")
 
             except Exception as e:
                 logger.error(f"Error in {component_name}: {e}")
