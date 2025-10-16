@@ -1,4 +1,4 @@
-# Advanced RAG System
+# ReRag: a Reconfigurable Retrieval-Augmented-Generation Experimentation and Validation framework
 
 **Version**: 2.0.0  
 **Author**: Spiros Chatzigeorgiou
