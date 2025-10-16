@@ -1,665 +1,445 @@
 # Agent Module
 
-LangGraph-powered agent workflows for intelligent query processing and response generation in RAG systems.
+LangGraph-powered agent workflows for RAG query processing with two modes: **Standard RAG** and **Self-RAG** (with iterative refinement).
 
 ## 📋 Overview
 
-The agent module implements sophisticated AI workflows using LangGraph, providing:
+The agent module provides:
 
-- **Intelligent Query Processing**: Multi-step query interpretation and planning
-- **Dynamic Retrieval**: Context-aware document retrieval with strategy selection
-- **Response Generation**: High-quality answers with source attribution
-- **Workflow Orchestration**: Configurable agent graphs with conditional logic
-- **State Management**: Persistent conversation state and context tracking
+- **Two Agent Modes**: Standard (single-pass) and Self-RAG (iterative refinement)
+- **Query Analysis**: Intent classification and query breakdown
+- **Dynamic Routing**: Conditional retrieval based on query type
+- **Response Generation**: Context-aware answer generation
+- **Self-Verification**: Hallucination detection and correction (Self-RAG mode)
+- **State Management**: Conversation history tracking
 
 ## 🏗️ Architecture
 
 ```
 agent/
-├── __init__.py
-├── graph.py                    # Agent workflow (LangGraph)
-├── schema.py                   # Data models and state
-├── nodes/                      # Agent nodes
-│   ├── query_interpreter.py    # Query analysis
-│   ├── retriever.py            # Document retrieval
-│   ├── generator.py            # Response generation
-│   └── memory_updater.py       # Memory/state updates
-└── README.md                   # This file
+├── graph_refined.py           # Standard RAG workflow
+├── graph_self_rag.py          # Self-RAG workflow (with verification)
+├── schema.py                  # AgentState definition
+├── nodes/
+│   ├── query_analyzer.py      # Query analysis
+│   ├── router.py              # Routing decisions
+│   ├── retriever.py           # Document retrieval
+│   ├── generator.py           # Answer generation (standard)
+│   ├── self_rag_generator.py  # Answer generation (self-correcting)
+│   ├── verifier.py            # Hallucination detection
+│   ├── memory_updater.py      # Conversation memory
+│   └── benchmark_logger.py    # Execution logging
+└── README.md                  # This file
 ```
 
-### Workflow Architecture
+### Workflow Comparison
 
+**Standard RAG** (`graph_refined.py`):
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Agent Workflow (LangGraph)                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  📝 Query Input                                                     │
-│      ↓                                                              │
-│  🧠 Query Interpreter                                               │
-│      ├─ Intent Classification                                       │
-│      ├─ Query Expansion                                             │
-│      └─ Strategy Selection                                          │
-│      ↓                                                              │
-│  🔍 Retrieval Node                                                  │
-│      ├─ Vector Search (Dense/Sparse/Hybrid)                         │
-│      ├─ Metadata Filtering                                          │
-│      └─ Multi-hop Retrieval                                         │
-│      ↓                                                              │
-│  🎯 Context Filter                                                  │
-│      ├─ Relevance Scoring                                           │
-│      ├─ Deduplication                                               │
-│      └─ Context Ranking                                             │
-│      ↓                                                              │
-│  🤖 Response Generator                                              │
-│      ├─ Context Integration                                         │
-│      ├─ Answer Generation                                           │
-│      └─ Source Attribution                                          │
-│      ↓                                                              │
-│  ✅ Quality Checker                                                 │
-│      ├─ Factual Verification                                        │
-│      ├─ Completeness Check                                          │
-│      └─ Final Response                                              │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+Query → Analyzer → Router → Retriever* → Generator → Answer
+                              ↓
+                         (if needed)
 ```
+
+**Self-RAG** (`graph_self_rag.py`):
+```
+Query → Analyzer → Retriever → Generator → Verifier → Answer
+                                   ↑           ↓
+                                   └─ Refine ─┘ (if hallucination detected)
+```
+
+**Key Differences**:
+- Standard: Single-pass, optional retrieval, faster
+- Self-RAG: Always retrieves, iterative refinement, more accurate
 
 ## 🚀 Quick Start
 
-### Basic Usage
+### Using via main.py (Recommended)
+
+```bash
+# Standard RAG mode
+python main.py --query "What are Python best practices?"
+
+# Self-RAG mode (iterative refinement)
+python main.py --mode self-rag --query "Explain how asyncio works"
+
+# Interactive mode
+python main.py
+# or
+python main.py --mode self-rag
+```
+
+### Programmatic Usage
 
 ```python
-from agent.graph import graph
-from agent.schema import AgentState
+# Standard RAG
+from agent.graph_refined import graph
 
-# Use the pre-built agent workflow
-initial_state = {
-    "query": "What are the benefits of renewable energy?",
-    "conversation_history": []
+state = {
+    "question": "What is recursion?",
+    "chat_history": []
 }
 
-# Run workflow
-result = graph.invoke(initial_state)
-print(f"Answer: {result['response']}")
+result = graph.invoke(state)
+print(f"Answer: {result['answer']}")
 ```
 
-### Configuration-Based Setup
-
 ```python
-import yaml
-from agent.graph import graph
+# Self-RAG mode
+from agent.graph_self_rag import graph
 
-# Load configuration
-with open("config/agent_config.yml") as f:
-    config = yaml.safe_load(f)
+state = {
+    "question": "What is recursion?",
+    "chat_history": []
+}
 
-# Create configured agent
-agent = graph(config=config)
-
-# Process query
-result = agent.invoke({
-    "query": "How do solar panels work?",
-    "conversation_id": "user_123",
-    "context": {"domain": "renewable_energy"}
-})
-```
-
-### Interactive Mode
-
-```python
-from agent.graph import graph
-
-agent = graph
-
-while True:
-    query = input("Ask a question (or 'quit'): ")
-    if query.lower() == 'quit':
-        break
-    
-    result = agent.invoke({"query": query})
-    print(f"\nAnswer: {result['response']}\n")
-    
-    # Show sources
-    for i, doc in enumerate(result['retrieved_docs']):
-        print(f"Source {i+1}: {doc.metadata.get('source', 'Unknown')}")
+result = graph.invoke(state)
+print(f"Answer: {result['answer']}")
+print(f"Iterations: {result.get('iteration_count', 1)}")
 ```
 
 ## ⚙️ Configuration
 
-### Agent Configuration
+### Main Configuration (`config.yml`)
 
 ```yaml
-# config/agent_config.yml
-agent:
-  llm:
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.1
-    max_tokens: 2000
-  
-  retrieval:
-    strategy: "hybrid"
-    max_docs: 10
-    min_relevance_score: 0.7
-    rerank: true
-  
-  response:
-    include_sources: true
-    max_response_length: 1000
-    confidence_threshold: 0.8
+llm:
+  provider: "openai"        # or "ollama"
+  model: "gpt-4o-mini"
+  temperature: 0.1
+  max_tokens: 2000
 
-# Database configuration
-database:
-  collection: "knowledge_base"
-  embedding_strategy: "hybrid"
+generation:
+  prompt_style: "strict"    # or "flexible"
 
-# Embedding configuration  
-embedding:
-  dense_provider: "google"
-  sparse_provider: "splade"
+self_rag:
+  max_iterations: 3         # Max refinement loops
+
+benchmark:
+  enabled: false            # Set true to log execution metrics
+
+retriever:
+  strategy: "hybrid"        # dense, sparse, or hybrid
+  top_k: 10
+  alpha: 0.7                # For hybrid: 0=sparse, 1=dense
 ```
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `LLM_PROVIDER` | LLM provider (openai, google) | `openai` | Yes |
-| `LLM_MODEL` | Model name | `gpt-4` | No |
-| `OPENAI_API_KEY` | OpenAI API key | - | If using OpenAI |
-| `GOOGLE_API_KEY` | Google AI API key | - | If using Google |
-| `AGENT_TEMPERATURE` | LLM temperature | `0.1` | No |
-| `MAX_DOCS_RETRIEVED` | Max documents per query | `10` | No |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | OpenAI API key | Yes (if using OpenAI) |
+| `GOOGLE_API_KEY` | Google AI API key | Yes (if using Google) |
+| `BENCHMARK_MODE` | Enable benchmark logging | No |
 
 ## 🧠 Agent Nodes
 
-### Query Interpreter
+### Query Analyzer
+**File**: `nodes/query_analyzer.py`
 
-Analyzes incoming queries and plans retrieval strategy.
+Breaks down the query into logical steps and classifies intent.
 
-```python
-from agent.nodes.query_interpreter import query_interpreter_node
+**Features**:
+- Query type classification (technical/general/clarification)
+- Query breakdown and analysis
+- Sets reference date for temporal queries
 
-# Features:
-# - Intent classification (factual, how-to, comparison, etc.)
-# - Query expansion with synonyms and related terms
-# - Strategy selection (dense vs sparse vs hybrid)
-# - Context extraction from conversation history
-```
+### Router
+**File**: `nodes/router.py`
 
-**Capabilities:**
-- **Intent Detection**: Classifies query types (factual, procedural, comparative)
-- **Query Expansion**: Adds related terms and synonyms
-- **Strategy Selection**: Chooses optimal retrieval strategy
-- **Context Awareness**: Incorporates conversation history
+Decides whether retrieval is needed (Standard RAG only).
 
-### Retrieval Node
+**Features**:
+- Analyzes if database lookup is required
+- Routes to retriever or directly to generator
+- Optimizes for simple queries that don't need context
 
-Performs intelligent document retrieval with multiple strategies.
+### Retriever
+**File**: `nodes/retriever.py`
 
-```python
-from agent.nodes.retriever_node import retrieval_node
+Retrieves relevant documents from vector database.
 
-# Features:
-# - Multi-strategy search (dense, sparse, hybrid)
-# - Metadata filtering
-# - Multi-hop retrieval for complex queries
-# - Automatic fallback strategies
-```
+**Features**:
+- Uses configured retrieval strategy (dense/sparse/hybrid)
+- Applies reranking if configured
+- Formats context for LLM consumption
+- Logs retrieval metadata
 
-**Capabilities:**
-- **Hybrid Search**: Combines semantic and keyword matching
-- **Metadata Filtering**: Filters by source, date, category, etc.
-- **Multi-hop Retrieval**: Follows references for complex queries
-- **Adaptive Strategy**: Adjusts search based on initial results
+### Generator (Standard)
+**File**: `nodes/generator.py`
 
-### Context Filter
+Generates answers using retrieved context (single-pass).
 
-Ranks and filters retrieved documents for relevance.
+**Features**:
+- Context-aware generation
+- Configurable prompt styles (strict/flexible)
+- Source-grounded responses
 
-```python
-from agent.nodes.context_filter import context_filter_node
+### Self-RAG Generator
+**File**: `nodes/self_rag_generator.py`
 
-# Features:
-# - Relevance scoring with multiple algorithms
-# - Deduplication of similar content
-# - Context window optimization
-# - Quality-based ranking
-```
+Generates answers with iterative refinement loop.
 
-**Capabilities:**
-- **Relevance Scoring**: Multiple scoring algorithms (BM25, semantic similarity)
-- **Deduplication**: Removes near-duplicate content
-- **Context Optimization**: Fits important content in LLM context window
-- **Quality Filtering**: Removes low-quality or irrelevant documents
+**Features**:
+- Initial answer generation
+- Hallucination detection via verifier
+- Iterative refinement (up to max_iterations)
+- Tracks refinement count and reasons
 
-### Response Generator
+### Verifier
+**File**: `nodes/verifier.py`
 
-Generates comprehensive answers with source attribution.
+Checks generated answers for hallucinations (Self-RAG only).
 
-```python
-from agent.nodes.response_generator import response_generator_node
+**Features**:
+- Compares answer against source context
+- Detects unsupported claims
+- Provides feedback for refinement
 
-# Features:
-# - Context-aware answer generation
-# - Source attribution and citations
-# - Multiple response formats
-# - Confidence scoring
-```
+### Memory Updater
+**File**: `nodes/memory_updater.py`
 
-**Capabilities:**
-- **Contextual Generation**: Integrates retrieved context naturally
-- **Source Attribution**: Provides clear citations and references
-- **Format Adaptation**: Adjusts response style based on query type
-- **Confidence Estimation**: Provides confidence scores for answers
+Updates conversation history (optional).
 
-### Quality Checker
+**Features**:
+- Maintains chat history
+- Tracks conversation state
 
-Validates response quality and completeness.
+### Benchmark Logger
+**File**: `nodes/benchmark_logger.py`
 
-```python
-from agent.nodes.quality_checker import quality_checker_node
+Logs execution metrics for evaluation.
 
-# Features:
-# - Factual consistency checking
-# - Completeness validation
-# - Source verification
-# - Response refinement
-```
+**Features**:
+- Logs query, answer, context, metadata
+- Tracks execution time and iterations
+- Outputs to `logs/benchmark/` when enabled
 
-**Capabilities:**
-- **Fact Checking**: Verifies claims against source documents
-- **Completeness Check**: Ensures all aspects of query are addressed
-- **Source Validation**: Confirms proper source attribution
-- **Refinement**: Suggests improvements or requests more information
+## 🔧 Advanced Usage
 
-## 🔧 Advanced Features
+### AgentState Schema
 
-### Conversation Memory
+The state passed between nodes (defined in `schema.py`):
 
 ```python
 from agent.schema import AgentState
 
-# Maintain conversation context
-conversation_state = AgentState(
-    query="What is solar energy?",
-    conversation_id="user_123",
-    conversation_history=[
-        {"role": "user", "content": "Tell me about renewable energy"},
-        {"role": "assistant", "content": "Renewable energy comes from..."}
-    ]
-)
-
-result = agent.invoke(conversation_state)
-```
-
-### Custom Workflows
-
-```python
-from langgraph.graph import StateGraph
-from agent.schema import AgentState
-from agent.nodes import *
-
-# Create custom workflow
-workflow = StateGraph(AgentState)
-
-# Add custom nodes
-workflow.add_node("custom_preprocessor", custom_preprocess_node)
-workflow.add_node("query_interpreter", query_interpreter_node)
-workflow.add_node("retrieval", retrieval_node)
-workflow.add_node("custom_filter", custom_filter_node)
-workflow.add_node("response_generator", response_generator_node)
-
-# Define custom flow
-workflow.add_edge("custom_preprocessor", "query_interpreter")
-workflow.add_edge("query_interpreter", "retrieval")
-workflow.add_conditional_edges(
-    "retrieval",
-    lambda state: "custom_filter" if len(state["retrieved_docs"]) > 10 else "response_generator"
-)
-
-agent = workflow.compile()
-```
-
-### Conditional Logic
-
-```python
-def should_expand_query(state: AgentState) -> str:
-    """Conditional logic for query expansion"""
-    if len(state["retrieved_docs"]) < 3:
-        return "expand_query"
-    elif state["query_intent"] == "comparison":
-        return "multi_retrieval"
-    else:
-        return "context_filter"
-
-# Add conditional edges
-workflow.add_conditional_edges("retrieval", should_expand_query)
-```
-
-### Streaming Responses
-
-```python
-from agent.graph import graph
-
-agent = graph
-
-# Stream response generation
-for chunk in agent.stream({"query": "How do wind turbines work?"}):
-    if "response_generator" in chunk:
-        print(chunk["response_generator"]["partial_response"], end="")
-```
-
-## 📊 Monitoring & Debugging
-
-### Execution Tracing
-
-```python
-from agent.graph import graph
-
-agent = graph(debug=True)
-
-# Run with detailed tracing
-result = agent.invoke(
-    {"query": "What is photosynthesis?"},
-    config={"trace": True}
-)
-
-# View execution path
-for step in result["execution_trace"]:
-    print(f"Node: {step['node']}, Duration: {step['duration']:.2f}s")
-```
-
-### Performance Metrics
-
-```python
-import time
-from agent.graph import graph
-
-agent = graph
-
-# Measure performance
-start_time = time.time()
-result = agent.invoke({"query": "Benefits of electric vehicles"})
-total_time = time.time() - start_time
-
-print(f"Total time: {total_time:.2f}s")
-print(f"Documents retrieved: {len(result['retrieved_docs'])}")
-print(f"Response length: {len(result['response'])} chars")
-print(f"Confidence: {result.get('confidence', 'N/A')}")
-```
-
-### Error Handling
-
-```python
-from agent.graph import graph
-from agent.schema import AgentState
-
-agent = graph
-
-try:
-    result = agent.invoke({
-        "query": "Complex technical question",
-        "max_retries": 3,
-        "fallback_strategy": "simplified"
-    })
-except Exception as e:
-    print(f"Agent workflow failed: {e}")
-    # Implement fallback logic
-```
-
-## 🔌 Extension Points
-
-### Adding Custom Nodes
-
-1. **Create Node Function**
-   ```python
-   from agent.schema import AgentState
-   
-   def my_custom_node(state: AgentState) -> AgentState:
-       # Your custom logic here
-       state["custom_data"] = process_custom_logic(state["query"])
-       return state
-   ```
-
-2. **Add to Workflow**
-   ```python
-   from agent.graph import graph
-   
-   def create_custom_agent():
-       workflow = StateGraph(AgentState)
-       
-       # Add standard nodes
-       workflow.add_node("query_interpreter", query_interpreter_node)
-       workflow.add_node("my_custom_node", my_custom_node)  # Add custom node
-       workflow.add_node("retrieval", retrieval_node)
-       
-       # Define flow
-       workflow.add_edge("query_interpreter", "my_custom_node")
-       workflow.add_edge("my_custom_node", "retrieval")
-       
-       return workflow.compile()
-   ```
-
-### Custom LLM Providers
-
-```python
-from langchain_core.language_models import BaseLLM
-
-class MyCustomLLM(BaseLLM):
-    def _call(self, prompt: str, **kwargs) -> str:
-        # Your custom LLM implementation
-        return response
-
-# Use in agent configuration
-config = {
-    "llm": {
-        "provider": "custom",
-        "instance": MyCustomLLM()
-    }
+state = {
+    # Input
+    "question": str,              # User query
+    "chat_history": List[str],    # Conversation history
+    
+    # Analysis
+    "query_analysis": str,        # Query breakdown
+    "query_type": str,            # technical/general/clarification
+    
+    # Routing (Standard RAG only)
+    "needs_retrieval": bool,      # Router decision
+    
+    # Retrieval
+    "context": str,               # Retrieved text
+    "retrieved_documents": List,  # Document objects
+    "retrieval_metadata": dict,   # Scores, method, etc.
+    
+    # Generation
+    "answer": str,                # Final answer
+    "generation_mode": str,       # context/direct/error
+    
+    # Self-RAG specific
+    "iteration_count": int,       # Number of refinements
+    "verification_results": List, # Verification history
+    
+    # Metadata
+    "reference_date": str,        # For temporal queries
+    "error": str                  # Error messages
 }
 ```
 
-### Custom Retrieval Strategies
+### Custom Graph Modifications
+
+See `graph_refined.py` or `graph_self_rag.py` to modify the workflow:
 
 ```python
-from agent.nodes.retriever_node import BaseRetriever
+# Example: Add custom node to existing graph
+from langgraph.graph import StateGraph
+from agent.nodes.query_analyzer import make_query_analyzer
+from agent.schema import AgentState
 
-class MyCustomRetriever(BaseRetriever):
-    def retrieve(self, query: str, **kwargs) -> List[Document]:
-        # Your custom retrieval logic
-        return documents
+def my_custom_node(state: AgentState) -> AgentState:
+    # Your logic here
+    state["custom_field"] = "custom value"
+    return state
 
-# Register custom retriever
-RETRIEVER_REGISTRY["my_strategy"] = MyCustomRetriever
+# Rebuild graph with custom node
+workflow = StateGraph(AgentState)
+workflow.add_node("custom", my_custom_node)
+# ... add other nodes and edges
+graph = workflow.compile()
 ```
+
+## 📊 Monitoring & Logging
+
+### Execution Logs
+
+Logs are written to:
+- `logs/agent.log` - Main execution log
+- `logs/query_interpreter.log` - Query analysis details
+- `logs/benchmark/` - Benchmark mode logs (when enabled)
+
+### Enable Benchmark Mode
+
+Track execution metrics by setting in `config.yml`:
+
+```yaml
+benchmark:
+  enabled: true
+```
+
+Or via environment variable:
+```bash
+export BENCHMARK_MODE=true
+python main.py --query "test query"
+```
+
+Logs include:
+- Query and answer
+- Retrieved context
+- Execution time
+- Iteration count (Self-RAG)
+- Retrieval metadata
+
+## 🔌 Customization
+
+### Add Custom Node
+
+1. Create node function in `agent/nodes/`:
+   ```python
+   # agent/nodes/my_custom_node.py
+   from agent.schema import AgentState
+   
+   def my_custom_node(state: AgentState) -> AgentState:
+       # Your logic
+       state["custom_field"] = "value"
+       return state
+   ```
+
+2. Modify graph in `graph_refined.py` or `graph_self_rag.py`:
+   ```python
+   from agent.nodes.my_custom_node import my_custom_node
+   
+   # Add to workflow
+   workflow.add_node("custom", my_custom_node)
+   workflow.add_edge("query_analyzer", "custom")
+   workflow.add_edge("custom", "retriever")
+   ```
+
+### Change LLM Provider
+
+Edit `config.yml`:
+```yaml
+llm:
+  provider: "ollama"  # or "openai"
+  model: "llama3.1"
+  base_url: "http://localhost:11434"  # For Ollama
+```
+
+The `config/llm_factory.py` supports OpenAI and Ollama out of the box.
 
 ## 🧪 Testing
-
-### Unit Tests
-
-```bash
-# Test individual nodes
-pytest tests/unit/test_agent_nodes.py -v
-
-# Test specific node
-pytest tests/unit/test_agent_nodes.py::test_query_interpreter -v
-```
 
 ### Integration Tests
 
 ```bash
-# Test full workflow (requires vector DB)
-docker-compose up -d qdrant
-pytest tests/integration/test_agent_workflow.py -v
-```
+# Start vector database
+docker-compose up -d
 
-### End-to-End Tests
+# Run Self-RAG integration tests
+pytest tests/test_self_rag_integration.py -v
 
-```bash
-# Test with real data and APIs
-export OPENAI_API_KEY=your_key
-export GOOGLE_API_KEY=your_key
-pytest tests/e2e/test_agent_e2e.py -v
+# Run all agent tests
+pytest tests/ -k agent -v
 ```
 
 ### Manual Testing
 
-```python
-# Interactive testing
-from agent.graph import graph
+```bash
+# Test Standard RAG
+python main.py --query "What is Python?"
 
-agent = graph
+# Test Self-RAG
+python main.py --mode self-rag --query "What is Python?"
 
-test_queries = [
-    "What is renewable energy?",
-    "Compare solar vs wind power",
-    "How do you install solar panels?",
-    "What are the costs of renewable energy?"
-]
-
-for query in test_queries:
-    print(f"\nQuery: {query}")
-    result = agent.invoke({"query": query})
-    print(f"Response: {result['response'][:200]}...")
-    print(f"Sources: {len(result['retrieved_docs'])}")
+# Interactive mode
+python main.py
 ```
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **LLM API Errors**
-   ```
-   Error: Invalid API key
-   ```
-   **Solution**: Check `OPENAI_API_KEY` or `GOOGLE_API_KEY` environment variables
-
-2. **No Retrieved Documents**
-   ```
-   Warning: No documents retrieved for query
-   ```
-   **Solution**: Check vector database connection and embedding configuration
-
-3. **Memory Issues**
-   ```
-   Error: Context window exceeded
-   ```
-   **Solution**: Reduce `max_docs` or implement better context filtering
-
-4. **Slow Response Times**
-   ```
-   Warning: Query took 30+ seconds
-   ```
-   **Solution**: Optimize retrieval parameters or use caching
-
-### Debug Mode
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-from agent.graph import graph
-
-# Enable detailed logging
-agent = graph(debug=True, verbose=True)
+**1. API Key Errors**
 ```
-
-### Performance Optimization
-
-```python
-# Optimize for speed
-config = {
-    "retrieval": {
-        "max_docs": 5,  # Reduce documents
-        "early_stopping": True,
-        "cache_enabled": True
-    },
-    "llm": {
-        "temperature": 0.0,  # Deterministic responses
-        "max_tokens": 500    # Shorter responses
-    }
-}
-
-agent = graph(config=config)
+Error: Invalid API key
 ```
+→ Check `.env` file has correct `OPENAI_API_KEY` or `GOOGLE_API_KEY`
 
-## 📈 Best Practices
+**2. No Retrieved Documents**
+```
+Warning: No documents retrieved
+```
+→ Ensure Qdrant is running: `docker-compose up -d`  
+→ Check collection exists and has documents
 
-### Production Deployment
+**3. Import Errors**
+```
+ImportError: cannot import name 'graph'
+```
+→ Use correct imports:
+- `from agent.graph_refined import graph` (Standard)
+- `from agent.graph_self_rag import graph` (Self-RAG)
 
-1. **Error Handling**
-   ```python
-   def robust_agent_call(query: str, max_retries: int = 3):
-       for attempt in range(max_retries):
-           try:
-               return agent.invoke({"query": query})
-           except Exception as e:
-               if attempt == max_retries - 1:
-                   raise
-               time.sleep(2 ** attempt)  # Exponential backoff
-   ```
+**4. Slow Performance**
+→ Reduce `top_k` in `config.yml` retriever settings  
+→ Disable reranking if not needed  
+→ Use smaller LLM model
 
-2. **Response Caching**
-   ```python
-   from functools import lru_cache
-   
-   @lru_cache(maxsize=1000)
-   def cached_agent_call(query: str) -> str:
-       result = agent.invoke({"query": query})
-       return result["response"]
-   ```
+## 🎯 Choosing a Mode
 
-3. **Monitoring**
-   ```python
-   from logs.utils.logger import get_logger
-   
-   logger = get_logger(__name__)
-   
-   def monitored_agent_call(query: str):
-       start_time = time.time()
-       try:
-           result = agent.invoke({"query": query})
-           duration = time.time() - start_time
-           
-           logger.info(f"Agent query completed", extra={
-               "query_length": len(query),
-               "response_length": len(result["response"]),
-               "docs_retrieved": len(result["retrieved_docs"]),
-               "duration": duration,
-               "success": True
-           })
-           return result
-       except Exception as e:
-           duration = time.time() - start_time
-           logger.error(f"Agent query failed", extra={
-               "query_length": len(query),
-               "duration": duration,
-               "error": str(e),
-               "success": False
-           })
-           raise
-   ```
+### Standard RAG
+**Use when**:
+- Speed is important
+- Queries are straightforward
+- Hallucinations are less critical
+- Resources are limited
 
-### Quality Assurance
+**Features**:
+- Single-pass generation
+- Optional retrieval (router decides)
+- Faster execution
+- Lower API costs
 
-- **Test with diverse query types** (factual, how-to, comparison)
-- **Validate source attribution** accuracy
-- **Monitor response coherence** and relevance
-- **Track user satisfaction** metrics
+### Self-RAG
+**Use when**:
+- Accuracy is critical
+- Complex/technical queries
+- Hallucination prevention needed
+- Multiple refinements acceptable
+
+**Features**:
+- Iterative refinement (up to 3 loops)
+- Hallucination detection
+- Always retrieves context
+- Higher accuracy, slower execution
 
 ---
 
 ## 🔗 Related Documentation
 
-- **[Retrievers README](../retrievers/README.md)**: Search and retrieval
-- **[Database README](../database/README.md)**: Vector storage
-- **[Embedding README](../embedding/README.md)**: Embedding generation
-- **[Main README](../readme.md)**: System overview
+- **[Main README](../readme.md)**: System overview and quick start
+- **[Retrievers](../retrievers/README.md)**: Search strategies
+- **[Components](../components/README.md)**: Rerankers and filters
+- **[Benchmarks](../benchmarks/README.md)**: Evaluation framework
 
-## 📞 Support
+---
 
-For agent-specific issues:
-1. Check LLM API key configuration
-2. Verify vector database connectivity
-3. Review query complexity and context window limits
-4. Monitor performance metrics and optimize parameters
+**Built with LangGraph for flexible RAG workflows with single-pass and iterative refinement modes.**
