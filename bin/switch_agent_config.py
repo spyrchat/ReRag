@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Utility to switch the agent's retrieval configuration.
 Usage: python bin/switch_agent_config.py [config_name]

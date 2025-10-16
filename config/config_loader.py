@@ -7,12 +7,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str = "config.yml") -> Dict[str, Any]:
+def load_config(config_path: str = "config.yml", use_cache: bool = True) -> Dict[str, Any]:
     """
-    Load unified YAML configuration for the pipeline.
+    Load unified YAML configuration for the pipeline with caching.
+
+    This is the ONLY function that should load configs throughout the codebase.
+    Everyone should use this instead of directly calling yaml.safe_load().
 
     Args:
         config_path: Path to the main configuration file
+        use_cache: Whether to use cached config (default: True)
 
     Returns:
         Complete configuration dictionary
@@ -21,21 +25,29 @@ def load_config(config_path: str = "config.yml") -> Dict[str, Any]:
         FileNotFoundError: If config file doesn't exist
         ValueError: If configuration is invalid
     """
-    config_path = Path(config_path)
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+    # Normalize path to absolute
+    config_path_obj = Path(config_path)
+    if not config_path_obj.is_absolute():
+        config_path_obj = Path.cwd() / config_path_obj
+
+    config_path_str = str(config_path_obj.resolve())
+
+    # Check file exists
+    if not config_path_obj.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path_obj}")
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path_obj, "r") as f:
             config = yaml.safe_load(f)
 
-        logger.info(f"Loaded configuration from {config_path}")
+        logger.info(f"Loaded configuration from {config_path_obj}")
+
         return config
 
     except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in {config_path}: {e}")
+        raise ValueError(f"Invalid YAML in {config_path_obj}: {e}")
     except Exception as e:
-        raise ValueError(f"Error loading config {config_path}: {e}")
+        raise ValueError(f"Error loading config {config_path_obj}: {e}")
 
 
 def get_retriever_config(config: Dict[str, Any], retriever_type: str) -> Dict[str, Any]:

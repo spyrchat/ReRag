@@ -1,141 +1,51 @@
-agent_retrieval:
-  active_config: fast_hybrid
-  config_path: pipelines/configs/retrieval/fast_hybrid.yml
-benchmark:
-  evaluation:
-    k_values:
-    - 1
-    - 5
-    - 10
-    - 20
-    metrics:
-    - precision
-    - recall
-    - f1
-    - mrr
-    - ndcg
-  retrieval:
-    search_params:
-      score_threshold: 0.0
-    strategy: hybrid
-    top_k: 20
-embedding:
-  dense:
-    api_key_env: GOOGLE_API_KEY
-    batch_size: 32
-    dimensions: 768
-    model: models/embedding-001
-    provider: google
-    vector_name: dense
-  sparse:
-    model: Qdrant/bm25
-    provider: sparse
-    vector_name: sparse
-  strategy: hybrid
+# ============================================================================
+# MINIMAL CONFIG FOR MAIN.PY - RAG AGENT
+# ============================================================================
+
+# === Agent Configuration ===
+agent:
+  mode: refined  # "simple" (old) or "refined" (new multi-stage pipeline)
+
+# === LLM Configuration ===
+# Supported providers: openai, ollama
 llm:
-  model: gpt-4.1-mini
-  provider: openai
+  provider: openai           # or "openai"
+  model: gpt-5-mini           # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
   temperature: 0.0
-qdrant:
-  collection: sosum_stackoverflow_hybrid_v1
-  dense_vector_name: dense
-  sparse_vector_name: sparse
-retrieval_pipeline:
-  components:
-  - config:
-      retriever_type: hybrid
-    type: retriever
-  - config:
-      min_score: 0.01
-    type: score_filter
-  - config:
-      model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
-      model_type: cross_encoder
-      top_k: 10
-    type: reranker
-  default_retriever: hybrid
-retrievers:
-  dense:
-    embedding:
-      api_key_env: GOOGLE_API_KEY
-      dimensions: 768
-      model: models/embedding-001
-      provider: google
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: dense
-    score_threshold: 0.0
-    top_k: 10
-    type: dense
-  hybrid:
-    dense_weight: 0.6
-    embedding:
-      dense:
-        api_key_env: GOOGLE_API_KEY
-        dimensions: 768
-        model: models/embedding-001
-        provider: google
-      sparse:
-        dimensions: null
-        model: Qdrant/bm25
-        provider: sparse
-      strategy: hybrid
-    fusion:
-      dense_weight: 0.7
-      method: rrf
-      rrf_k: 60
-      sparse_weight: 0.3
-    fusion_method: rrf
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-      parallel_search: false
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      dense_vector_name: dense
-      hybrid_config:
-        alpha: 0.5
-        reciprocal_rank_constant: 60
-      sparse_vector_name: sparse
-    score_threshold: 0.0
-    sparse_weight: 0.4
-    top_k: 10
-    type: hybrid
-  semantic:
-    embedding:
-      api_key_env: GOOGLE_API_KEY
-      dimensions: 768
-      model: models/embedding-001
-      provider: google
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: dense
-    score_threshold: 0.0
-    semantic_config:
-      context_window: 3
-      similarity_threshold: 0.8
-    top_k: 10
-    type: semantic
-  sparse:
-    embedding:
-      model: Qdrant/bm25
-      provider: sparse
-    performance:
-      batch_size: 32
-      enable_caching: true
-      lazy_initialization: true
-    qdrant:
-      collection_name: sosum_stackoverflow_hybrid_v1
-      vector_name: sparse
-    score_threshold: 0.0
-    top_k: 10
-    type: sparse
+  base_url: http://localhost:11434  # Ollama URL (optional, defaults to this)
+  
+  # Ollama-specific parameters
+  num_ctx: 8192              # Context window size (default: 2048)
+  num_predict: 2048          # Max tokens to generate per response (default: 128)
+  # Increase num_predict if you need longer answers (e.g., 4096 for very detailed responses)
+
+# Example OpenAI config:
+# llm:
+#   provider: openai
+#   model: gpt-4o-mini
+#   temperature: 0.0
+
+# === Agent Retrieval Configuration ===
+# Points to the retrieval pipeline config (separate file)
+agent_retrieval:
+  config_path: pipelines/configs/retrieval/dense_bge_m3.yml
+
+# === Generation Configuration ===
+# Controls how the LLM generates answers
+generation:
+  prompt_style: conversational  # Options: "strict", "conversational", "citations"
+  # strict:         Strict grounding to context, minimal hallucinations (best for benchmarks)
+  # conversational: More natural, allows some inference (best for UX)
+  # citations:      Research-focused with explicit references (best for verification)
+
+# === Self-RAG Configuration ===
+# Controls iterative refinement with verification
+self_rag:
+  max_iterations: 3  # Maximum refinement cycles (1-5 recommended)
+  # Higher values = more refinement attempts but slower response time
+  # Recommended: 3 for production, 5 for maximum accuracy
+
+# === Benchmark Configuration ===
+benchmark:
+  enabled: true  # Set to false to disable execution logging
+  output_dir: logs/benchmark

@@ -1,30 +1,128 @@
-"""Configuration-driven benchmark execution engine."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import time
-import numpy as np
-from typing import List, Dict, Any, Optional
-from tqdm import tqdm
-
-from benchmarks.benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
-from benchmarks.benchmarks_metrics import BenchmarkMetrics
 from components.retrieval_pipeline import RetrievalPipelineFactory
-from config.config_loader import get_benchmark_config, get_retriever_config
+from benchmarks.benchmarks_metrics import BenchmarkMetrics
+from benchmarks.benchmark_contracts import BenchmarkAdapter, BenchmarkQuery, BenchmarkResult
+from pipelines.adapters.loader import AdapterLoader
+from tqdm import tqdm
+from typing import List, Dict, Any, Optional
+import logging
+import numpy as np
+import time
+
+
+logger = logging.getLogger("benchmark_runner")
 
 
 class BenchmarkRunner:
     """Execute benchmarks against configurable RAG systems."""
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize with complete, self-contained configuration."""
         self.config = config
-        # Use config directly instead of get_benchmark_config
-        self.benchmark_config = config
+        self.benchmark_config = config  # No separate benchmark config
         self.metrics = BenchmarkMetrics()
 
-        # Initialize retrieval engine based on unified config
+        print(f"🔧 Initializing BenchmarkRunner with isolated config")
+
+        # Validate config completeness
+        self._validate_config_completeness()
+
+        # Initialize retrieval engine based on provided config only
         self.retrieval_pipeline = self._init_retrieval_pipeline()
 
         # Initialize generation engine (optional)
         self.generation_engine = self._init_generation_engine()
+
+    def _validate_config_completeness(self):
+        """Validate config completeness based on simplified scenario structure."""
+        print(f"🔍 Validating scenario configuration...")
+
+        # Core required sections for benchmark scenarios
+        required_sections = ['retrieval', 'evaluation']
+        missing = []
+
+        # Check core sections exist
+        for section in required_sections:
+            if section not in self.config:
+                missing.append(section)
+
+        # Validate retrieval section
+        retrieval_config = self.config.get('retrieval', {})
+        if retrieval_config:
+            if 'type' not in retrieval_config:
+                missing.append('retrieval.type')
+
+            # Check embedding config is present (flexible location)
+            has_embedding = (
+                'embedding' in retrieval_config or  # Simplified: embedding in retrieval section
+                'embedding' in self.config           # Legacy: embedding at root
+            )
+            if not has_embedding:
+                missing.append('embedding configuration')
+
+            # Check Qdrant config is present (flexible location)
+            has_qdrant = (
+                'qdrant' in retrieval_config or     # Simplified: qdrant in retrieval section
+                'qdrant' in self.config             # Legacy: qdrant at root
+            )
+            if not has_qdrant:
+                missing.append('qdrant configuration')
+        else:
+            missing.append('retrieval section')
+
+        # Validate evaluation section
+        evaluation_config = self.config.get('evaluation', {})
+        if evaluation_config:
+            if 'k_values' not in evaluation_config:
+                missing.append('evaluation.k_values')
+            if 'metrics' not in evaluation_config:
+                missing.append('evaluation.metrics')
+        else:
+            missing.append('evaluation section')
+
+        # Validate dataset section (required for benchmarking)
+        if 'dataset' not in self.config:
+            missing.append('dataset configuration')
+        else:
+            dataset_config = self.config['dataset']
+            if 'path' not in dataset_config:
+                missing.append('dataset.path')
+
+        # Check for experiment metadata (helpful but not critical)
+        optional_missing = []
+        if 'name' not in self.config:
+            optional_missing.append('name')
+        if 'description' not in self.config:
+            optional_missing.append('description')
+        if 'experiment_name' not in self.config:
+            optional_missing.append('experiment_name')
+
+        # Report results
+        if missing:
+            raise ValueError(f"Scenario configuration incomplete. Missing required: {missing}. "
+                             f"Each benchmark scenario must have: retrieval (with type, embedding, qdrant), "
+                             f"evaluation (with k_values, metrics), and dataset (with path) sections.")
+
+        if optional_missing:
+            print(f"⚠️  Optional metadata missing: {optional_missing}")
+
+        print(f"✅ Scenario configuration validation passed")
+
+        # Show what we found for debugging
+        retrieval_type = retrieval_config.get('type', 'unknown')
+        embedding_location = 'retrieval section' if 'embedding' in retrieval_config else 'root level'
+        qdrant_location = 'retrieval section' if 'qdrant' in retrieval_config else 'root level'
+
+        print(f"📋 Scenario summary:")
+        print(f"   Name: {self.config.get('name', 'Unnamed')}")
+        print(f"   Retrieval type: {retrieval_type}")
+        print(f"   Embedding config: {embedding_location}")
+        print(f"   Qdrant config: {qdrant_location}")
+        print(f"   K-values: {evaluation_config.get('k_values', [])}")
+        print(f"   Max queries: {self.config.get('max_queries', 'all')}")
 
     def _init_retrieval_pipeline(self):
         """Initialize retrieval pipeline from unified configuration."""
@@ -54,23 +152,114 @@ class BenchmarkRunner:
         # For now, return None - generation engine can be implemented later
         return None
 
+    def create_adapter_from_config(self, qdrant_client=None) -> BenchmarkAdapter:
+        """
+        Create a benchmark adapter from configuration.
+
+        Args:
+            qdrant_client: Optional Qdrant client for adapters that need it
+
+        Returns:
+            BenchmarkAdapter instance
+        """
+        dataset_config = self.config.get("dataset", {})
+
+        if "adapter" not in dataset_config:
+            raise ValueError(
+                "Config must specify 'dataset.adapter' as a full class path "
+                "(e.g., 'benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter')"
+            )
+
+        adapter_spec = dataset_config["adapter"]
+        dataset_path = dataset_config.get("path")
+
+        if not dataset_path:
+            raise ValueError("Config must specify 'dataset.path'")
+
+        # Get collection name for adapters that need it
+        collection_name = self.config.get("retrieval", {}).get(
+            "qdrant", {}).get("collection_name")
+
+        # Load adapter dynamically with additional kwargs for benchmark adapters
+        adapter = AdapterLoader.load_adapter(
+            adapter_spec=adapter_spec,
+            dataset_path=dataset_path,
+            version="1.0.0",
+            qdrant_client=qdrant_client,
+            collection_name=collection_name
+        )
+
+        print(f"✅ Loaded adapter: {adapter.__class__.__name__} from config")
+        return adapter
+
     def run_benchmark(
         self,
-        adapter: BenchmarkAdapter,
+        adapter: Optional[BenchmarkAdapter] = None,
         tasks: List[str] = None,
-        max_queries: int = None
+        max_queries: int = None,
+        qdrant_client=None
     ) -> Dict[str, Any]:
-        """Run comprehensive benchmark with configurable components."""
+        """
+        Run benchmark with either a provided adapter or load from config.
+
+        Args:
+            adapter: Optional pre-instantiated adapter. If None, loads from config.
+            tasks: Optional list of tasks to run
+            max_queries: Optional limit on number of queries
+            qdrant_client: Optional Qdrant client for config-based adapter creation
+        """
+        # Load adapter from config if not provided
+        if adapter is None:
+            adapter = self.create_adapter_from_config(
+                qdrant_client=qdrant_client)
 
         print(f"🚀 Running benchmark: {adapter.name}")
-
         retrieval_type = self.config.get(
             "retrieval", {}).get("type", "unknown")
         print(f"🔍 Retrieval strategy: {retrieval_type}")
 
-        if self.generation_engine:
-            print(
-                f"🤖 Generation provider: {self.generation_engine.provider_name}")
+        queries = adapter.load_queries()
+        if max_queries:
+            queries = queries[:max_queries]
+
+        print(f"📊 Evaluating {len(queries)} queries")
+
+        results = []
+        start_total = time.time()
+        for i, query in enumerate(tqdm(queries, desc="Processing queries")):
+            start_query = time.time()
+            result = self._evaluate_query(query, adapter)
+            end_query = time.time()
+            logger.info(
+                f"Processed query {i + 1}/{len(queries)} ({query.query_id}) in {end_query - start_query:.2f}s")
+            results.append(result)
+        end_total = time.time()
+        logger.info(f"Processed all queries in {end_total - start_total:.2f}s")
+
+        return self._aggregate_results(results, adapter.name)
+
+    def run_benchmark_with_individual_results(
+        self,
+        adapter: Optional[BenchmarkAdapter] = None,
+        tasks: List[str] = None,
+        max_queries: int = None,
+        qdrant_client=None
+    ) -> Dict[str, Any]:
+        """
+        Run benchmark and return both aggregated and individual results.
+
+        Args:
+            adapter: Optional pre-instantiated adapter. If None, loads from config.
+            tasks: Optional list of tasks to run
+            max_queries: Optional limit on number of queries
+            qdrant_client: Optional Qdrant client for config-based adapter creation
+        """
+        # Load adapter from config if not provided
+        if adapter is None:
+            adapter = self.create_adapter_from_config(
+                qdrant_client=qdrant_client)
+
+        print(f"🚀 Running benchmark: {adapter.name}")
 
         # Load queries
         queries = adapter.load_queries()
@@ -80,40 +269,53 @@ class BenchmarkRunner:
         print(f"📊 Evaluating {len(queries)} queries")
 
         results = []
+        individual_scores = {}  # Store individual scores per metric
 
-        # Process each query with progress bar
+        # Process each query
         for query in tqdm(queries, desc="Processing queries"):
             result = self._evaluate_query(query, adapter)
             results.append(result)
 
-        # Aggregate results
-        return self._aggregate_results(results, adapter.name)
+            # Collect individual scores
+            for metric, score in result.scores.items():
+                if metric not in individual_scores:
+                    individual_scores[metric] = []
+                individual_scores[metric].append(score)
+
+        # Aggregate results with individual scores
+        aggregated = self._aggregate_results(results, adapter.name)
+
+        # Add individual scores to metrics for CI calculation
+        for metric, scores in individual_scores.items():
+            if metric in aggregated['metrics']:
+                aggregated['metrics'][metric]['scores'] = scores
+
+        return aggregated
 
     def _evaluate_query(self, query: BenchmarkQuery, adapter: BenchmarkAdapter) -> BenchmarkResult:
-        """Evaluate a single query with configurable components."""
-
-        # Retrieval evaluation using the pipeline
-        start_time = time.time()
-
-        # Use the pipeline's run method
+        start_retrieval = time.time()
         search_results = self.retrieval_pipeline.run(
             query.query_text,
             k=self.config.get("retrieval", {}).get("top_k", 20)
         )
+        end_retrieval = time.time()
+        logger.info(
+            f"Retrieval for query {query.query_id} took {end_retrieval - start_retrieval:.2f}s")
 
-        retrieval_time = (time.time() - start_time) * 1000
+        retrieval_time = (end_retrieval - start_retrieval) * 1000
 
         # Extract document IDs from results
-        retrieved_doc_ids = []
+        retrieved_chunk_ids = []
         for result in search_results:
             doc_id = self._extract_document_id_from_result(result)
-            retrieved_doc_ids.append(str(doc_id))
+            retrieved_chunk_ids.append(str(doc_id))
 
+        print(f"   Retrieved chunk IDs: {retrieved_chunk_ids[:5]}")
         # Compute retrieval metrics
         retrieval_scores = {}
         if query.relevant_doc_ids:
             retrieval_scores = self.metrics.retrieval_metrics(
-                retrieved_doc_ids,
+                retrieved_chunk_ids,
                 query.relevant_doc_ids,
                 k_values=self.config.get("evaluation", {}).get(
                     "k_values", [1, 5, 10, 20])
@@ -152,7 +354,7 @@ class BenchmarkRunner:
 
         return BenchmarkResult(
             query_id=query.query_id,
-            retrieved_docs=retrieved_doc_ids,
+            retrieved_docs=retrieved_chunk_ids,
             generated_answer=generated_answer,
             retrieval_time_ms=retrieval_time,
             generation_time_ms=generation_time,
@@ -186,11 +388,7 @@ class BenchmarkRunner:
                 "total_queries": len(results),
                 "components": component_names
             },
-            "performance": {
-                "avg_retrieval_time_ms": np.mean([r.retrieval_time_ms for r in results]),
-                "avg_generation_time_ms": np.mean([r.generation_time_ms for r in results]),
-                "total_time_ms": sum(r.retrieval_time_ms + r.generation_time_ms for r in results)
-            },
+            "performance": self.metrics.retrieval_time_stats([r.retrieval_time_ms for r in results]),
             "metrics": {}
         }
 
@@ -220,65 +418,43 @@ class BenchmarkRunner:
                     "total_queries": len(scores),
                     "note": "No ground truth available for evaluation"
                 }
+        per_query_scores = []
+        for result in results:
+            query_scores = {
+                'query_id': result.query_id,
+                **result.scores
+            }
+            per_query_scores.append(query_scores)
+
+        aggregated["per_query_scores"] = per_query_scores
 
         return aggregated
 
     def _extract_document_id_from_result(self, result) -> str:
-        """
-        Extract document ID from retrieval result.
+        # Print for debugging
+        print("DEBUG result:", result)
+        print("DEBUG payload:", getattr(result, "payload", None))
 
-        For Qdrant, we need to get the external_id from the payload since
-        LangChain doesn't expose it in the document metadata.
-        """
-        # First try: check if external_id is in document metadata
+        # Try payload
+        if hasattr(result, "payload") and result.payload:
+            if "chunk_id" in result.payload:
+                return result.payload["chunk_id"]
+            # Try doc_id if chunk_id missing
+            if "doc_id" in result.payload:
+                return result.payload["doc_id"]
+
+        # Try metadata
         if hasattr(result, 'metadata') and result.metadata:
-            doc_id = result.metadata.get("external_id")
-            if doc_id:
-                return str(doc_id)
+            if "chunk_id" in result.metadata:
+                return result.metadata["chunk_id"]
+            if "doc_id" in result.metadata:
+                return result.metadata["doc_id"]
 
-        # Second try: check document's metadata directly
-        if hasattr(result, 'page_content'):
-            # This is a Document object, check its metadata
-            if hasattr(result, 'metadata') and result.metadata:
-                doc_id = result.metadata.get("external_id")
-                if doc_id:
-                    return str(doc_id)
+        # Try document
+        if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
+            if "chunk_id" in result.document.metadata:
+                return result.document.metadata["chunk_id"]
+            if "doc_id" in result.document.metadata:
+                return result.document.metadata["doc_id"]
 
-        # Third try: if result has document attribute
-        if hasattr(result, 'document'):
-            if hasattr(result.document, 'metadata') and result.document.metadata:
-                doc_id = result.document.metadata.get("external_id")
-                if doc_id:
-                    return str(doc_id)
-
-        # Fourth try: For complex document IDs, try to extract the external_id part
-        # Look for patterns like "stackoverflow_sosum:a_123456:hash" -> "a_123456"
-        try:
-            # Check all possible metadata locations for any ID-like fields
-            metadata_sources = []
-
-            if hasattr(result, 'metadata') and result.metadata:
-                metadata_sources.append(result.metadata)
-            if hasattr(result, 'document') and hasattr(result.document, 'metadata'):
-                metadata_sources.append(result.document.metadata)
-
-            for metadata in metadata_sources:
-                for key, value in metadata.items():
-                    if isinstance(value, str):
-                        # Try to extract answer ID from complex document IDs
-                        if ':a_' in value:
-                            # Pattern: "stackoverflow_sosum:a_123456:hash"
-                            parts = value.split(':')
-                            for part in parts:
-                                if part.startswith('a_'):
-                                    return part
-
-                        # Direct match for answer IDs
-                        if value.startswith('a_') and value.replace('a_', '').replace('_', '').isdigit():
-                            return value
-
-        except Exception as e:
-            pass
-
-        # Fallback to unknown if no ID found
         return "unknown"

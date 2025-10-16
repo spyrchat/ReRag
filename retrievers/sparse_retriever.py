@@ -20,69 +20,44 @@ class QdrantSparseRetriever(ModernBaseRetriever):
     """
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the sparse retriever.
-
-        Args:
-            config: Configuration dictionary containing:
-                - embedding: Sparse embedding configuration
-                - qdrant: Qdrant database configuration
-                - top_k: Number of results to retrieve (default: 5)
-                - score_threshold: Minimum score threshold (default: 0.0)
-        """
+        """Initialize sparse retriever with ONLY explicit configuration."""
         super().__init__(config)
 
-        # Validate required configuration
         if 'embedding' not in config:
-            logger.warning("No embedding config found, using default")
+            raise ValueError(
+                "Embedding configuration is required for sparse retriever")
         if 'qdrant' not in config:
-            logger.warning("No qdrant config found, using default")
+            raise ValueError(
+                "Qdrant configuration is required for sparse retriever")
 
-        # Initialize components lazily
+        # Always use the provided embedding config as a flat dict
+        self.embedding_config = config['embedding']
         self.embedding = None
-        self.vectorstore = None
         self._initialized = False
 
     def _initialize_components(self):
-        """Initialize embedding and vector store components."""
+        """Initialize components using ONLY explicit configuration."""
         if self._initialized:
             return
 
         try:
-            # Initialize sparse embedding - get the sparse embedding config
             from embedding.factory import get_embedder
 
-            # Extract sparse embedding config from the main config
-            embedding_section = self.config.get('embedding', {})
-            if 'sparse' in embedding_section:
-                embedding_config = embedding_section['sparse']
-            else:
-                # Default sparse embedding config
-                embedding_config = {
-                    'provider': 'sparse',
-                    'model': 'Qdrant/bm25',
-                    'vector_name': 'sparse'
-                }
+            # Use exact embedding configuration provided
+            self.embedding = get_embedder(self.embedding_config)
 
-            self.embedding = get_embedder(embedding_config)
-
-            # Initialize Qdrant database
+            # Initialize Qdrant with exact config
             from database.qdrant_controller import QdrantVectorDB
             qdrant_db = QdrantVectorDB(config=self.config)
-
-            # Store qdrant_db for direct API access
             self.qdrant_db = qdrant_db
 
             self._initialized = True
             logger.info(
-                f"Sparse retriever initialized with embedding: {type(self.embedding).__name__}")
+                "Sparse retriever initialized with explicit configuration only")
 
         except Exception as e:
-            logger.error(
-                f"Failed to initialize sparse retriever components: {e}")
-            import traceback
-            traceback.print_exc()
-            self._initialized = False
+            logger.error(f"Failed to initialize sparse retriever: {e}")
+            raise
 
     @property
     def component_name(self) -> str:
@@ -112,71 +87,78 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             if hasattr(self.embedding, 'embed_query'):
                 query_vector = self.embedding.embed_query(query)
             else:
-                # For BM25/sparse embeddings that might not have embed_query
                 query_vector = self.embedding.embed_documents([query])[0]
 
-            # Convert sparse dict to Qdrant sparse vector format for named sparse vectors
-            if isinstance(query_vector, dict):
-                from qdrant_client.models import NamedSparseVector
-
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedSparseVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector={"indices": list(query_vector.keys()), "values": list(
-                            query_vector.values())}
-                    ),
-                    limit=k,
-                    with_payload=True
-                )
-            else:
-                # Dense vector format (list) - fallback
-                from qdrant_client.models import NamedVector
-
-                search_result = self.qdrant_db.client.search(
-                    collection_name=self.qdrant_db.collection_name,
-                    query_vector=NamedVector(
-                        name=self.qdrant_db.sparse_vector_name,
-                        vector=query_vector
-                    ),
-                    limit=k,
-                    with_payload=True
+            # CRITICAL: Validate that we received a sparse vector (dictionary)
+            if not isinstance(query_vector, dict):
+                raise TypeError(
+                    f"Sparse retriever requires dictionary embedding, but received {type(query_vector)}. "
+                    f"This indicates a dense embedding model is configured instead of sparse. "
+                    f"Check your embedding configuration."
                 )
 
-            # Convert to RetrievalResult objects
-            retrieval_results = []
-            for result in search_result:
-                payload = result.payload or {}
+            # # Log sparse vector statistics for debugging
+            # logger.info(
+            #     f"[SPARSE_RETRIEVER] Query vector has {len(query_vector)} non-zero elements"
+            # )
+            # logger.debug(
+            #     f"[SPARSE_RETRIEVER] Sample indices: {list(query_vector.keys())[:10]}"
+            # )
 
-                # Create document with preserved external_id
+            # Perform Qdrant sparse search using Query API
+            from qdrant_client.models import SparseVector
+
+            query_response = self.qdrant_db.client.query_points(
+                collection_name=self.qdrant_db.collection_name,
+                query=SparseVector(
+                    indices=list(query_vector.keys()),
+                    values=list(query_vector.values())
+                ),
+                using=self.qdrant_db.sparse_vector_name,
+                limit=k,
+                with_payload=True
+            )
+
+            # Convert query_points response to RetrievalResult objects
+            # IMPORTANT: query_points returns QueryResponse with .points attribute
+            results = []
+            for point in query_response.points:
+                payload = point.payload or {}
+
                 document = Document(
-                    page_content=payload.get('page_content', ''),
+                    page_content=payload.get('text', ''),
                     metadata={
                         **payload.get('metadata', {}),
-                        # Ensure external_id is in metadata
                         'external_id': payload.get('external_id'),
-                        # Also store the Qdrant UUID for reference
-                        'qdrant_id': str(result.id)
+                        'qdrant_id': str(point.id),
+                        'chunk_id': payload.get('chunk_id')
                     }
                 )
 
                 retrieval_result = self._create_retrieval_result(
                     document=document,
-                    score=result.score,
+                    score=point.score,
                     additional_metadata={
-                        'search_type': 'sparse_similarity',
+                        'search_type': 'sparse_vector',
                         'embedding_model': type(self.embedding).__name__,
-                        # Also add to retrieval metadata
-                        'external_id': payload.get('external_id')
+                        'external_id': payload.get('external_id'),
+                        'non_zero_elements': len(query_vector)
                     }
                 )
-                retrieval_results.append(retrieval_result)
+                results.append(retrieval_result)
 
-            # Normalize scores for consistency
-            retrieval_results = self._normalize_scores(retrieval_results)
+            # logger.info(
+            #     f"[SPARSE_RETRIEVER] Retrieved {len(results)} results for query"
+            # )
 
-            return retrieval_results
+            # Normalize scores for consistency (optional, depends on your pipeline)
+            # results = self._normalize_scores(results)
 
+            return results
+
+        except TypeError as e:
+            logger.error(f"Configuration error in sparse retriever: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error during sparse search: {e}")
             import traceback

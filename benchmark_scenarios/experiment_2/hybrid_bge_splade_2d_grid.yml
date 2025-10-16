@@ -1,0 +1,160 @@
+# hybrid_bge_splade_2d_grid.yml
+pipeline:
+  name: "Hybrid Splade + BGE-M3 - 2D Grid Search (α, rrf_k)"
+  description: |
+    Two-dimensional grid search for optimal fusion parameters.
+    
+    Fixed parameter (design decision):
+    - k=10: Retrieval depth based on application constraints
+    
+    Optimized hyperparameters:
+    - α (alpha): Dense-sparse fusion weight [0.0, 1.0]
+    - rrf_k: RRF constant parameter (controls rank normalization)
+    
+    Composite objective balances success, precision, recall, and latency.
+  
+  dataset:
+    adapter: "benchmarks.benchmarks_adapters.StackOverflowBenchmarkAdapter"
+    path: "/home/spiros/Desktop/Thesis/datasets/sosum/data"
+    use_ground_truth: true
+    ground_truth_type: "unordered_binary"
+  
+  retrieval:
+    type: "hybrid"
+    top_k: 10  # FIXED - design decision
+    fusion:
+      method: "rrf"
+      alpha: 0.5      # Will be optimized (default for initialization)
+      rrf_k: 60       # Will be optimized (default for initialization)
+    qdrant:
+      host: "localhost"
+      port: 6333
+      collection_name: "sosum_stackoverflow_bge_splade_recursive_v2"
+      dense_vector_name: "dense"
+      sparse_vector_name: "sparse"
+    embedding:
+      dense:
+        provider: "huggingface"
+        model: "BAAI/bge-m3"
+        model_kwargs:
+          device: "cpu"
+        encode_kwargs:
+          normalize_embeddings: true
+      sparse:
+        provider: "sparse-splade"
+        model: "prithivida/Splade_PP_en_v1"
+      strategy: "hybrid"
+  
+  evaluation:
+    k_values: [1, 3, 5, 10, 15, 20]
+    metrics:
+      retrieval: [
+        "precision@k",
+        "recall@k",
+        "f1@k",
+        "r_precision",
+        "success@k"
+      ]
+    
+    optimization_mode: "agent_composite"
+    
+    composite_objective:
+      weights:
+        w_success: 0.35
+        w_precision_early: 0.30
+        w_recall: 0.20
+        w_precision_full: 0.15
+      latency:
+        target_ms: 500
+        max_penalty_ms: 1000
+  
+  max_queries: 506
+  experiment_name: "hybrid_2d_grid_alpha_rrfk"
+  generation:
+    enabled: false
+
+# ============================================================================
+# 2D GRID SEARCH CONFIGURATION
+# ============================================================================
+grid:
+  # Dimension 1: Alpha (dense-sparse fusion weight)
+  # Range: [0.0, 1.0]
+  # - α=0.0: Pure dense (BM25 ignored)
+  # - α=0.5: Balanced fusion
+  # - α=1.0: Pure sparse (BGE-M3 ignored)
+  alpha: "0.0:1.0:0.2"  # 11 values
+  
+  # Dimension 2: RRF k constant
+  # Range: [20, 100] recommended
+  # - Lower rrf_k: More aggressive rank normalization (top ranks matter more)
+  # - Higher rrf_k: Gentler normalization (deeper ranks have more influence)
+  # 
+  # Common values in literature: 60 (default), 30, 100
+  rrf_k: [20, 40, 60, 80, 100]  # 5 values
+  
+  # Total combinations: 11 × 5 = 55 configurations per fold
+
+# Grid search strategy
+grid_search:
+  strategy: "exhaustive"  # Try all combinations
+  # Alternative: "random" with n_samples for large grids
+  
+  # Optional: Coarse-to-fine search
+  # coarse_grid:
+  #   alpha: "0.0:1.0:0.2"
+  #   rrf_k: [30, 60, 90]
+  # fine_grid:
+  #   alpha: "best_alpha-0.2:best_alpha+0.2:0.05"
+  #   rrf_k: [best_rrf_k-20, best_rrf_k, best_rrf_k+20]
+
+cv:
+  n_folds: 5
+  random_state: 42
+  stratification:
+    method: "num_relevant"
+
+optimization:
+  epsilon: 0.01
+  prefer_balanced_alpha: true
+  
+  # Tie-breaking for 2D grid
+  tiebreak_priority:
+    - "score"           # Primary: highest composite score
+    - "balanced_alpha"  # Secondary: prefer α closer to 0.5
+    - "standard_rrf"    # Tertiary: prefer rrf_k=60 (standard)
+
+reporting:
+  primary_metrics: ["success@3", "precision@3", "recall@10", "f1@10"]
+  
+  # 2D grid visualization
+  visualizations:
+    - "heatmap_alpha_vs_rrfk"          # Score heatmap
+    - "contour_plot_composite_score"   # Contour lines
+    - "slice_plots"                     # Fix one param, vary other
+    - "pareto_frontier"                 # Latency vs quality trade-off
+
+rationale:
+  why_optimize_rrf_k: |
+    The RRF constant k controls how rank positions are normalized in fusion:
+    
+    RRF score = Σ(1 / (k + rank_i))
+    
+    - Small k (20-40): Top-ranked items dominate, aggressive fusion
+    - Medium k (50-70): Balanced fusion (standard choice)
+    - Large k (80-100): Deep ranks matter more, gentle fusion
+    
+    Optimal k depends on:
+    1. Quality distribution of rankers (how reliable are top ranks?)
+    2. Overlap between dense/sparse results
+    3. Dataset characteristics
+    
+    Therefore, k should be optimized empirically, not fixed arbitrarily.
+  
+  why_not_optimize_retrieval_k: |
+    Retrieval k=10 remains FIXED because it's a design decision based on:
+    - Application constraints (context window, latency)
+    - User requirements (how many results to show/use)
+    - System architecture (downstream processing capacity)
+    
+    α and rrf_k are hyperparameters that control HOW we fuse within k=10,
+    but k=10 itself is determined by external requirements.
