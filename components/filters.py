@@ -5,8 +5,9 @@ Filter and post-processor components for the modular retrieval pipeline.
 from typing import List, Dict, Any, Set
 import logging
 from components.retrieval_pipeline import ResultFilter, PostProcessor, RetrievalResult
+from logs.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ScoreFilter(ResultFilter):

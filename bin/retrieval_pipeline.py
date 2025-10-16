@@ -80,10 +80,10 @@ def list_available_configs():
     config_dir = Path("pipelines/configs/retrieval")
 
     if not config_dir.exists():
-        print("❌ No retrieval configurations found")
+        print("No retrieval configurations found")
         return
 
-    print("\n📋 Available configurations:")
+    print("\nAvailable configurations:")
     print("=" * 50)
 
     configs = list(config_dir.glob("*.yml"))
@@ -97,7 +97,7 @@ def list_available_configs():
                 'retriever', {}).get('type', 'unknown')
             stages = pipeline_info.get('stages', [])
 
-            print(f"\n📁 {config_file.name}")
+            print(f"\n{config_file.name}")
             print(f"   Retriever: {retriever_type}")
             print(f"   Stages: {len(stages)} components")
 
@@ -108,7 +108,7 @@ def list_available_configs():
                     f"   Pipeline: {retriever_type} → {' → '.join(stage_types)}")
 
         except Exception as e:
-            print(f"❌ Error reading {config_file.name}: {e}")
+            print(f"Error reading {config_file.name}: {e}")
 
 
 def main():

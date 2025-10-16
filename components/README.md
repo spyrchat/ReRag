@@ -137,14 +137,27 @@ reranked = reranker.rerank(
 )
 ```
 
+#### SemanticReranker
+Semantic-aware reranking for better understanding of query intent.
+
+```python
+from components.rerankers import SemanticReranker
+
+reranker = SemanticReranker(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    top_k=10
+)
+reranked = reranker.rerank(query="machine learning", results=search_results)
+```
+
 #### BM25Reranker
 Statistical reranking using BM25 algorithm.
 
 ```python
 from components.rerankers import BM25Reranker
 
-reranker = BM25Reranker(k1=1.5, b=0.75)
-reranked = reranker.rerank(query="machine learning", results=search_results, top_k=10)
+reranker = BM25Reranker(k1=1.5, b=0.75, top_k=10)
+reranked = reranker.rerank(query="machine learning", results=search_results)
 ```
 
 #### EnsembleReranker
@@ -159,7 +172,8 @@ ensemble = EnsembleReranker(
         BM25Reranker(k1=1.5, b=0.75)
     ],
     weights=[0.7, 0.3],
-    aggregation="weighted_sum"
+    aggregation="weighted_sum",
+    top_k=10
 )
 
 reranked = ensemble.rerank(query="machine learning", results=search_results)
@@ -197,6 +211,37 @@ reranker = BgeReranker(
 reranked = reranker.rerank(query="machine learning", results=search_results)
 ```
 
+#### ColBERTReranker
+Late-interaction reranking using ColBERT models.
+
+```python
+from components.advanced_rerankers import ColBERTReranker
+
+reranker = ColBERTReranker(
+    model_name="colbert-ir/colbertv2.0",
+    top_k=10
+)
+
+reranked = reranker.rerank(query="machine learning", results=search_results)
+```
+
+#### MultiStageReranker
+Multi-stage progressive reranking for efficiency.
+
+```python
+from components.advanced_rerankers import MultiStageReranker
+from components.rerankers import BM25Reranker, CrossEncoderReranker
+
+reranker = MultiStageReranker(
+    stages=[
+        BM25Reranker(top_k=50),
+        CrossEncoderReranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2", top_k=10)
+    ]
+)
+
+reranked = reranker.rerank(query="machine learning", results=search_results)
+```
+
 ---
 
 ## 🔍 Filters and Post-Processors
@@ -229,34 +274,60 @@ filter = MetadataFilter(
 filtered = filter.filter(query="machine learning", results=search_results)
 ```
 
-#### DiversityFilter
-Ensures result diversity by removing similar documents.
+#### TagFilter
+Filters results based on required or excluded tags.
 
 ```python
-from components.filters import DiversityFilter
+from components.filters import TagFilter
 
-filter = DiversityFilter(
-    similarity_threshold=0.85,
-    max_similar_docs=2
+filter = TagFilter(
+    required_tags=['python', 'machine-learning'],
+    excluded_tags=['deprecated']
 )
 
-diverse = filter.filter(query="machine learning", results=search_results)
+filtered = filter.filter(query="machine learning", results=search_results)
+```
+
+#### DuplicateFilter
+Removes duplicate results based on external_id or content.
+
+```python
+from components.filters import DuplicateFilter
+
+filter = DuplicateFilter(dedup_by="external_id")  # or "content" or "both"
+deduplicated = filter.filter(query="machine learning", results=search_results)
 ```
 
 ### Post-Processors (filters.py)
 
-#### DeduplicationPostProcessor
-Removes duplicate or near-duplicate results.
+#### AnswerEnhancer
+Enhances answer formatting and metadata.
 
 ```python
-from components.filters import DeduplicationPostProcessor
+from components.filters import AnswerEnhancer
 
-processor = DeduplicationPostProcessor(
-    similarity_threshold=0.95,
-    keep_first=True
-)
+enhancer = AnswerEnhancer()
+enhanced = enhancer.post_process(query="machine learning", results=search_results)
+```
 
-deduplicated = processor.process(query="machine learning", results=search_results)
+#### ContextEnricher
+Enriches results with additional context information.
+
+```python
+from components.filters import ContextEnricher
+
+enricher = ContextEnricher()
+enriched = enricher.post_process(query="machine learning", results=search_results)
+```
+
+#### ResultLimiter
+Limits the number of results returned.
+
+```python
+from components.filters import ResultLimiter
+
+limiter = ResultLimiter(max_results=10)
+limited = limiter.post_process(query="machine learning", results=search_results)
 ```
 
 ---
@@ -265,24 +336,36 @@ deduplicated = processor.process(query="machine learning", results=search_result
 
 ### Factory Methods:
 - ✅ create_dense_pipeline(config) - Dense retrieval only
+- ✅ create_sparse_pipeline(config) - Sparse retrieval only
 - ✅ create_hybrid_pipeline(config) - Dense + sparse retrieval
+- ✅ create_semantic_pipeline(config) - Semantic retrieval with intelligent routing
 - ✅ create_reranked_pipeline(config, reranker_model) - With cross-encoder reranking
 - ✅ create_from_config(config) - Full config-based pipeline
+- ✅ create_from_retriever_config(retriever_type, global_config) - From retriever config file
+- ✅ create_from_unified_config(config, retrieval_type) - From simplified config
 
-### Rerankers:
+### Rerankers (rerankers.py):
 - ✅ CrossEncoderReranker - Transformer-based reranking
-- ✅ BM25Reranker - Statistical reranking
-- ✅ EnsembleReranker - Combine multiple rerankers
-- ✅ CohereBReranker - Cohere API reranking
-- ✅ BgeReranker - BGE model reranking
+- ✅ SemanticReranker - Semantic-aware reranking
+- ✅ BM25Reranker - Statistical reranking (BM25 algorithm)
+- ✅ EnsembleReranker - Combine multiple rerankers with weighted voting
+
+### Advanced Rerankers (advanced_rerankers.py):
+- ✅ CohereBReranker - Cohere API reranking (commercial)
+- ✅ BgeReranker - BGE model reranking (multilingual)
+- ✅ ColBERTReranker - ColBERT late-interaction reranking
+- ✅ MultiStageReranker - Multi-stage progressive reranking
 
 ### Filters:
 - ✅ ScoreFilter - Minimum score threshold
-- ✅ MetadataFilter - Filter by metadata
-- ✅ DiversityFilter - Ensure result diversity
+- ✅ MetadataFilter - Filter by metadata criteria
+- ✅ TagFilter - Filter by required/excluded tags
+- ✅ DuplicateFilter - Remove duplicate results
 
 ### Post-Processors:
-- ✅ DeduplicationPostProcessor - Remove duplicates
+- ✅ AnswerEnhancer - Enhance answer formatting and metadata
+- ✅ ContextEnricher - Enrich results with additional context
+- ✅ ResultLimiter - Limit number of results
 
 ---
 

@@ -5,8 +5,9 @@ Reranking components for the modular retrieval pipeline.
 from typing import List, Dict, Any
 import logging
 from components.retrieval_pipeline import Reranker, RetrievalResult
+from logs.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CrossEncoderReranker(Reranker):
@@ -72,12 +73,17 @@ class CrossEncoderReranker(Reranker):
             List[RetrievalResult]: Reranked results sorted by cross-encoder scores
         """
         if not results:
+            logger.warning(f"[{self.component_name}] No results to rerank")
             return results
+
+        logger.info(f"[{self.component_name}] Starting reranking for query: '{query[:50]}...'")
+        logger.info(f"[{self.component_name}] Input: {len(results)} results")
 
         self._load_model()
 
         # Get top_k from kwargs or use instance default
         top_k = kwargs.get('top_k', self.top_k or len(results))
+        logger.debug(f"[{self.component_name}] Target top_k: {top_k}")
 
         # Prepare query-document pairs
         query_doc_pairs = []
@@ -110,12 +116,22 @@ class CrossEncoderReranker(Reranker):
             reranked_results.sort(key=lambda x: x.score, reverse=True)
             final_results = reranked_results[:top_k]
 
-            logger.info(
-                f"Reranked {len(results)} results, returning top {len(final_results)}")
+            # Log score changes and order changes
+            logger.info(f"[{self.component_name}] ✓ Reranking complete")
+            logger.info(f"[{self.component_name}]   Original scores: {[f'{r.score:.3f}' for r in results[:3]]}")
+            logger.info(f"[{self.component_name}]   Reranked scores: {[f'{r.score:.3f}' for r in final_results[:3]]}")
+            
+            # Check if order changed
+            original_ids = [id(r.document) for r in results[:5]]
+            reranked_ids = [id(r.document) for r in final_results[:5]]
+            order_changed = original_ids != reranked_ids
+            logger.info(f"[{self.component_name}]   Order changed: {order_changed}")
+            logger.info(f"[{self.component_name}]   Returning top {len(final_results)} results")
+            
             return final_results
 
         except Exception as e:
-            logger.error(f"Error in cross-encoder reranking: {e}")
+            logger.error(f"[{self.component_name}] ✗ Error in cross-encoder reranking: {e}")
             # Fallback to original results
             return results[:top_k]
 
@@ -138,13 +154,18 @@ class SemanticReranker(Reranker):
     def rerank(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Rerank using semantic similarity."""
         if not results:
+            logger.warning(f"[{self.component_name}] No results to rerank")
             return results
 
         if not self.embedder:
-            logger.warning("No embedder provided, skipping semantic reranking")
+            logger.warning(f"[{self.component_name}] No embedder provided, skipping semantic reranking")
             return results
 
+        logger.info(f"[{self.component_name}] Starting semantic reranking for query: '{query[:50]}...'")
+        logger.info(f"[{self.component_name}] Input: {len(results)} results")
+
         top_k = kwargs.get('top_k', self.top_k or len(results))
+        logger.debug(f"[{self.component_name}] Target top_k: {top_k}")
 
         try:
             import numpy as np
@@ -178,10 +199,24 @@ class SemanticReranker(Reranker):
 
             # Sort and return top_k
             reranked_results.sort(key=lambda x: x.score, reverse=True)
-            return reranked_results[:top_k]
+            final_results = reranked_results[:top_k]
+            
+            # Log changes
+            logger.info(f"[{self.component_name}] ✓ Semantic reranking complete")
+            logger.info(f"[{self.component_name}]   Original scores: {[f'{r.score:.3f}' for r in results[:3]]}")
+            logger.info(f"[{self.component_name}]   Semantic scores: {[f'{r.score:.3f}' for r in final_results[:3]]}")
+            
+            # Check if order changed
+            original_ids = [id(r.document) for r in results[:5]]
+            reranked_ids = [id(r.document) for r in final_results[:5]]
+            order_changed = original_ids != reranked_ids
+            logger.info(f"[{self.component_name}]   Order changed: {order_changed}")
+            logger.info(f"[{self.component_name}]   Returning top {len(final_results)} results")
+            
+            return final_results
 
         except Exception as e:
-            logger.error(f"Error in semantic reranking: {e}")
+            logger.error(f"[{self.component_name}] ✗ Error in semantic reranking: {e}")
             return results[:top_k]
 
 
@@ -204,7 +239,11 @@ class BM25Reranker(Reranker):
     def rerank(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Rerank using BM25 scoring."""
         if not results:
+            logger.warning(f"[{self.component_name}] No results to rerank")
             return results
+
+        logger.info(f"[{self.component_name}] Starting BM25 reranking for query: '{query[:50]}...'")
+        logger.info(f"[{self.component_name}] Input: {len(results)} results")
 
         try:
             from rank_bm25 import BM25Okapi
@@ -218,6 +257,7 @@ class BM25Reranker(Reranker):
                 nltk.download('punkt')
 
             top_k = kwargs.get('top_k', self.top_k or len(results))
+            logger.debug(f"[{self.component_name}] Target top_k: {top_k}")
 
             # Tokenize documents
             doc_texts = [result.document.page_content for result in results]
@@ -248,13 +288,27 @@ class BM25Reranker(Reranker):
 
             # Sort and return top_k
             reranked_results.sort(key=lambda x: x.score, reverse=True)
-            return reranked_results[:top_k]
+            final_results = reranked_results[:top_k]
+            
+            # Log changes
+            logger.info(f"[{self.component_name}] ✓ BM25 reranking complete")
+            logger.info(f"[{self.component_name}]   Original scores: {[f'{r.score:.3f}' for r in results[:3]]}")
+            logger.info(f"[{self.component_name}]   BM25 scores: {[f'{r.score:.3f}' for r in final_results[:3]]}")
+            
+            # Check if order changed
+            original_ids = [id(r.document) for r in results[:5]]
+            reranked_ids = [id(r.document) for r in final_results[:5]]
+            order_changed = original_ids != reranked_ids
+            logger.info(f"[{self.component_name}]   Order changed: {order_changed}")
+            logger.info(f"[{self.component_name}]   Returning top {len(final_results)} results")
+            
+            return final_results
 
         except ImportError as e:
-            logger.error(f"Missing dependency for BM25 reranking: {e}")
+            logger.error(f"[{self.component_name}] ✗ Missing dependency for BM25 reranking: {e}")
             return results[:top_k]
         except Exception as e:
-            logger.error(f"Error in BM25 reranking: {e}")
+            logger.error(f"[{self.component_name}] ✗ Error in BM25 reranking: {e}")
             return results[:top_k]
 
 
@@ -282,13 +336,20 @@ class EnsembleReranker(Reranker):
     def rerank(self, query: str, results: List[RetrievalResult], **kwargs) -> List[RetrievalResult]:
         """Rerank using ensemble of multiple rerankers."""
         if not results:
+            logger.warning(f"[{self.component_name}] No results to rerank")
             return results
 
+        logger.info(f"[{self.component_name}] Starting ensemble reranking for query: '{query[:50]}...'")
+        logger.info(f"[{self.component_name}] Input: {len(results)} results")
+        logger.info(f"[{self.component_name}] Using {len(self.rerankers)} rerankers with weights {self.weights}")
+
         top_k = kwargs.get('top_k', self.top_k or len(results))
+        logger.debug(f"[{self.component_name}] Target top_k: {top_k}")
 
         # Get scores from each reranker
         all_scores = []
-        for reranker in self.rerankers:
+        for i, reranker in enumerate(self.rerankers):
+            logger.debug(f"[{self.component_name}] Running reranker {i+1}/{len(self.rerankers)}: {reranker.component_name}")
             try:
                 reranked = reranker.rerank(query, results, **kwargs)
                 # Extract scores in same order as input
@@ -346,4 +407,18 @@ class EnsembleReranker(Reranker):
 
         # Sort and return top_k
         final_results.sort(key=lambda x: x.score, reverse=True)
-        return final_results[:top_k]
+        top_results = final_results[:top_k]
+        
+        # Log changes
+        logger.info(f"[{self.component_name}] ✓ Ensemble reranking complete")
+        logger.info(f"[{self.component_name}]   Original scores: {[f'{r.score:.3f}' for r in results[:3]]}")
+        logger.info(f"[{self.component_name}]   Ensemble scores: {[f'{r.score:.3f}' for r in top_results[:3]]}")
+        
+        # Check if order changed
+        original_ids = [id(r.document) for r in results[:5]]
+        reranked_ids = [id(r.document) for r in top_results[:5]]
+        order_changed = original_ids != reranked_ids
+        logger.info(f"[{self.component_name}]   Order changed: {order_changed}")
+        logger.info(f"[{self.component_name}]   Returning top {len(top_results)} results")
+        
+        return top_results

@@ -37,9 +37,8 @@ retrieval_pipeline:
   retriever:
     type: hybrid
     top_k: 10
-    score_threshold: 0.0
     
   stages:
     - type: score_filter
       config:
-        min_score: 0.0  # Changed from 0.3 - RRF scores are lower, so 0.3 was filtering everything out
+        min_score: 0.0  
