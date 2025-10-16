@@ -42,7 +42,7 @@ cp .env_example .env
 docker-compose up -d
 
 # Verify it's running
-curl http://localhost:6333/health
+curl http://localhost:6333/healthz
 ```
 
 ### 3. Run Your First Pipeline
