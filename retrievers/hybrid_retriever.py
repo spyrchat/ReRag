@@ -82,6 +82,10 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             dense_config = embedding_section['dense']
             sparse_config = embedding_section['sparse']
 
+            # Create a single shared Qdrant database instance
+            from database.qdrant_controller import QdrantVectorDB
+            shared_qdrant_db = QdrantVectorDB(config=self.config)
+
             # Repackage configs for sub-retrievers to match standalone usage
             dense_retriever_config = {**self.config, 'embedding': dense_config}
             sparse_retriever_config = {
@@ -91,9 +95,10 @@ class QdrantHybridRetriever(ModernBaseRetriever):
             self.sparse_retriever = QdrantSparseRetriever(
                 sparse_retriever_config)
 
-            from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB(config=self.config)
-            self.qdrant_db = qdrant_db
+            # Share the Qdrant database instance to avoid multiple connections
+            self.dense_retriever.qdrant_db = shared_qdrant_db
+            self.sparse_retriever.qdrant_db = shared_qdrant_db
+            self.qdrant_db = shared_qdrant_db
 
             self._initialized = True
             logger.info(

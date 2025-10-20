@@ -10,7 +10,7 @@ agent:
 # Supported providers: openai, ollama
 llm:
   provider: openai           # or "openai"
-  model: gpt-5-mini           # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
+  model: gpt-5-nano           # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
   temperature: 0.0
   base_url: http://localhost:11434  # Ollama URL (optional, defaults to this)
   

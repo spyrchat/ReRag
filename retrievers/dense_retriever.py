@@ -57,10 +57,11 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             # Use exact embedding configuration provided
             self.embedding = get_embedder(self.embedding_config)
 
-            # Initialize Qdrant with exact config
-            from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB(config=self.config)
-            self.qdrant_db = qdrant_db
+            # Initialize Qdrant only if not already provided (for sharing)
+            if not hasattr(self, 'qdrant_db') or self.qdrant_db is None:
+                from database.qdrant_controller import QdrantVectorDB
+                qdrant_db = QdrantVectorDB(config=self.config)
+                self.qdrant_db = qdrant_db
 
             self._initialized = True
             logger.info(
@@ -97,17 +98,14 @@ class QdrantDenseRetriever(ModernBaseRetriever):
             # Get query embedding
             query_vector = self.embedding.embed_query(query)
 
-            # Get Qdrant database instance
-            from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB(config=self.config)
-
+            # Use the Qdrant database instance created during initialization
             # Direct Qdrant search to preserve external_id
             from qdrant_client.models import NamedVector
 
-            search_result = qdrant_db.client.search(
-                collection_name=qdrant_db.collection_name,
+            search_result = self.qdrant_db.client.search(
+                collection_name=self.qdrant_db.collection_name,
                 query_vector=NamedVector(
-                    name=qdrant_db.dense_vector_name,
+                    name=self.qdrant_db.dense_vector_name,
                     vector=query_vector
                 ),
                 limit=k,

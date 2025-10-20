@@ -46,10 +46,11 @@ class QdrantSparseRetriever(ModernBaseRetriever):
             # Use exact embedding configuration provided
             self.embedding = get_embedder(self.embedding_config)
 
-            # Initialize Qdrant with exact config
-            from database.qdrant_controller import QdrantVectorDB
-            qdrant_db = QdrantVectorDB(config=self.config)
-            self.qdrant_db = qdrant_db
+            # Initialize Qdrant only if not already provided (for sharing)
+            if not hasattr(self, 'qdrant_db') or self.qdrant_db is None:
+                from database.qdrant_controller import QdrantVectorDB
+                qdrant_db = QdrantVectorDB(config=self.config)
+                self.qdrant_db = qdrant_db
 
             self._initialized = True
             logger.info(
