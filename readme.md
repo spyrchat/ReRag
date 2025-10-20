@@ -19,7 +19,7 @@
 ```bash
 # Clone repository
 git clone <repository-url>
-cd Thesis
+cd ReRag
 
 # Create virtual environment
 python -m venv venv
@@ -43,10 +43,14 @@ docker-compose up -d
 
 # Verify it's running
 curl http://localhost:6333/healthz
+
+#You can see the ingestion results in Qdrant's Web UI visiting the link below:
+http://localhost:6333/dashboard#/collections
 ```
 
 ### 3. Run Your First Pipeline
 ```bash
+#First download the dataset from the scripts folder
 # Ingest documents (requires dataset - see Data Ingestion section)
 python bin/ingest.py ingest --config pipelines/configs/datasets/stackoverflow_hybrid.yml
 
@@ -174,7 +178,7 @@ Modular RAG system with three main subsystems:
 │  Documents      Vector Search    LangGraph                 │
 │  Chunking       Reranking        Response Gen              │
 │  Embedding      Filtering        Verification              │
-│  ↓                ↓                 ↓                       │
+│  ↓                ↓                 ↓                      │
 │  └───────────→ Qdrant ←───────────┘                        │
 │                                                            │
 │  📈 BENCHMARKS: Evaluation & Optimization                  │
