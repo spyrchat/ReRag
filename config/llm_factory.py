@@ -46,6 +46,10 @@ def create_llm(config: Dict[str, Any]):
         return _create_openai_llm(model, temperature, config)
     elif provider == "ollama":
         return _create_ollama_llm(model, temperature, config)
+    elif provider == "anthropic":
+        return _create_anthropic_llm(model, temperature, config)
+    elif provider == "gemini" or provider == "google":
+        return _create_gemini_llm(model, temperature, config)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -103,6 +107,71 @@ def _create_ollama_llm(model: str, temperature: float, config: Dict[str, Any]):
         )
 
 
+def _create_anthropic_llm(model: str, temperature: float, config: Dict[str, Any]):
+    """Create Anthropic Claude LLM instance."""
+    try:
+        from langchain_anthropic import ChatAnthropic
+        import os
+
+        api_key = config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable "
+                "or provide 'api_key' in config."
+            )
+
+        llm = ChatAnthropic(
+            model=model,
+            temperature=temperature,
+            api_key=api_key,
+            max_tokens=config.get("max_tokens", 4096),
+            timeout=config.get("timeout"),
+            max_retries=config.get("max_retries", 2)
+        )
+
+        logger.info(f"✓ Anthropic LLM created: {model}")
+        return llm
+
+    except ImportError:
+        raise ImportError(
+            "langchain-anthropic is not installed. "
+            "Install with: pip install langchain-anthropic"
+        )
+
+
+def _create_gemini_llm(model: str, temperature: float, config: Dict[str, Any]):
+    """Create Google Gemini LLM instance."""
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        import os
+
+        api_key = config.get("api_key") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Google API key not found. Set GOOGLE_API_KEY environment variable "
+                "or provide 'api_key' in config."
+            )
+
+        llm = ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            google_api_key=api_key,
+            max_output_tokens=config.get("max_tokens"),
+            timeout=config.get("timeout"),
+            max_retries=config.get("max_retries", 2),
+            convert_system_message_to_human=True  # Gemini compatibility
+        )
+
+        logger.info(f"✓ Gemini LLM created: {model}")
+        return llm
+
+    except ImportError:
+        raise ImportError(
+            "langchain-google-genai is not installed. "
+            "Install with: pip install langchain-google-genai"
+        )
+
+
 def get_available_providers() -> list:
     """
     Get list of available LLM providers based on installed packages.
@@ -124,6 +193,18 @@ def get_available_providers() -> list:
     except ImportError:
         pass
 
+    try:
+        import langchain_anthropic
+        providers.append("anthropic")
+    except ImportError:
+        pass
+
+    try:
+        import langchain_google_genai
+        providers.append("gemini")
+    except ImportError:
+        pass
+
     return providers
 
 
@@ -142,7 +223,7 @@ def validate_llm_config(config: Dict[str, Any]) -> bool:
         return False
 
     provider = config.get("provider", "openai").lower()
-    if provider not in ["openai", "ollama"]:
+    if provider not in ["openai", "ollama", "anthropic", "gemini", "google"]:
         logger.error(f"Unsupported provider: {provider}")
         return False
 

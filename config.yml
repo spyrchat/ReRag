@@ -1,39 +1,24 @@
-# ============================================================================
-# MINIMAL CONFIG FOR MAIN.PY - RAG AGENT
-# ============================================================================
-
 # === Agent Configuration ===
 agent:
   mode: refined  # "simple" (old) or "refined" (new multi-stage pipeline)
 
 # === LLM Configuration ===
-# Supported providers: openai, ollama
+# Supported providers: openai, ollama, anthropic, gemini
 llm:
-  provider: openai           # or "openai"
-  model: gpt-5-nano           # For Ollama: llama3.1, mistral, etc. For OpenAI: gpt-4o-mini, gpt-4
+  provider: anthropic        # Options: openai, ollama, anthropic, gemini
+  model: claude-haiku-4-5    
   temperature: 0.0
   base_url: http://localhost:11434  # Ollama URL (optional, defaults to this)
   
   # Ollama-specific parameters
-  num_ctx: 8192              # Context window size (default: 2048)
-  num_predict: 2048          # Max tokens to generate per response (default: 128)
-  # Increase num_predict if you need longer answers (e.g., 4096 for very detailed responses)
+  num_ctx: 8192              
+  num_predict: 2048          
 
-# Example OpenAI config:
-# llm:
-#   provider: openai
-#   model: gpt-4o-mini
-#   temperature: 0.0
-
-# === Agent Retrieval Configuration ===
-# Points to the retrieval pipeline config (separate file)
 agent_retrieval:
-  config_path: pipelines/configs/retrieval/hybrid_optimal.yml
+  config_path: pipelines/configs/retrieval/dense_bge_m3.yml
 
-# === Generation Configuration ===
-# Controls how the LLM generates answers
 generation:
-  prompt_style: conversational  # Options: "strict", "conversational", "citations"
+  prompt_style: conversational  
   # strict:         Strict grounding to context, minimal hallucinations (best for benchmarks)
   # conversational: More natural, allows some inference (best for UX)
   # citations:      Research-focused with explicit references (best for verification)
@@ -41,9 +26,7 @@ generation:
 # === Self-RAG Configuration ===
 # Controls iterative refinement with verification
 self_rag:
-  max_iterations: 3  # Maximum refinement cycles (1-5 recommended)
-  # Higher values = more refinement attempts but slower response time
-  # Recommended: 3 for production, 5 for maximum accuracy
+  max_iterations: 5  
 
 # === Benchmark Configuration ===
 benchmark:
