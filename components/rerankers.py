@@ -22,7 +22,7 @@ class CrossEncoderReranker(Reranker):
     """
 
     def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-                 device: str = "cpu", top_k: int = None):
+                 device: str = "cpu", top_k: int = None, apply_sigmoid: bool = False):
         """
         Initialize the cross-encoder reranker.
 
@@ -30,14 +30,18 @@ class CrossEncoderReranker(Reranker):
             model_name (str): HuggingFace model name for cross-encoder
             device (str): Device to run inference on ('cpu' or 'cuda')
             top_k (int, optional): Maximum number of results to return
+            apply_sigmoid (bool): If True, apply sigmoid to convert logits to 0-1 scores.
+                                  Default False (use raw logits for ranking).
         """
         self.model_name = model_name
         self.device = device
         self.top_k = top_k
+        self.apply_sigmoid = apply_sigmoid
         self._model = None
 
         logger.info(
-            f"Initialized CrossEncoderReranker with model: {model_name}")
+            f"Initialized CrossEncoderReranker with model: {model_name}, "
+            f"sigmoid: {apply_sigmoid}")
 
     @property
     def component_name(self) -> str:
@@ -94,7 +98,21 @@ class CrossEncoderReranker(Reranker):
 
         # Score with cross-encoder
         try:
-            scores = self._model.predict(query_doc_pairs)
+            # Cross-encoders output RAW LOGITS (not probabilities)
+            # - Scores typically range from ~-25 to +25
+            # - Negative scores are NORMAL and indicate relevance
+            # - Less negative (closer to 0 or positive) = more relevant
+            # - More negative = less relevant
+            # - Only RANKING matters, not absolute values
+            # - To get 0-1 scores, apply sigmoid: predict(..., activation_fn=nn.Sigmoid())
+            
+            if self.apply_sigmoid:
+                # Apply sigmoid to get 0-1 normalized scores
+                import torch.nn as nn
+                scores = self._model.predict(query_doc_pairs, activation_fn=nn.Sigmoid())
+            else:
+                # Use raw logits (default, better for ranking)
+                scores = self._model.predict(query_doc_pairs)
 
             # Update results with new scores
             reranked_results = []

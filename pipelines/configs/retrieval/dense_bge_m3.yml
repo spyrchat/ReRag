@@ -34,3 +34,4 @@ retrieval_pipeline:
         model_type: cross_encoder
         model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
         top_k: 5
+        apply_sigmoid: true

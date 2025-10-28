@@ -445,7 +445,8 @@ class RetrievalPipelineFactory:
                 return CrossEncoderReranker(
                     model_name=config.get(
                         "model_name", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
-                    top_k=config.get("top_k")
+                    top_k=config.get("top_k"),
+                    apply_sigmoid=config.get("apply_sigmoid", False)
                 )
 
             elif model_type == "bge":

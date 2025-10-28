@@ -1,8 +1,5 @@
 # Core Components
 
-**Last Verified:** 2025-10-08  
-**Status:** ✅ Verified against actual codebase
-
 Modular retrieval components providing reranking, filtering, and pipeline orchestration capabilities.
 
 ---
@@ -366,15 +363,6 @@ limited = limiter.post_process(query="machine learning", results=search_results)
 - ✅ AnswerEnhancer - Enhance answer formatting and metadata
 - ✅ ContextEnricher - Enrich results with additional context
 - ✅ ResultLimiter - Limit number of results
-
----
-
-## 📝 Notes
-
-- All classes and methods listed above have been **verified against the actual codebase**
-- Examples use real configuration patterns from the project
-- See components/__init__.py for full exports list
-- See individual module files for detailed docstrings
 
 ---
 
