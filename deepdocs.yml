@@ -1,6 +1,6 @@
 target:
-  - url: "docs/"
+  - url: "./"
 
-reinit: "a-random-string"
+reinit: "a-random-strin"
 
 ignore: []
