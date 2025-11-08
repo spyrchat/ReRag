@@ -357,8 +357,8 @@ qdrant:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GOOGLE_API_KEY` | Google AI API key | Yes |
-| `OPENAI_API_KEY` | OpenAI API key | Yes |
+| `GOOGLE_API_KEY` | Google AI API key | No |
+| `OPENAI_API_KEY` | OpenAI API key | No |
 | `VOYAGE_API_KEY` | Voyage AI API key | No |
 
 ---
