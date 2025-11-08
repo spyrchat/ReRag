@@ -1,6 +1,0 @@
-target:
-  - url: "./"
-
-reinit: "a-random-strin"
-
-ignore: []
